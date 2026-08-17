@@ -1,0 +1,30 @@
+{
+    "gem_name": "GOAT",
+    "version": "1.0.0",
+    "display_name": "GOAT",
+    "license": "Apache-2.0 or MIT",
+    "license_url": "",
+    "origin": "JabbaDaBlack",
+    "origin_url": "https://github.com/jabbadablack",
+    "type": "Code",
+    "summary": "G.O.A.T is a Goal-Oriented Action Planning framework for AI flow.",
+    "canonical_tags": [
+        "Gem"
+    ],
+    "user_tags": [
+        "GOAT"
+    ],
+    "platforms": [
+        "Windows","iOS","Android","Linux"
+    ],
+    "icon_path": "",
+    "requirements": "",
+    "documentation_url": "",
+    "dependencies": [
+    ],
+    "repo_uri": "",
+    "compatible_engines": [
+    ],
+    "engine_api_dependencies":[
+    ]
+}
