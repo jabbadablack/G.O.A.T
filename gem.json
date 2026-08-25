@@ -3,7 +3,7 @@
     "version": "1.0.0",
     "display_name": "GOAT",
     "license": "Apache-2.0 or MIT",
-    "license_url": "",
+    "license_url": "https://github.com/o3de/o3de/blob/development/LICENSE.txt",
     "origin": "JabbaDaBlack",
     "origin_url": "https://github.com/jabbadablack",
     "type": "Code",
@@ -12,7 +12,9 @@
         "Gem"
     ],
     "user_tags": [
-        "GOAT"
+        "Simulation",
+        "Scripting",
+        "Gameplay"
     ],
     "platforms": [
         "Windows","iOS","Android","Linux"
@@ -21,8 +23,10 @@
     "requirements": "",
     "documentation_url": "",
     "dependencies": [
+        "RecastNavigation",
+        "GraphCanvas"
     ],
-    "repo_uri": "",
+    "repo_uri": "https://github.com/jabbadablack/G.O.A.T",
     "compatible_engines": [
     ],
     "engine_api_dependencies":[
