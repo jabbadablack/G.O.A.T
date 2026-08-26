@@ -5,6 +5,9 @@
 #include <AzCore/Task/TaskExecutor.h>
 #include <AzCore/Task/TaskGraph.h>
 #include <AzCore/std/containers/vector.h>
+#include <AzCore/Time/ITime.h>
+#include <AzCore/std/parallel/atomic.h>
+#include <AzCore/std/parallel/condition_variable.h>
 #include <AzCore/std/parallel/mutex.h>
 #include <AzCore/std/parallel/shared_mutex.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
@@ -105,9 +108,22 @@ namespace GOAT_Navigation
         //! Blocks until no worker is running. Must be called before anything a worker reads is torn down.
         void WaitForInFlight();
 
+        //! Reports one worker finished. The last one wakes whoever is waiting on the batch.
+        void FinishTask();
+
+        //! Destroys the finished batch's graph, once it is safe to.
+        void RetireBatch();
+
+        //! Re-binds when a mesh should be usable but is not, so a missed notification does not
+        //! leave path queries failing for the rest of the level.
+        void RecoverBinding();
+
         //! Runs one query and stores the result by id. Takes no pointer into the request table,
         //! because RequestPath may reallocate it while this runs on a worker thread.
         void RunQuery(PathRequestId id, Worker& worker);
+
+        //! The work one worker does, wrapped by RunQuery so the in flight count always falls.
+        void RunQueryAndStore(PathRequestId id, Worker& worker);
 
         //! The query itself, on a worker's own objects, under a shared read lock.
         void RunQueryImpl(
@@ -137,8 +153,31 @@ namespace GOAT_Navigation
 
         //! Sized from goat_pathQueryThreads at construction; TaskExecutor takes its count there.
         AZStd::unique_ptr<AZ::TaskExecutor> m_executor;
-        AZ::TaskGraph m_taskGraph{ "GOAT navigation queries" };
+
+        //! One graph per batch, never reused. AZ::TaskGraph sets its submitted flag *after*
+        //! handing the tasks to the executor, so a batch that finishes during that call clears
+        //! the flag first and has it set again permanently -- after which Reset and AddTask
+        //! both assert. Short path queries hit that race routinely, so nothing is reused.
+        AZStd::unique_ptr<AZ::TaskGraph> m_taskGraph;
+
+        //! Not a resubmit gate -- the in flight count is that. This exists only so the graph
+        //! can be destroyed safely: the count falls inside a task body, which is before the
+        //! executor releases that task, and the graph must outlive every release.
         AZStd::unique_ptr<AZ::TaskGraphEvent> m_taskGraphEvent;
         AZ::TaskDescriptor m_taskDescriptor{ "Path query", "GOAT Navigation" };
+
+        //! How many workers are still running, which is the only thing gating a new batch.
+        //! Counted here rather than read from a TaskGraphEvent so completion does not depend
+        //! on the graph's own state, which the race above corrupts.
+        mutable AZStd::mutex m_flightLock;
+        AZStd::condition_variable m_flightIdle;
+        size_t m_tasksInFlight = 0;
+
+        //! True between a mesh rebuild starting and finishing, when reads must not run.
+        //! Atomic because Recast raises those notifications from whichever thread drives the
+        //! rebuild, while Update reads this on the main thread.
+        AZStd::atomic<bool> m_recalculating{ false };
+        //! When that window opened, so a rebuild that never reports finishing cannot stall paths.
+        AZStd::atomic<AZ::TimeMs> m_recalculatingSince{ AZ::TimeMs{ 0 } };
     };
 } // namespace GOAT_Navigation

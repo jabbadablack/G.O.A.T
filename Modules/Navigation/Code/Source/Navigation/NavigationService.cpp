@@ -28,6 +28,9 @@ namespace GOAT_Navigation
         constexpr int MaxPathPoints = 256;
         //! How far from a given position a walkable polygon is looked for.
         constexpr float PolygonSearchExtents = 3.0f;
+
+        //! How long a mesh rebuild may run before queries stop waiting for it to report finishing.
+        constexpr AZ::TimeMs RecalculationGrace{ 5000 };
     } // namespace
 
     NavigationService::NavigationService()
@@ -65,15 +68,40 @@ namespace GOAT_Navigation
 
     void NavigationService::WaitForInFlight()
     {
-        if (m_taskGraphEvent == nullptr)
         {
-            return;
+            AZStd::unique_lock<AZStd::mutex> lock(m_flightLock);
+            m_flightIdle.wait(lock, [this] { return m_tasksInFlight == 0; });
+            AZ_Assert(m_tasksInFlight == 0, "Waiting must leave no worker running");
         }
 
-        m_taskGraphEvent->Wait();
-        m_taskGraphEvent.reset();
+        RetireBatch();
+    }
 
-        AZ_Assert(m_taskGraphEvent == nullptr, "Waiting must leave no task graph event behind");
+    void NavigationService::RetireBatch()
+    {
+        // The wait event signals only once the executor has released every task, which is
+        // strictly later than the last task body running, so this is what makes destroying
+        // the graph safe. It returns at once when the batch has already finished.
+        if (m_taskGraphEvent != nullptr)
+        {
+            m_taskGraphEvent->Wait();
+        }
+
+        m_taskGraphEvent.reset();
+        m_taskGraph.reset();
+
+        AZ_Assert(m_taskGraph == nullptr, "Retiring a batch must leave no graph behind");
+    }
+
+    void NavigationService::FinishTask()
+    {
+        AZStd::lock_guard<AZStd::mutex> lock(m_flightLock);
+
+        AZ_Assert(m_tasksInFlight > 0, "A worker finished a batch that was not counted as running");
+        if (m_tasksInFlight > 0 && --m_tasksInFlight == 0)
+        {
+            m_flightIdle.notify_all();
+        }
     }
 
     void NavigationService::ClearNavigationMesh()
@@ -96,6 +124,7 @@ namespace GOAT_Navigation
         m_navMesh = nullptr;
         m_navObject.reset();
         m_navMeshEntity = AZ::EntityId{};
+        m_recalculating = false;
         for (Worker& worker : m_workers)
         {
             worker.m_initialised = false;
@@ -163,6 +192,9 @@ namespace GOAT_Navigation
         AZ_Assert(navigationMeshEntity == m_navMeshEntity,
             "A navigation notification arrived for an entity this service is not bound to");
 
+        m_recalculating = true;
+        m_recalculatingSince = AZ::GetElapsedTimeMs();
+
         // Recast is about to add and remove tiles, so stop every reader until it is done.
         AZStd::unique_lock<AZStd::shared_mutex> writeLock(m_meshLock);
         m_navMesh = nullptr;
@@ -176,6 +208,8 @@ namespace GOAT_Navigation
     {
         AZ_Assert(navigationMeshEntity == m_navMeshEntity,
             "A navigation notification arrived for an entity this service is not bound to");
+
+        m_recalculating = false;
 
         // The mesh object itself may have been replaced, so re-fetch and re-init rather than reuse.
         RebindWorkers();
@@ -268,6 +302,13 @@ namespace GOAT_Navigation
     }
 
     void NavigationService::RunQuery(PathRequestId id, Worker& worker)
+    {
+        // The count must fall on every path out of the work below, so the work is nested.
+        RunQueryAndStore(id, worker);
+        FinishTask();
+    }
+
+    void NavigationService::RunQueryAndStore(PathRequestId id, Worker& worker)
     {
         // Read the endpoints back out by id: a Running request is never erased, so it is still here.
         AZ::Vector3 from = AZ::Vector3::CreateZero();
@@ -417,8 +458,17 @@ namespace GOAT_Navigation
 
         AZ_Assert(!m_workers.empty(), "Submitting a query with no workers configured");
 
-        m_taskGraph.Reset();
+        // A brand new graph every batch. See the member's comment: a reused one latches its
+        // submitted flag when a batch completes during SubmitOnExecutor.
+        RetireBatch();
+        m_taskGraph = AZStd::make_unique<AZ::TaskGraph>("GOAT navigation queries");
         m_taskGraphEvent = AZStd::make_unique<AZ::TaskGraphEvent>("GOAT navigation queries");
+
+        {
+            AZStd::lock_guard<AZStd::mutex> lock(m_flightLock);
+            AZ_Assert(m_tasksInFlight == 0, "A batch was submitted while another was still running");
+            m_tasksInFlight = toRun.size();
+        }
 
         for (size_t i = 0; i < toRun.size(); ++i)
         {
@@ -426,14 +476,14 @@ namespace GOAT_Navigation
             // is captured because a task lambda may hold at most 56 bytes.
             const PathRequestId id = toRun[i];
             Worker* worker = &m_workers[i % m_workers.size()];
-            m_taskGraph.AddTask(m_taskDescriptor,
+            m_taskGraph->AddTask(m_taskDescriptor,
                 [this, id, worker]()
                 {
                     RunQuery(id, *worker);
                 });
         }
 
-        m_taskGraph.SubmitOnExecutor(*m_executor, m_taskGraphEvent.get());
+        m_taskGraph->SubmitOnExecutor(*m_executor, m_taskGraphEvent.get());
     }
 
     void NavigationService::ReapCancelled()
@@ -454,16 +504,49 @@ namespace GOAT_Navigation
         }
     }
 
-    void NavigationService::Update()
+    void NavigationService::RecoverBinding()
     {
-        // IsSignaled consumes the signal, so it is only ever the "may I resubmit" gate and a
-        // fresh event is allocated in the same breath.
-        if (m_taskGraphEvent != nullptr && !m_taskGraphEvent->IsSignaled())
+        if (!m_navMeshEntity.IsValid())
         {
             return;
         }
-        m_taskGraphEvent.reset();
 
+        {
+            AZStd::shared_lock<AZStd::shared_mutex> readLock(m_meshLock);
+            if (m_navMesh != nullptr)
+            {
+                return;
+            }
+        }
+
+        // Inside a rebuild, having no mesh is correct and reads must keep waiting. Past the
+        // grace period it means the finishing notification never arrived, and continuing to
+        // wait would fail every path query for the rest of the level.
+        const bool recalculating = m_recalculating;
+        if (recalculating && AZ::GetElapsedTimeMs() - m_recalculatingSince.load() < RecalculationGrace)
+        {
+            return;
+        }
+
+        AZ_Warning("GOAT", !recalculating,
+            "Navigation mesh entity %s never reported finishing its rebuild; re-binding anyway",
+            m_navMeshEntity.ToString().c_str());
+
+        m_recalculating = false;
+        RebindWorkers();
+    }
+
+    void NavigationService::Update()
+    {
+        {
+            AZStd::lock_guard<AZStd::mutex> lock(m_flightLock);
+            if (m_tasksInFlight != 0)
+            {
+                return;
+            }
+        }
+
+        RecoverBinding();
         ReapCancelled();
         SubmitPending();
     }
