@@ -1,6 +1,7 @@
 #pragma once
 
 #include <AzCore/base.h>
+#include <AzCore/std/hash.h>
 
 namespace GOAT
 {
@@ -37,3 +38,15 @@ namespace GOAT
         AZ::u32 m_generation = 0;
     };
 } // namespace GOAT
+
+namespace AZStd
+{
+    template<typename Tag>
+    struct hash<GOAT::Handle<Tag>>
+    {
+        size_t operator()(const GOAT::Handle<Tag>& handle) const
+        {
+            return (static_cast<size_t>(handle.GetGeneration()) << 32) ^ handle.GetIndex();
+        }
+    };
+} // namespace AZStd

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Core/Domain/BlackboardLayout.h>
+#include <GOAT/Domain/BlackboardLayout.h>
 
 #include <GOAT/Domain/BlackboardKey.h>
 #include <GOAT/Domain/BlackboardTraits.h>
@@ -18,7 +18,11 @@ namespace GOAT
         //! Signalled with the key that changed, so observers wake only for what they watch.
         using ChangedEvent = AZ::Event<BlackboardKey>;
 
-        //! Sizes every array from a layout and applies its declared defaults.
+        //! Grows every array to the layout's slot counts, seeding only the newly added slots.
+        //! Existing values are kept, so declaring a variable later does not disturb live agents.
+        void EnsureCapacity(const BlackboardLayout& layout);
+
+        //! Discards every value and re-seeds from the layout.
         void Reset(const BlackboardLayout& layout);
 
         //! Returns the value at a key, or nullptr when the key is the wrong type or out of range.

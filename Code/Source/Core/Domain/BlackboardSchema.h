@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Core/Domain/BlackboardLayout.h>
+#include <GOAT/Domain/BlackboardLayout.h>
 
 #include <GOAT/Domain/BlackboardKey.h>
 

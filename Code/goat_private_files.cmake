@@ -3,16 +3,18 @@ set(FILES
     Source/GOATModuleInterface.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
+    Source/Core/Application/BlackboardSystem.cpp
+    Source/Core/Application/BlackboardSystem.h
+    Source/Core/Application/SquadRegistry.cpp
+    Source/Core/Application/SquadRegistry.h
     Source/Core/Domain/ActionPlan.cpp
     Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/BlackboardKey.cpp
-    Source/Core/Domain/BlackboardTypes.cpp
-    Source/Core/Domain/Guard.cpp
-    Source/Core/Domain/Intent.cpp
-    Source/Core/Domain/BlackboardLayout.h
     Source/Core/Domain/BlackboardSchema.cpp
     Source/Core/Domain/BlackboardSchema.h
     Source/Core/Domain/BlackboardStorage.cpp
-    Source/Core/Domain/BlackboardStorage.h
+    Source/Core/Domain/BlackboardTypes.cpp
+    Source/Core/Domain/Guard.cpp
+    Source/Core/Domain/Intent.cpp
     Source/Core/Memory/HandleTable.h
 )
