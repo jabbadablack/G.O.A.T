@@ -1,11 +1,14 @@
 #include <Core/Frontend/ServiceTracker.h>
 
+#include <AzCore/Debug/Trace.h>
+
 namespace GOAT
 {
     void ServiceTracker::CollectDue(
         const DecisionProgram& program, DecisionCursor& cursor, AZStd::vector<AZ::u32>& outServices) const
     {
         outServices.clear();
+        AZ_Assert(!program.m_nodes.empty(), "Services are only collected from a compiled program");
 
         const NodeIndex leaf = cursor.GetActiveLeaf();
         if (leaf == InvalidNodeIndex)
@@ -16,6 +19,8 @@ namespace GOAT
         const float now = cursor.GetNow();
         for (const NodeIndex nodeIndex : program.m_serviceNodes)
         {
+            AZ_Assert(nodeIndex < program.m_nodes.size(), "A service node index must address a node in the program");
+
             const DecisionNode& node = program.m_nodes[nodeIndex];
 
             // In scope means the running leaf is somewhere inside this composite's subtree.
@@ -27,6 +32,8 @@ namespace GOAT
             for (AZ::u16 offset = 0; offset < node.m_serviceCount; ++offset)
             {
                 const AZ::u32 service = node.m_firstService + offset;
+                AZ_Assert(service < program.m_services.size(), "A service index must address a compiled service");
+
                 float& due = cursor.ServiceDue(service);
                 if (due > now)
                 {
@@ -35,6 +42,8 @@ namespace GOAT
 
                 due = now + AZStd::max(program.m_services[service].m_interval, 0.0f);
                 outServices.push_back(service);
+
+                AZ_Assert(due >= now, "A service's next due time must never be in the past");
             }
         }
     }

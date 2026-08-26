@@ -15,8 +15,11 @@ namespace GOAT
     void AgentObserver::Connect(const DecisionProgram& program, IBlackboardSystem& blackboard, AgentId agent)
     {
         Disconnect();
+        AZ_Assert(m_observed.empty(), "Connecting must start from a disconnected observer");
 
         m_observed = program.m_observedKeys;
+        AZ_Assert(AZStd::is_sorted(m_observed.begin(), m_observed.end()),
+            "Observed keys must be sorted, because OnChanged looks them up with a binary search");
         if (m_observed.empty())
         {
             // A tree with no guards never needs waking.
@@ -39,6 +42,9 @@ namespace GOAT
             }
 
             BlackboardStorage* storage = blackboard.FindStorage(scope, agent);
+            AZ_Warning("GOAT", storage != nullptr,
+                "Agent %u guards a variable in a scope it has no storage for, so those guards never fire",
+                agent.GetIndex());
             if (storage == nullptr)
             {
                 continue;
@@ -52,6 +58,7 @@ namespace GOAT
             storage->ConnectChangedHandler(m_handlers[scopeIndex]);
         }
 
+        // A freshly connected agent has never evaluated its guards, so it starts dirty.
         m_dirty = true;
     }
 
@@ -62,5 +69,7 @@ namespace GOAT
             handler.Disconnect();
         }
         m_observed.clear();
+
+        AZ_Assert(m_observed.empty(), "Disconnecting must leave no observed keys behind");
     }
 } // namespace GOAT

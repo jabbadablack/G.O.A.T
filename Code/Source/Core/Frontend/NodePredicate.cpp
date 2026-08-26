@@ -9,6 +9,10 @@ namespace GOAT
         //! Compares two slots of the same type for equality.
         bool SlotsAreEqual(const IBlackboardSystem& blackboard, BlackboardKey left, BlackboardKey right, AgentId agent)
         {
+            AZ_Assert(left.IsValid() && right.IsValid(), "A compare always names two declared variables");
+            AZ_Warning("GOAT", left.GetType() == right.GetType(),
+                "A compare reads variables of different types, so it can never match");
+
             if (left.GetType() != right.GetType())
             {
                 return false;
@@ -54,6 +58,11 @@ namespace GOAT
 
     bool EvaluateNodePredicate(const DecisionNode& node, const PlanContext& context)
     {
+        AZ_Assert(node.m_op == NodeOp::Condition || node.m_op == NodeOp::Compare,
+            "Only a condition or a compare has a predicate to evaluate");
+        AZ_Assert(context.m_blackboard != nullptr, "Evaluating a predicate needs a blackboard");
+        AZ_Assert(node.m_key.IsValid(), "A compiled predicate always names a declared variable");
+
         if (context.m_blackboard == nullptr || !node.m_key.IsValid())
         {
             return false;
@@ -64,7 +73,11 @@ namespace GOAT
             return SlotsAreEqual(*context.m_blackboard, node.m_key, node.m_otherKey, context.m_agent);
         }
 
+        AZ_Assert(node.m_key.GetType() == BlackboardType::Bool, "A condition reads a boolean variable");
+
         const bool* value = context.m_blackboard->Find<bool>(node.m_key, context.m_agent);
+        AZ_Warning("GOAT", value != nullptr,
+            "A condition reads a variable agent %u has no storage for, so it always fails", context.m_agent.GetIndex());
         return value != nullptr && *value;
     }
 } // namespace GOAT
