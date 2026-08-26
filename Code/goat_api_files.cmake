@@ -1,6 +1,7 @@
 set(FILES
     Include/GOAT/GOATBus.h
     Include/GOAT/GOATTypeIds.h
+    Include/GOAT/Assets/BehaviorTreeAsset.h
     Include/GOAT/Assets/BlackboardAsset.h
     Include/GOAT/Domain/ActionPlan.h
     Include/GOAT/Domain/ActionState.h
@@ -11,9 +12,11 @@ set(FILES
     Include/GOAT/Domain/BlackboardStorage.h
     Include/GOAT/Domain/BlackboardTraits.h
     Include/GOAT/Domain/BlackboardTypes.h
+    Include/GOAT/Domain/DecisionProgram.h
     Include/GOAT/Domain/Guard.h
     Include/GOAT/Domain/Handle.h
     Include/GOAT/Domain/Intent.h
+    Include/GOAT/Domain/NodeType.h
     Include/GOAT/Interfaces/IActionState.h
     Include/GOAT/Interfaces/IBackend.h
     Include/GOAT/Interfaces/IBlackboardSystem.h

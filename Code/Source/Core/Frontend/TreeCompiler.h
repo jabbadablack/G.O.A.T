@@ -1,0 +1,37 @@
+#pragma once
+
+#include <Core/Application/NodeTypeRegistry.h>
+
+#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT/Interfaces/IBlackboardSystem.h>
+
+#include <AzCore/Outcome/Outcome.h>
+#include <AzCore/std/string/string.h>
+
+namespace GOAT
+{
+    //! Turns an authored tree into the flat form the walker executes.
+    //! Both Lua and a future graph editor produce the asset this consumes, so the
+    //! runtime never learns which one an agent's tree came from.
+    class TreeCompiler final
+    {
+    public:
+        TreeCompiler(const NodeTypeRegistry& types, const IBlackboardSystem& blackboard);
+
+        //! Compiles an authored tree. On failure the message names the offending node.
+        AZ::Outcome<DecisionProgram, AZStd::string> Compile(const BehaviorTreeAsset& asset) const;
+
+    private:
+        //! Emits one node and its subtree, returning the index it was written to.
+        AZ::Outcome<NodeIndex, AZStd::string> Emit(
+            const BehaviorTreeNode& authored, NodeIndex parent, AZ::u32 depth, DecisionProgram& program) const;
+
+        //! Checks an authored node's properties against what its type accepts.
+        AZ::Outcome<void, AZStd::string> Validate(
+            const BehaviorTreeNode& authored, const NodeTypeDescriptor& descriptor) const;
+
+        const NodeTypeRegistry& m_types;
+        const IBlackboardSystem& m_blackboard;
+    };
+} // namespace GOAT

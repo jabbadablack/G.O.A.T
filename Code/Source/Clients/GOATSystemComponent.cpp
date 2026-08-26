@@ -1,5 +1,6 @@
 #include "GOATSystemComponent.h"
 
+#include <GOAT/Assets/BehaviorTreeAsset.h>
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/Domain/ActionPlan.h>
 #include <GOAT/Domain/ActionState.h>
@@ -7,6 +8,7 @@
 #include <GOAT/Domain/BlackboardTypes.h>
 #include <GOAT/Domain/Guard.h>
 #include <GOAT/Domain/Intent.h>
+#include <GOAT/Domain/NodeType.h>
 #include <GOAT/GOATTypeIds.h>
 
 #include <AzCore/Asset/AssetManager.h>
@@ -25,7 +27,9 @@ namespace GOAT
         BlackboardKey::Reflect(context);
         Intent::Reflect(context);
         ActionPlan::Reflect(context);
+        ReflectNodeTypes(context);
         BlackboardAsset::Reflect(context);
+        BehaviorTreeAsset::Reflect(context);
 
         if (auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {

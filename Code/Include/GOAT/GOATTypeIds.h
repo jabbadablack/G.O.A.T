@@ -29,6 +29,16 @@ namespace GOAT
     inline constexpr const char* BlackboardAssetTypeId = "{29F4C31E-D14F-4DB2-8DBE-B13E59D1ED50}";
     inline constexpr const char* BehaviorTreeAssetTypeId = "{471B8D29-2A2E-4E77-8C33-B8E054EDCA00}";
 
+    // Behavior tree authoring and compiled forms
+    inline constexpr const char* BehaviorTreeNodeTypeId = "{0518D68E-CE23-4EBF-9DEB-5203B83E4912}";
+    inline constexpr const char* BehaviorTreePropertyTypeId = "{13C83E36-77A7-45C6-ACFC-AAE65676B2C0}";
+    inline constexpr const char* BehaviorTreeNodeMetadataTypeId = "{3E9CB59B-6545-46F2-8813-FB5F28C80670}";
+    inline constexpr const char* NodeTypeDescriptorTypeId = "{FAC84347-A95B-463E-B24D-CFAB1746C1E8}";
+    inline constexpr const char* NodeParameterTypeId = "{7E97BE33-DCD2-4318-8557-4BF9A72E7FA3}";
+    inline constexpr const char* DecisionNodeTypeId = "{F9AD7034-257F-488E-9695-73757A1E91AD}";
+    inline constexpr const char* DecisionServiceTypeId = "{E35A6DA7-1284-41E1-9C35-83EFE4B86DCA}";
+    inline constexpr const char* DecisionProgramTypeId = "{9D805D2E-92E6-4FC4-8E7F-6DDC2A7B5280}";
+
     // Extension interface TypeIds
     inline constexpr const char* IBackendTypeId = "{369A6D06-454A-4E15-9DBC-B86406CDD9E5}";
     inline constexpr const char* IActionStateTypeId = "{CFC2D26D-0EB8-45B6-9333-93BF41289396}";
