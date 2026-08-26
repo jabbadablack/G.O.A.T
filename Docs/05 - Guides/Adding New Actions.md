@@ -8,7 +8,7 @@ tags: [guide, tutorial, how-to]
 
 > **Difficulty:** Intermediate  
 > **Time to Complete:** 30 minutes  
-> **Prerequisites:** [[IBackend]], [[Extensibility Model]], Basic C++ knowledge
+> **Prerequisites:** [[IActionState]], [[Extensibility Model]], Basic C++ knowledge
 
 ---
 
@@ -49,9 +49,9 @@ namespace MyModule
 
         AZ::Name GetName() const override { return AZ_NAME_LITERAL("MoveTo"); }
 
-        GOAT::ActionResult OnStart(const GOAT::ActionRequest& request, const GOAT::PlanContext& context) override;
-        GOAT::ActionResult OnTick(const GOAT::ActionRequest& request, const GOAT::PlanContext& context, float deltaTime) override;
-        void OnStop(const GOAT::ActionRequest& request, const GOAT::PlanContext& context) override;
+        void Begin(const GOAT::ActionContext& context) override;
+        GOAT::ActionResult Step(const GOAT::ActionContext& context, float deltaTime) override;
+        void End(const GOAT::ActionContext& context) override;
     };
 }
 ```
@@ -64,21 +64,19 @@ namespace MyModule
 
 namespace MyModule
 {
-    GOAT::ActionResult MoveToAction::OnStart(const GOAT::ActionRequest& request, const GOAT::PlanContext& context)
+    void MoveToAction::Begin(const GOAT::ActionContext& context)
     {
-        // Read target from blackboard using request.m_targetKey
-        auto target = context.m_blackboard->GetValue(request.m_targetKey);
-        // Start movement logic here
+        // Read target from blackboard using context.m_request->m_targetKey
+        // Store per-agent state in context.m_scratch
+    }
+
+    GOAT::ActionResult MoveToAction::Step(const GOAT::ActionContext& context, float deltaTime)
+    {
+        // Update movement, check if arrived
         return GOAT::ActionResult::Running;
     }
 
-    GOAT::ActionResult MoveToAction::OnTick(const GOAT::ActionRequest& request, const GOAT::PlanContext& context, float deltaTime)
-    {
-        // Update movement, check if arrived
-        return GOAT::ActionResult::Success;
-    }
-
-    void MoveToAction::OnStop(const GOAT::ActionRequest& request, const GOAT::PlanContext& context)
+    void MoveToAction::End(const GOAT::ActionContext& context)
     {
         // Cancel movement
     }
@@ -158,7 +156,7 @@ sequence {
 
 - [[Writing Custom Backends]]
 - [[Creating a Director AI]]
-- [[IBackend]]
+- [[IActionState]]
 
 ---
 

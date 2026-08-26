@@ -7,14 +7,15 @@ tags: [module, bark, missing]
 # Bark
 
 > **Status:** Planned  
-> **Folder:** `Code/Source/Modules/Animation/` and `Code/Source/Modules/SmartObject/` (Potentially)  
+> **Folder:** `Code/Source/Modules/Animation/` (Potentially)  
+> **Build Flag:** `GOAT_WITH_ANIMATION=ON` (auto-enables if `EMotionFX` gem exists)  
 > **Current State:** Empty (No implementation exists yet)
 
 ---
 
 ## 🎯 Objective
 
-The Bark module will provide **trigger-based social reactions** for NPCs. Instead of NPCs constantly checking for player proximity, dedicated **Trigger Volumes** will detect entity entry and send requests to NPCs' `BarkLogicComponent`. 
+The Bark module will provide **trigger-based social reactions** for NPCs. Instead of NPCs constantly checking for player proximity, dedicated **Trigger Volumes** will detect entity entry and send requests to NPCs' `BarkLogicComponent`.
 
 This allows NPCs to react to events (like the player entering a room) without polling every frame, and keeps detection logic centralized in the world space rather than on every NPC.
 
@@ -56,17 +57,15 @@ Code/Source/Modules/SmartObject/
 ### BarkLogicComponent (Attached to NPC)
 
 ```cpp
-// Evaluates a bark request and plays audio/animations if conditions are met.
 class BarkLogicComponent : public AZ::Component
 {
 public:
     AZ_COMPONENT(BarkLogicComponent, BarkLogicComponentTypeId);
 
     void OnBarkRequest(const BarkRequest& request);
-    
+
 private:
     AZStd::vector<BarkDefinition> m_barkDefinitions;
-    // Manages cooldowns per bark ID
     AZStd::unordered_map<AZ::Name, float> m_cooldowns;
 };
 ```
@@ -74,18 +73,15 @@ private:
 ### BarkTriggerComponent (Attached to Trigger Volume)
 
 ```cpp
-// Detects entity entry and sends bark requests to nearby NPCs.
 class BarkTriggerComponent : public AZ::Component
 {
 public:
     AZ_COMPONENT(BarkTriggerComponent, BarkTriggerComponentTypeId);
 
     void OnTriggerEnter(const AZ::EntityId& entity);
-    
+
 private:
-    // Tags to filter valid targets
     AZStd::vector<AZ::Tag> m_validTargetTags;
-    // Cooldown for the trigger itself
     float m_triggerCooldown = 1.0f;
 };
 ```
@@ -110,6 +106,24 @@ The `BarkTriggerComponent` will send a request to `BarkLogicComponent` via EBus.
 
 ---
 
+## 🗺️ Build Integration
+
+From `CMakeLists.txt`:
+
+```cmake
+if(NOT DEFINED GOAT_WITH_ANIMATION)
+    if(TARGET Gem::EMotionFX.API OR TARGET Gem::EMotionFX.Static)
+        set(GOAT_WITH_ANIMATION ON)
+    else()
+        set(GOAT_WITH_ANIMATION OFF)
+    endif()
+endif()
+```
+
+The module auto-enables if the `EMotionFX` gem is present in the project. It degrades gracefully at runtime if the gem is not enabled.
+
+---
+
 ## ✅ Implementation Checklist
 
 - [ ] Define `BarkDefinition` struct (ID, audio, priority, cooldown).
@@ -127,6 +141,7 @@ The `BarkTriggerComponent` will send a request to `BarkLogicComponent` via EBus.
 - [[Extensibility Model]]
 - [[Layered Overview]]
 - [[Adding New Actions]]
+- [[Planned Features]]
 
 ---
 

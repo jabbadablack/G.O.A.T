@@ -22,7 +22,7 @@ Learn how to set up a **Director AI** to control global game flow (spawning wave
 
 - [ ] **O3DE Environment:** Set up and ready to build.
 - [ ] **G.O.A.T. Gem:** Activated in your project.
-- [ ] **A .bbx Asset:** Declaring Global scope variables (e.g., `wave_number`, `game_state`).
+- **A .bbx Asset:** Declaring Global scope variables (e.g., `wave_number`, `game_state`).
 
 ---
 
@@ -32,7 +32,7 @@ Learn how to set up a **Director AI** to control global game flow (spawning wave
 
 1. In the O3DE Editor, create a new entity and name it `"Director"`.
 2. Add a `GOATAgentComponent` to it.
-3. Set the **Band** to `3` (runs every 8th frame, saving CPU).
+3. Set the **Band** to `3` (runs every 1000ms, saving CPU).
 4. Set the **TreeName** to `"DirectorTree"` (which we'll define in Lua).
 5. Add your `.bbx` asset to the **Blackboards** field to declare the Global variables.
 

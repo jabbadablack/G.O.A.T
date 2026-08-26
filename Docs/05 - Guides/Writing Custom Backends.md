@@ -76,9 +76,9 @@ namespace MyModule
         // Implement your planning algorithm here.
         // Read goals, check preconditions, generate steps.
         // If planning fails, return false.
-        
+
         outPlan.m_steps.clear();
-        
+
         // Example: A simple plan for "DefeatEnemy"
         if (intent.m_goal == AZ_NAME_LITERAL("DefeatEnemy"))
         {
@@ -86,14 +86,14 @@ namespace MyModule
             move.m_action = m_moveToActionId; // Resolve via ActionStateRegistry
             move.m_targetKey = context.m_blackboard->FindKey(AZ::Name("TargetPosition"));
             outPlan.m_steps.push_back(move);
-            
+
             GOAT::ActionRequest attack;
             attack.m_action = m_attackActionId;
             outPlan.m_steps.push_back(attack);
-            
+
             return true;
         }
-        
+
         return false;
     }
 

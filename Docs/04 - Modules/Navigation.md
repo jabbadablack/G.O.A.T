@@ -8,6 +8,7 @@ tags: [module, navigation, missing]
 
 > **Status:** Planned  
 > **Folder:** `Code/Source/Modules/Navigation/`  
+> **Build Flag:** `GOAT_WITH_NAVIGATION=ON` (auto-enables if `RecastNavigation` gem exists)  
 > **Current State:** Empty (No implementation exists yet)
 
 ---
@@ -51,7 +52,6 @@ Code/Source/Modules/Navigation/
 Each navigation verb will implement `IActionState`:
 
 ```cpp
-// Example: MoveToAction
 class MoveToAction final : public IActionState
 {
 public:
@@ -59,9 +59,9 @@ public:
 
     AZ::Name GetName() const override { return AZ_NAME_LITERAL("MoveTo"); }
 
-    ActionResult OnStart(const ActionRequest& request, const PlanContext& context) override;
-    ActionResult OnTick(const ActionRequest& request, const PlanContext& context, float deltaTime) override;
-    void OnStop(const ActionRequest& request, const PlanContext& context) override;
+    void Begin(const ActionContext& context) override;
+    ActionResult Step(const ActionContext& context, float deltaTime) override;
+    void End(const ActionContext& context) override;
 };
 ```
 
@@ -100,6 +100,31 @@ return tree "Agent" {
     }
 }
 ```
+
+---
+
+## 🗺️ Build Integration
+
+From `CMakeLists.txt`:
+
+```cmake
+if(NOT DEFINED GOAT_WITH_NAVIGATION)
+    if(TARGET Gem::RecastNavigation.API)
+        set(GOAT_WITH_NAVIGATION ON)
+    else()
+        set(GOAT_WITH_NAVIGATION OFF)
+    endif()
+endif()
+
+if(GOAT_WITH_NAVIGATION AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/goat_navigation_files.cmake)
+    list(APPEND goat_module_files_cmake goat_navigation_files.cmake)
+    list(APPEND goat_module_dependencies Gem::RecastNavigation.API)
+else()
+    set(GOAT_WITH_NAVIGATION OFF)
+endif()
+```
+
+The module auto-enables if the `RecastNavigation` gem is present in the project. It degrades gracefully at runtime if the gem is not enabled.
 
 ---
 
