@@ -1,9 +1,17 @@
 #include <Core/Application/AgentRuntime.h>
 
+#include <AzCore/Console/IConsole.h>
+#include <AzCore/Console/ILogger.h>
+
 namespace GOAT
 {
     namespace
     {
+        //! Traces what each agent decides, for diagnosing a tree that is not behaving.
+        //! Off by default because it logs on every plan boundary for every agent.
+        AZ_CVAR(bool, goat_traceAgents, false, nullptr, AZ::ConsoleFunctorFlags::Null,
+            "Logs each agent's intents and plans as they are produced");
+
         //! Most intents one tick will satisfy before deferring the rest.
         //! Bounds the work a tree of instantly completing leaves can do in a single frame.
         constexpr int MaxIntentsPerTick = 8;
@@ -117,6 +125,13 @@ namespace GOAT
         if (!backend->Plan(planContext, intent, plan) || plan.IsEmpty())
         {
             return false;
+        }
+
+        if (goat_traceAgents)
+        {
+            AZLOG_INFO(
+                "GOAT: agent %u node %u -> backend '%s' produced %zu step(s)", agent.m_id.GetIndex(), intent.m_node,
+                backend->GetName().GetCStr(), plan.m_steps.size());
         }
 
         agent.m_intent = intent;

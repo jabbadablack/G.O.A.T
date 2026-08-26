@@ -132,7 +132,8 @@ namespace GOAT
         //! Stable for the gem's lifetime, because Lua receives a raw pointer to it.
         AZStd::unique_ptr<AgentScriptContext> m_scriptContext;
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;
-        AZStd::unique_ptr<IBackend> m_directBackend;
+        //! Owned by m_backends; kept as a raw pointer for the "no backend named" fallback.
+        IBackend* m_directBackend = nullptr;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
         AZStd::unique_ptr<AgentRegistry> m_agents;
 

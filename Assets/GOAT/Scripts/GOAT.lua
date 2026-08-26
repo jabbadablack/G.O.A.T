@@ -1,7 +1,9 @@
 -- GOAT behaviour tree authoring vocabulary.
 -- Executed once into the script context at startup, so tree files need no require.
 
-GOAT = GOAT or {}
+-- rawget avoids O3DE's "access to undeclared global variable" warning, which fires on the
+-- read half of `GOAT = GOAT or {}` the first time this file runs.
+GOAT = rawget(_G, "GOAT") or {}
 
 -- Status values a behaviour tick returns. These mirror the C++ ActionResult order.
 RUNNING, SUCCESS, FAILURE = 0, 1, 2
