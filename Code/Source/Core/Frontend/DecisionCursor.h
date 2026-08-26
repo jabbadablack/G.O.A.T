@@ -31,6 +31,9 @@ namespace GOAT
         //! How many times a loop has repeated.
         AZ::u16& Counter(NodeIndex node) { return m_counters[node]; }
 
+        //! Absolute time a service is next due to run.
+        float& ServiceDue(AZ::u32 service) { return m_serviceDue[service]; }
+
         //! The agent's own clock, used for cooldowns without sweeping every node each tick.
         float GetNow() const { return m_now; }
         void AdvanceClock(float deltaTime) { m_now += deltaTime; }
@@ -39,6 +42,7 @@ namespace GOAT
         AZStd::vector<AZ::u16> m_childIndex;
         AZStd::vector<float> m_deadlines;
         AZStd::vector<AZ::u16> m_counters;
+        AZStd::vector<float> m_serviceDue;
         NodeIndex m_activeLeaf = InvalidNodeIndex;
         float m_now = 0.0f;
     };

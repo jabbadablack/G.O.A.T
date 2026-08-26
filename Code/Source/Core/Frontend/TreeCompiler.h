@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/Application/NodeTypeRegistry.h>
+#include <Core/Frontend/TreeLibrary.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
 #include <GOAT/Domain/DecisionProgram.h>
@@ -17,15 +18,28 @@ namespace GOAT
     class TreeCompiler final
     {
     public:
-        TreeCompiler(const NodeTypeRegistry& types, const IBlackboardSystem& blackboard);
+        TreeCompiler(const NodeTypeRegistry& types, const IBlackboardSystem& blackboard, const TreeLibrary& library);
 
         //! Compiles an authored tree. On failure the message names the offending node.
         AZ::Outcome<DecisionProgram, AZStd::string> Compile(const BehaviorTreeAsset& asset) const;
 
     private:
         //! Emits one node and its subtree, returning the index it was written to.
+        //! m_inlining names the trees currently being expanded, which is how a cycle is caught.
         AZ::Outcome<NodeIndex, AZStd::string> Emit(
-            const BehaviorTreeNode& authored, NodeIndex parent, AZ::u32 depth, DecisionProgram& program) const;
+            const BehaviorTreeNode& authored,
+            NodeIndex parent,
+            AZ::u32 depth,
+            DecisionProgram& program,
+            AZStd::vector<AZ::Name>& inlining) const;
+
+        //! Expands a subtree reference in place of the referencing node.
+        AZ::Outcome<NodeIndex, AZStd::string> Inline(
+            const BehaviorTreeNode& authored,
+            NodeIndex parent,
+            AZ::u32 depth,
+            DecisionProgram& program,
+            AZStd::vector<AZ::Name>& inlining) const;
 
         //! Checks an authored node's properties against what its type accepts.
         AZ::Outcome<void, AZStd::string> Validate(
@@ -33,5 +47,6 @@ namespace GOAT
 
         const NodeTypeRegistry& m_types;
         const IBlackboardSystem& m_blackboard;
+        const TreeLibrary& m_library;
     };
 } // namespace GOAT

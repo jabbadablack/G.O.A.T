@@ -1,6 +1,7 @@
 #include <Core/Frontend/TreeCompiler.h>
 
 #include <AzCore/Name/NameDictionary.h>
+#include <AzCore/std/algorithm.h>
 #include <AzCore/std/sort.h>
 
 namespace GOAT
@@ -98,10 +99,63 @@ namespace GOAT
         }
     } // namespace
 
-    TreeCompiler::TreeCompiler(const NodeTypeRegistry& types, const IBlackboardSystem& blackboard)
+    TreeCompiler::TreeCompiler(
+        const NodeTypeRegistry& types, const IBlackboardSystem& blackboard, const TreeLibrary& library)
         : m_types(types)
         , m_blackboard(blackboard)
+        , m_library(library)
     {
+    }
+
+    AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Inline(
+        const BehaviorTreeNode& authored,
+        NodeIndex parent,
+        AZ::u32 depth,
+        DecisionProgram& program,
+        AZStd::vector<AZ::Name>& inlining) const
+    {
+        // A subtree may be named directly, or reached through a slot a director can rebind.
+        AZ::Name treeName;
+        if (const AZStd::any* named = FindProperty(authored, AZ_NAME_LITERAL("tree")))
+        {
+            ReadName(*named, treeName);
+        }
+        else if (const AZStd::any* slot = FindProperty(authored, AZ_NAME_LITERAL("tag")))
+        {
+            AZ::Name slotName;
+            if (ReadName(*slot, slotName))
+            {
+                treeName = m_library.GetBinding(slotName);
+                if (treeName.IsEmpty())
+                {
+                    return AZ::Failure(
+                        AZStd::string::format("No tree is bound to subtree slot '%s'", slotName.GetCStr()));
+                }
+            }
+        }
+
+        if (treeName.IsEmpty())
+        {
+            return AZ::Failure(AZStd::string("A subtree needs either a tree name or a bound tag"));
+        }
+
+        if (AZStd::find(inlining.begin(), inlining.end(), treeName) != inlining.end())
+        {
+            return AZ::Failure(
+                AZStd::string::format("Subtree '%s' refers to itself, directly or through another tree", treeName.GetCStr()));
+        }
+
+        const BehaviorTreeAsset* referenced = m_library.Find(treeName);
+        if (referenced == nullptr)
+        {
+            return AZ::Failure(AZStd::string::format("Unknown subtree '%s'", treeName.GetCStr()));
+        }
+
+        // The subtree node itself leaves no trace: its referenced root takes its place.
+        inlining.push_back(treeName);
+        auto emitted = Emit(referenced->m_root, parent, depth, program, inlining);
+        inlining.pop_back();
+        return emitted;
     }
 
     AZ::Outcome<void, AZStd::string> TreeCompiler::Validate(
@@ -144,7 +198,11 @@ namespace GOAT
     }
 
     AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Emit(
-        const BehaviorTreeNode& authored, NodeIndex parent, AZ::u32 depth, DecisionProgram& program) const
+        const BehaviorTreeNode& authored,
+        NodeIndex parent,
+        AZ::u32 depth,
+        DecisionProgram& program,
+        AZStd::vector<AZ::Name>& inlining) const
     {
         if (depth >= MaxTreeDepth)
         {
@@ -162,6 +220,11 @@ namespace GOAT
         if (auto valid = Validate(authored, *descriptor); !valid.IsSuccess())
         {
             return AZ::Failure(valid.TakeError());
+        }
+
+        if (descriptor->m_op == NodeOp::Subtree)
+        {
+            return Inline(authored, parent, depth, program, inlining);
         }
 
         const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
@@ -310,6 +373,10 @@ namespace GOAT
             DecisionNode& node = program.m_nodes[index];
             node.m_firstService = firstService;
             node.m_serviceCount = aznumeric_cast<AZ::u16>(program.m_services.size() - firstService);
+            if (node.m_serviceCount > 0)
+            {
+                program.m_serviceNodes.push_back(index);
+            }
         }
 
         // The first child follows its parent immediately; each later sibling starts at the
@@ -317,7 +384,7 @@ namespace GOAT
         const NodeIndex firstChild = aznumeric_cast<NodeIndex>(program.m_nodes.size());
         for (const BehaviorTreeNode& child : authored.m_children)
         {
-            auto emitted = Emit(child, index, depth + 1, program);
+            auto emitted = Emit(child, index, depth + 1, program, inlining);
             if (!emitted.IsSuccess())
             {
                 return emitted;
@@ -340,7 +407,9 @@ namespace GOAT
             return AZ::Failure(AZStd::string::format("Tree '%s' has no root node", asset.m_name.c_str()));
         }
 
-        auto root = Emit(asset.m_root, InvalidNodeIndex, 0, program);
+        AZStd::vector<AZ::Name> inlining;
+        inlining.push_back(program.m_name);
+        auto root = Emit(asset.m_root, InvalidNodeIndex, 0, program, inlining);
         if (!root.IsSuccess())
         {
             return AZ::Failure(AZStd::string::format("Tree '%s': %s", asset.m_name.c_str(), root.GetError().c_str()));

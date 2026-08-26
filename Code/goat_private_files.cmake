@@ -38,9 +38,13 @@ set(FILES
     Source/Core/Frontend/GuardEvaluator.h
     Source/Core/Frontend/NodePredicate.cpp
     Source/Core/Frontend/NodePredicate.h
+    Source/Core/Frontend/ServiceTracker.cpp
+    Source/Core/Frontend/ServiceTracker.h
     Source/Core/Frontend/TreeCompiler.cpp
     Source/Core/Frontend/TreeCompiler.h
     Source/Core/Frontend/TreeWalker.cpp
+    Source/Core/Frontend/TreeLibrary.cpp
+    Source/Core/Frontend/TreeLibrary.h
     Source/Core/Frontend/TreeWalker.h
     Source/Core/Memory/HandleTable.h
 )

@@ -88,6 +88,12 @@ namespace GOAT
         delegate.m_parameters.push_back(Param("goal", BlackboardType::Name));
         Register(AZStd::move(delegate));
 
+        auto subtree = Simple("subtree", NodeKind::Leaf, NodeOp::Subtree, "Leaf",
+            "Runs another behavior tree in place, by name or through a rebindable slot");
+        subtree.m_parameters.push_back(Param("tree", BlackboardType::Name));
+        subtree.m_parameters.push_back(Param("tag", BlackboardType::Name));
+        Register(AZStd::move(subtree));
+
         auto service = Simple("service", NodeKind::Service, NodeOp::Script, "Service",
             "Runs a Lua behavior on an interval while its subtree is active");
         service.m_parameters.push_back(Param("behavior", BlackboardType::Name, false, true));

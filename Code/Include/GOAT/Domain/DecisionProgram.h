@@ -86,6 +86,8 @@ namespace GOAT
         AZStd::vector<BlackboardKey> m_observedKeys;
         //! Nodes that declared an abort mode, so re-checking scans only guards.
         AZStd::vector<NodeIndex> m_guardNodes;
+        //! Nodes that carry services, so due checks scan only those.
+        AZStd::vector<NodeIndex> m_serviceNodes;
         //! Deepest path in this tree, checked against MaxTreeDepth at compile time.
         AZ::u32 m_depth = 0;
     };
