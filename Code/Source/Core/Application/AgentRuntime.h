@@ -27,10 +27,16 @@ namespace GOAT
             IBackend& directBackend,
             LuaDispatch& dispatch,
             AgentScriptContext& scriptContext,
-            INodeScripting& scripting);
+            INodeScripting& scripting,
+            PlanStore& planStore);
 
         //! Advances one agent by a delta time.
         void Tick(AgentRecord& agent, float deltaTime);
+
+        //! Ends whatever an agent is running and gives back what that action held.
+        //! Switching an agent's tree goes through here, because dropping a running verb without
+        //! ending it would strand a pooled path slot or a smart object claim.
+        void AbortAgent(AgentRecord& agent);
 
     private:
         //! Re-checks the guards that a changed blackboard slot could have affected.
@@ -57,6 +63,7 @@ namespace GOAT
         LuaDispatch& m_dispatch;
         AgentScriptContext& m_scriptContext;
         INodeScripting& m_scripting;
+        PlanStore& m_planStore;
         TreeWalker m_walker;
         GuardEvaluator m_guards;
         ServiceTracker m_services;

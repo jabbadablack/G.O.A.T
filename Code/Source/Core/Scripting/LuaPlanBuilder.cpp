@@ -1,5 +1,7 @@
 #include <Core/Scripting/LuaPlanBuilder.h>
 
+#include <AzCore/Console/IConsole.h>
+#include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/Name.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/RTTI/BehaviorContext.h>
@@ -7,15 +9,29 @@
 
 namespace GOAT
 {
-    void LuaPlanBuilder::Configure(const ActionStateRegistry* actions, const IBlackboardSystem* blackboard)
+    namespace
+    {
+        //! Catches a backend that appends without end. Plans are otherwise unbounded on purpose,
+        //! so this is a guard against a bug, not a design limit -- raise it if a project needs to.
+        AZ_CVAR(AZ::u32, goat_maxPlanSteps, 4096, nullptr, AZ::ConsoleFunctorFlags::Null,
+            "Most steps one plan may hold before GOAT treats it as a runaway backend");
+    } // namespace
+
+    void LuaPlanBuilder::Configure(
+        const ActionStateRegistry* actions, const IBlackboardSystem* blackboard, PlanStore* store)
     {
         m_actions = actions;
         m_blackboard = blackboard;
+        m_store = store;
     }
 
     void LuaPlanBuilder::BeginPlan()
     {
-        m_plan.m_steps.clear();
+        // The scratch keeps its capacity, which is what makes a plan boundary allocation free.
+        m_scratch.clear();
+        m_plan = ActionPlan{};
+        m_sourcePlan.clear();
+        m_sourceOption = 0;
         m_failed = false;
     }
 
@@ -26,14 +42,21 @@ namespace GOAT
             return;
         }
 
-        if (m_plan.m_steps.size() >= MaxPlanLength)
+        if (m_scratch.size() >= goat_maxPlanSteps)
         {
-            AZ_Warning("GOAT", false, "A Lua backend returned more than %zu steps", MaxPlanLength);
+            AZ_Error("GOAT", false,
+                "A Lua backend produced more than %u steps, which is goat_maxPlanSteps; "
+                "this is a runaway backend rather than a long plan",
+                static_cast<AZ::u32>(goat_maxPlanSteps));
             m_failed = true;
             return;
         }
 
         const AZ::Name verbName(verb);
+
+        // A plan runs verbs. `delegate` is a tree word, so naming it here would be the one way a
+        // plan could re-enter the tree that produced it; it cannot, because verbs and node types
+        // live in different registries and nothing may register a verb under that name.
         const ActionStateId id = m_actions != nullptr ? m_actions->FindId(verbName) : CoreActions::Invalid;
         if (id == CoreActions::Invalid)
         {
@@ -44,36 +67,36 @@ namespace GOAT
 
         ActionRequest request;
         request.m_action = id;
-        m_plan.m_steps.push_back(AZStd::move(request));
+        m_scratch.push_back(AZStd::move(request));
     }
 
     void LuaPlanBuilder::SetTag(AZStd::string tag)
     {
-        if (!m_failed && !m_plan.m_steps.empty())
+        if (!m_failed && !m_scratch.empty())
         {
-            m_plan.m_steps.back().m_tag = AZ::Name(tag);
+            m_scratch.back().m_tag = AZ::Name(tag);
         }
     }
 
     void LuaPlanBuilder::SetDuration(double seconds)
     {
-        if (!m_failed && !m_plan.m_steps.empty())
+        if (!m_failed && !m_scratch.empty())
         {
-            m_plan.m_steps.back().m_amount = static_cast<float>(seconds);
+            m_scratch.back().m_amount = static_cast<float>(seconds);
         }
     }
 
     void LuaPlanBuilder::SetTolerance(double tolerance)
     {
-        if (!m_failed && !m_plan.m_steps.empty())
+        if (!m_failed && !m_scratch.empty())
         {
-            m_plan.m_steps.back().m_tolerance = static_cast<float>(tolerance);
+            m_scratch.back().m_tolerance = static_cast<float>(tolerance);
         }
     }
 
     void LuaPlanBuilder::SetTargetKey(AZStd::string blackboardName)
     {
-        if (m_failed || m_plan.m_steps.empty() || m_blackboard == nullptr)
+        if (m_failed || m_scratch.empty() || m_blackboard == nullptr)
         {
             return;
         }
@@ -85,12 +108,107 @@ namespace GOAT
             m_failed = true;
             return;
         }
-        m_plan.m_steps.back().m_targetKey = key;
+        m_scratch.back().m_targetKey = key;
+    }
+
+    void LuaPlanBuilder::SetTargetPosition(const AZ::Vector3& position)
+    {
+        if (!m_failed && !m_scratch.empty())
+        {
+            m_scratch.back().m_position = position;
+        }
+    }
+
+    void LuaPlanBuilder::SetTargetEntity(AZ::EntityId entity)
+    {
+        // Snapshotted here, not read when the step runs. A key resolves at action time and so
+        // survives the world changing mid plan; a literal does not. Prefer a key where a verb
+        // supports one.
+        if (!m_failed && !m_scratch.empty())
+        {
+            m_scratch.back().m_targetEntity = entity;
+        }
+    }
+
+    void LuaPlanBuilder::SetSource(AZStd::string plan, double option)
+    {
+        m_sourcePlan = AZStd::move(plan);
+        m_sourceOption = static_cast<int>(option);
+    }
+
+    PlanStore::Span LuaPlanBuilder::BakeCurrent()
+    {
+        AZ_Assert(m_store != nullptr, "Baking a plan needs a store to bake into");
+
+        PlanStore::Span span;
+        if (m_failed || m_scratch.empty() || m_store == nullptr)
+        {
+            return span;
+        }
+
+        return m_store->Bake(m_scratch.data(), static_cast<AZ::u32>(m_scratch.size()));
+    }
+
+    void LuaPlanBuilder::RecordBaked(const AZ::Name& plan, int option, PlanStore::Span span)
+    {
+        AZ_Assert(!plan.IsEmpty(), "A baked option belongs to a named plan");
+        AZ_Assert(!span.IsEmpty(), "An option with no steps is not worth remembering");
+
+        m_bakedOptions.push_back(BakedOption{ plan, option, span });
+    }
+
+    void LuaPlanBuilder::ClearBaked()
+    {
+        m_bakedOptions.clear();
+        if (m_store != nullptr)
+        {
+            m_store->ClearBaked();
+        }
+
+        AZ_Assert(m_bakedOptions.empty(), "Clearing must leave no baked option behind");
+    }
+
+    bool LuaPlanBuilder::ChooseBaked(AZStd::string plan, double option)
+    {
+        const AZ::Name planName(plan);
+        const int wanted = static_cast<int>(option);
+
+        for (const BakedOption& baked : m_bakedOptions)
+        {
+            if (baked.m_plan != planName || baked.m_option != wanted)
+            {
+                continue;
+            }
+
+            // Nothing is copied and nothing is borrowed: every agent running this option shares
+            // the one run of steps baked when the vocabulary loaded.
+            m_plan.m_span = baked.m_span;
+            m_sourcePlan = AZStd::move(plan);
+            m_sourceOption = wanted;
+            m_failed = false;
+
+            AZ_Assert(!m_plan.IsBorrowed(), "A baked plan is shared, so it is never owed back");
+            return true;
+        }
+
+        AZ_Error("GOAT", false, "Plan '%s' has no baked option %d; the vocabulary and the plan disagree",
+            planName.GetCStr(), wanted);
+        return false;
     }
 
     bool LuaPlanBuilder::EndPlan()
     {
-        return !m_failed && !m_plan.IsEmpty();
+        AZ_Assert(m_store != nullptr, "Finishing a plan needs a store to borrow from");
+
+        if (m_failed || m_scratch.empty() || m_store == nullptr)
+        {
+            return false;
+        }
+
+        m_plan.m_span = m_store->Acquire(m_scratch.data(), static_cast<AZ::u32>(m_scratch.size()));
+
+        AZ_Assert(m_plan.IsBorrowed(), "A computed plan borrows its steps and owes them back");
+        return !m_plan.IsEmpty();
     }
 
     void LuaPlanBuilder::Reflect(AZ::ReflectContext* context)
@@ -109,6 +227,10 @@ namespace GOAT
             ->Method("SetDuration", &LuaPlanBuilder::SetDuration)
             ->Method("SetTolerance", &LuaPlanBuilder::SetTolerance)
             ->Method("SetTargetKey", &LuaPlanBuilder::SetTargetKey)
+            ->Method("SetTargetPosition", &LuaPlanBuilder::SetTargetPosition)
+            ->Method("SetTargetEntity", &LuaPlanBuilder::SetTargetEntity)
+            ->Method("SetSource", &LuaPlanBuilder::SetSource)
+            ->Method("ChooseBaked", &LuaPlanBuilder::ChooseBaked)
             ->Method("EndPlan", &LuaPlanBuilder::EndPlan);
     }
 } // namespace GOAT

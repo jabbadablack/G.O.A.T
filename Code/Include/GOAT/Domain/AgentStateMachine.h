@@ -21,7 +21,12 @@ namespace GOAT
         AZ_TYPE_INFO(AgentStateMachine, AgentStateMachineTypeId);
 
         //! Replaces the running plan and arms its first step. Does not end the previous action.
-        void SetPlan(const ActionPlan& plan);
+        //! Gives back whatever the previous plan borrowed, so a plan boundary leaks nothing.
+        void SetPlan(PlanStore& store, const ActionPlan& plan);
+
+        //! Gives back whatever the plan borrowed and leaves the machine with none.
+        //! Called when an agent goes away, which is the one path Abort does not cover.
+        void ReleasePlan();
 
         //! Advances the running action, moving to the next step when one finishes.
         //! Returns Running while the plan still has work, otherwise how the plan ended.
@@ -49,6 +54,9 @@ namespace GOAT
         //! Points the context at this agent's current action and scratch.
         void FillContext(ActionContext& context) const;
 
+        //! The store the current plan's steps live in, so they can be given back without the
+        //! caller having to remember which store issued them.
+        PlanStore* m_store = nullptr;
         ActionPlan m_plan;
         mutable ActionScratch m_scratch{};
         size_t m_step = 0;

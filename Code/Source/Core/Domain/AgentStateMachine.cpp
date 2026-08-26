@@ -4,10 +4,30 @@
 
 namespace GOAT
 {
-    void AgentStateMachine::SetPlan(const ActionPlan& plan)
+    void AgentStateMachine::ReleasePlan()
+    {
+        // A baked plan's span is shared and carries no block, so Release ignores it; only a
+        // computed plan actually gives anything back here.
+        if (m_store != nullptr)
+        {
+            m_store->Release(m_plan.m_span);
+        }
+
+        m_plan = ActionPlan{};
+        m_store = nullptr;
+        m_step = 0;
+
+        AZ_Assert(!HasPlan(), "Releasing a plan must leave the machine with nothing to run");
+    }
+
+    void AgentStateMachine::SetPlan(PlanStore& store, const ActionPlan& plan)
     {
         AZ_Assert(!plan.IsEmpty(), "A state machine is only ever given a plan with steps in it");
 
+        // The outgoing plan may have borrowed a block; taking a new one is where it goes back.
+        ReleasePlan();
+
+        m_store = &store;
         m_plan = plan;
         m_step = 0;
         m_elapsed = 0.0f;
@@ -20,12 +40,12 @@ namespace GOAT
 
     bool AgentStateMachine::HasPlan() const
     {
-        return m_step < m_plan.m_steps.size();
+        return m_step < m_plan.Size();
     }
 
     const ActionRequest* AgentStateMachine::GetCurrentAction() const
     {
-        return HasPlan() ? &m_plan.m_steps[m_step] : nullptr;
+        return HasPlan() ? m_plan.GetStep(m_step) : nullptr;
     }
 
     void AgentStateMachine::FillContext(ActionContext& context) const
@@ -74,15 +94,18 @@ namespace GOAT
         FillContext(context);
         AZ_Assert(context.m_request != nullptr, "A machine with a plan always has a current action to run");
 
-        IActionState* state = registry.Find(m_plan.m_steps[m_step].m_action);
+        const ActionRequest* current = m_plan.GetStep(m_step);
+        AZ_Assert(current != nullptr, "A machine with a plan always has a current step");
+
+        IActionState* state = registry.Find(current->m_action);
         if (state == nullptr)
         {
             // The verb's module was removed, so the plan can no longer be run.
             AZ_Warning(
                 "GOAT", false, "Agent is running unregistered action verb %u; failing the plan",
-                static_cast<AZ::u32>(m_plan.m_steps[m_step].m_action));
+                static_cast<AZ::u32>(current->m_action));
             m_begun = false;
-            m_step = m_plan.m_steps.size();
+            m_step = m_plan.Size();
             return ActionResult::Failure;
         }
 
@@ -110,7 +133,7 @@ namespace GOAT
         if (result == ActionResult::Failure)
         {
             // A failed step ends the whole plan; the tree decides what to do next.
-            m_step = m_plan.m_steps.size();
+            m_step = m_plan.Size();
             return ActionResult::Failure;
         }
 
@@ -122,8 +145,11 @@ namespace GOAT
     {
         // Ending first is what lets an action release whatever it borrowed, such as a path slot.
         EndCurrent(registry, context);
-        m_step = m_plan.m_steps.size();
+        m_step = m_plan.Size();
         m_elapsed = 0.0f;
+
+        // Aborting drops the plan for good, so whatever it borrowed goes back here.
+        ReleasePlan();
 
         AZ_Assert(!HasPlan(), "Aborting must leave the machine with no plan to continue");
         AZ_Assert(!m_begun, "Aborting must leave no action begun");

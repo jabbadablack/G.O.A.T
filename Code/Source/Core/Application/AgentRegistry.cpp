@@ -108,6 +108,11 @@ namespace GOAT
 
         AZLOG(GoatAgent, "GOAT: agent %u is being unregistered", agent.GetIndex());
 
+        // End whatever it was doing first. A running verb holds things it only gives back in End
+        // -- a pooled path slot, a smart object claim, the block its plan borrowed -- so dropping
+        // the record without this strands every one of them.
+        m_runtime.AbortAgent(*record);
+
         RemoveFromBand(agent, record->m_band);
         record->m_observer.Disconnect();
 

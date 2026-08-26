@@ -30,7 +30,7 @@ set(FILES
     Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Assets/BlackboardAssetHandler.cpp
     Source/Core/Assets/BlackboardAssetHandler.h
-    Source/Core/Domain/ActionPlan.cpp
+    Source/Core/Domain/PlanStore.cpp
     Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/AgentStateMachine.cpp
     Source/Core/Domain/BlackboardKey.cpp

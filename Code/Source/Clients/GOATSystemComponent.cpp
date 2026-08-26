@@ -53,7 +53,6 @@ namespace GOAT
         ReflectNodeTypes(context);
         BlackboardKey::Reflect(context);
         Intent::Reflect(context);
-        ActionPlan::Reflect(context);
         BlackboardAsset::Reflect(context);
         BehaviorTreeAsset::Reflect(context);
         LuaTreeBuilder::Reflect(context);
@@ -137,6 +136,7 @@ namespace GOAT
 
     void GOATSystemComponent::StartServices()
     {
+        m_planStore = AZStd::make_unique<PlanStore>();
         m_blackboardSystem = AZStd::make_unique<BlackboardSystem>();
         m_actions = AZStd::make_unique<ActionStateRegistry>();
         m_backends = AZStd::make_unique<BackendRegistry>();
@@ -158,10 +158,10 @@ namespace GOAT
         m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
         m_runtime = AZStd::make_unique<AgentRuntime>(
             *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
-            *m_scripting);
+            *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
 
-        m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get());
+        m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get(), m_planStore.get());
         m_vocabularyLoaded = false;
         m_dispatch->Connect();
     }
@@ -184,6 +184,9 @@ namespace GOAT
         m_backends.reset();
         m_actions.reset();
         m_blackboardSystem.reset();
+
+        // Last, because every agent's plan was a span into it.
+        m_planStore.reset();
     }
 
     void GOATSystemComponent::DeclareNodeWord(const NodeTypeDescriptor& descriptor)

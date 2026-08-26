@@ -37,6 +37,7 @@ namespace GOAT
     inline constexpr const char* NodeParameterTypeId = "{7E97BE33-DCD2-4318-8557-4BF9A72E7FA3}";
     inline constexpr const char* DecisionNodeTypeId = "{F9AD7034-257F-488E-9695-73757A1E91AD}";
     inline constexpr const char* DecisionServiceTypeId = "{E35A6DA7-1284-41E1-9C35-83EFE4B86DCA}";
+    inline constexpr const char* PlanStoreTypeId = "{4B6E2A17-9D53-4C88-B0E1-7F3A5C2D9E64}";
     inline constexpr const char* DecisionProgramTypeId = "{9D805D2E-92E6-4FC4-8E7F-6DDC2A7B5280}";
 
     // Extension interface TypeIds
@@ -48,6 +49,7 @@ namespace GOAT
     // Scripting TypeIds
     inline constexpr const char* LuaNameCollectorTypeId = "{886307AC-7BED-42A9-9214-4B2643AF3626}";
     inline constexpr const char* LuaPlanBuilderTypeId = "{A0DDEC5C-C314-4793-9AB0-6E9847036A95}";
+    inline constexpr const char* LuaPlanValidatorTypeId = "{E7D14C3B-58A6-4F92-A1C7-6B0D8E4F2359}";
     inline constexpr const char* LuaTreeBuilderTypeId = "{40FEAC94-3458-4DAE-9071-349CB7001E2A}";
     inline constexpr const char* AgentScriptContextTypeId = "{B91A347D-6443-4023-A16E-AC2AAC21A283}";
 

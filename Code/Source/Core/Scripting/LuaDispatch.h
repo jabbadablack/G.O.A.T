@@ -49,7 +49,13 @@ namespace GOAT
             const AZ::Name& behavior, const char* phase, AgentId agent, AgentScriptContext& context, float deltaTime);
 
         //! Points the plan builder at the registries a Lua backend's steps resolve against.
-        void ConfigurePlanBuilder(const ActionStateRegistry* actions, const IBlackboardSystem* blackboard);
+        //! Points the plan builder and the plan validator at what they need to resolve names.
+        void ConfigurePlanBuilder(
+            const ActionStateRegistry* actions, const IBlackboardSystem* blackboard, PlanStore* store);
+
+        //! The builder, so a caller can read which authored plan and option produced a plan.
+        const LuaPlanBuilder& GetPlanBuilder() const { return m_planBuilder; }
+        LuaPlanBuilder& GetPlanBuilder() { return m_planBuilder; }
 
         //! Runs a Lua backend's plan function. Returns nullptr when it produced nothing.
         const ActionPlan* CallBackendPlan(

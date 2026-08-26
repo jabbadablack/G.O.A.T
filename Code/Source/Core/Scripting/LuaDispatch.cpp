@@ -162,9 +162,10 @@ namespace GOAT
         return ToActionResult(status);
     }
 
-    void LuaDispatch::ConfigurePlanBuilder(const ActionStateRegistry* actions, const IBlackboardSystem* blackboard)
+    void LuaDispatch::ConfigurePlanBuilder(
+        const ActionStateRegistry* actions, const IBlackboardSystem* blackboard, PlanStore* store)
     {
-        m_planBuilder.Configure(actions, blackboard);
+        m_planBuilder.Configure(actions, blackboard, store);
     }
 
     bool LuaDispatch::HasLuaBackend(const AZ::Name& backend)

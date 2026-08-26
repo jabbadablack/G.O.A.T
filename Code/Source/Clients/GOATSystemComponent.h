@@ -133,6 +133,9 @@ namespace GOAT
         //! Installs a backend front for every backend a script declared in Lua.
         void RegisterLuaBackends();
 
+        //! Where every plan's steps live. Outlives the agents, because their plans are spans
+        //! into it rather than copies.
+        AZStd::unique_ptr<PlanStore> m_planStore;
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;

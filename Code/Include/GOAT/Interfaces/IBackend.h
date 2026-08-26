@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Domain/ActionPlan.h>
+#include <GOAT/Domain/PlanStore.h>
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/Guard.h>
 #include <GOAT/Domain/Intent.h>
@@ -26,6 +27,9 @@ namespace GOAT
         IBlackboardSystem* m_blackboard = nullptr;
         //! User defined control flow, when any is installed. Backends do not use this.
         INodeScripting* m_scripting = nullptr;
+        //! Where a backend puts the steps it produces. A plan is a span into this rather than a
+        //! buffer of its own, which is what lets a plan be any length.
+        PlanStore* m_planStore = nullptr;
     };
 
     //! Turns an intent from the tree into a sequence of action states the agent can run.

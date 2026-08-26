@@ -19,7 +19,8 @@ namespace GOAT
         IBackend& directBackend,
         LuaDispatch& dispatch,
         AgentScriptContext& scriptContext,
-        INodeScripting& scripting)
+        INodeScripting& scripting,
+        PlanStore& planStore)
         : m_blackboard(blackboard)
         , m_actions(actions)
         , m_backends(backends)
@@ -27,7 +28,21 @@ namespace GOAT
         , m_dispatch(dispatch)
         , m_scriptContext(scriptContext)
         , m_scripting(scripting)
+        , m_planStore(planStore)
     {
+    }
+
+    void AgentRuntime::AbortAgent(AgentRecord& agent)
+    {
+        AZ_Assert(!agent.m_id.IsNull(), "Only a registered agent can be aborted");
+
+        ActionContext actionContext = MakeActionContext(agent);
+        agent.m_machine.Abort(m_actions, actionContext);
+        // Written out rather than braced: AZ::EntityId's default constructor is explicit.
+        Intent none;
+        agent.m_intent = none;
+
+        AZ_Assert(!agent.m_machine.HasPlan(), "Aborting must leave the agent with no plan to continue");
     }
 
     PlanContext AgentRuntime::MakePlanContext(AgentRecord& agent) const
@@ -39,6 +54,7 @@ namespace GOAT
         context.m_entity = agent.m_entity;
         context.m_blackboard = &m_blackboard;
         context.m_scripting = &m_scripting;
+        context.m_planStore = &m_planStore;
 
         AZ_Assert(context.m_blackboard != nullptr, "Every plan context reaches the blackboard");
         return context;
@@ -144,10 +160,10 @@ namespace GOAT
         // Per agent tracing is a tag channel rather than a cvar of ours, so it is toggled the
         // way every other engine channel is: LoggerSystemComponent.EnableLog GoatAgent.
         AZLOG(GoatAgent, "GOAT: agent %u node %u -> backend '%s' produced %zu step(s)",
-            agent.m_id.GetIndex(), intent.m_node, backend->GetName().GetCStr(), plan.m_steps.size());
+            agent.m_id.GetIndex(), intent.m_node, backend->GetName().GetCStr(), plan.Size());
 
         agent.m_intent = intent;
-        agent.m_machine.SetPlan(plan);
+        agent.m_machine.SetPlan(m_planStore, plan);
 
         AZ_Assert(agent.m_machine.HasPlan(), "Starting a plan must leave the state machine holding one");
         return true;
