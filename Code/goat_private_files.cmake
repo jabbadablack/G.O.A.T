@@ -7,6 +7,8 @@ set(FILES
     Source/Core/Actions/WaitAction.h
     Source/Core/Application/ActionStateRegistry.cpp
     Source/Core/Application/ActionStateRegistry.h
+    Source/Core/Application/AgentObserver.cpp
+    Source/Core/Application/AgentObserver.h
     Source/Core/Application/BackendRegistry.cpp
     Source/Core/Application/BackendRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
@@ -32,6 +34,10 @@ set(FILES
     Source/Core/Frontend/DirectBackend.h
     Source/Core/Frontend/DecisionCursor.cpp
     Source/Core/Frontend/DecisionCursor.h
+    Source/Core/Frontend/GuardEvaluator.cpp
+    Source/Core/Frontend/GuardEvaluator.h
+    Source/Core/Frontend/NodePredicate.cpp
+    Source/Core/Frontend/NodePredicate.h
     Source/Core/Frontend/TreeCompiler.cpp
     Source/Core/Frontend/TreeCompiler.h
     Source/Core/Frontend/TreeWalker.cpp

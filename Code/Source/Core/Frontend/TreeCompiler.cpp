@@ -264,6 +264,7 @@ namespace GOAT
             const DecisionNode& node = program.m_nodes[index];
             if (node.m_abort != AbortMode::None && node.m_key.IsValid())
             {
+                program.m_guardNodes.push_back(index);
                 program.m_observedKeys.push_back(node.m_key);
                 if (node.m_otherKey.IsValid())
                 {

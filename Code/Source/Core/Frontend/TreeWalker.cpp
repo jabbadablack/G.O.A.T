@@ -1,8 +1,8 @@
 #include <Core/Frontend/TreeWalker.h>
 
 #include <Core/Frontend/DirectBackend.h>
+#include <Core/Frontend/NodePredicate.h>
 
-#include <GOAT/Interfaces/IBlackboardSystem.h>
 
 namespace GOAT
 {
@@ -28,6 +28,21 @@ namespace GOAT
             return step;
         }
 
+        //! Which child of a composite leads to a given descendant.
+        AZ::u16 ChildIndexOf(const DecisionProgram& program, NodeIndex parent, NodeIndex child)
+        {
+            NodeIndex candidate = program.m_nodes[parent].m_firstChild;
+            for (AZ::u16 i = 0; i < program.m_nodes[parent].m_childCount; ++i)
+            {
+                if (candidate == child)
+                {
+                    return i;
+                }
+                candidate = program.m_nodes[candidate].m_subtreeEnd;
+            }
+            return 0;
+        }
+
         //! Index of a composite's nth child, reached by following each earlier sibling's subtree end.
         NodeIndex NthChild(const DecisionProgram& program, NodeIndex parent, AZ::u16 n)
         {
@@ -45,67 +60,7 @@ namespace GOAT
             return child;
         }
 
-        //! Compares two slots of the same type for equality.
-        bool SlotsAreEqual(const IBlackboardSystem& blackboard, BlackboardKey left, BlackboardKey right, AgentId agent)
-        {
-            if (left.GetType() != right.GetType())
-            {
-                return false;
-            }
-
-            switch (left.GetType())
-            {
-            case BlackboardType::Bool:
-            {
-                const bool* a = blackboard.Find<bool>(left, agent);
-                const bool* b = blackboard.Find<bool>(right, agent);
-                return a != nullptr && b != nullptr && *a == *b;
-            }
-            case BlackboardType::Int:
-            {
-                const AZ::s64* a = blackboard.Find<AZ::s64>(left, agent);
-                const AZ::s64* b = blackboard.Find<AZ::s64>(right, agent);
-                return a != nullptr && b != nullptr && *a == *b;
-            }
-            case BlackboardType::Float:
-            {
-                const float* a = blackboard.Find<float>(left, agent);
-                const float* b = blackboard.Find<float>(right, agent);
-                return a != nullptr && b != nullptr && *a == *b;
-            }
-            case BlackboardType::EntityId:
-            {
-                const AZ::EntityId* a = blackboard.Find<AZ::EntityId>(left, agent);
-                const AZ::EntityId* b = blackboard.Find<AZ::EntityId>(right, agent);
-                return a != nullptr && b != nullptr && *a == *b;
-            }
-            case BlackboardType::Name:
-            {
-                const AZ::Name* a = blackboard.Find<AZ::Name>(left, agent);
-                const AZ::Name* b = blackboard.Find<AZ::Name>(right, agent);
-                return a != nullptr && b != nullptr && *a == *b;
-            }
-            default:
-                return false;
-            }
-        }
     } // namespace
-
-    bool TreeWalker::EvaluatePredicate(const DecisionNode& node, const PlanContext& context) const
-    {
-        if (context.m_blackboard == nullptr || !node.m_key.IsValid())
-        {
-            return false;
-        }
-
-        if (node.m_op == NodeOp::Compare)
-        {
-            return SlotsAreEqual(*context.m_blackboard, node.m_key, node.m_otherKey, context.m_agent);
-        }
-
-        const bool* value = context.m_blackboard->Find<bool>(node.m_key, context.m_agent);
-        return value != nullptr && *value;
-    }
 
     Intent TreeWalker::MakeIntent(const DecisionNode& node, NodeIndex index) const
     {
@@ -159,6 +114,28 @@ namespace GOAT
         return Run(program, cursor, context, leaf, true, lastResult);
     }
 
+    WalkStep TreeWalker::Restart(
+        const DecisionProgram& program, DecisionCursor& cursor, const PlanContext& context, NodeIndex node) const
+    {
+        // Point every composite above the node at the branch that reaches it, so the walk
+        // resumes there instead of where the abandoned branch left off.
+        NodeIndex child = node;
+        NodeIndex parent = program.m_nodes[node].m_parent;
+        while (parent != InvalidNodeIndex)
+        {
+            const NodeOp op = program.m_nodes[parent].m_op;
+            if (op == NodeOp::Selector || op == NodeOp::Sequence)
+            {
+                cursor.ChildIndex(parent) = ChildIndexOf(program, parent, child);
+            }
+            child = parent;
+            parent = program.m_nodes[parent].m_parent;
+        }
+
+        cursor.SetActiveLeaf(InvalidNodeIndex);
+        return Run(program, cursor, context, node, false, ActionResult::Success);
+    }
+
     WalkStep TreeWalker::Run(
         const DecisionProgram& program,
         DecisionCursor& cursor,
@@ -182,7 +159,7 @@ namespace GOAT
 
                 case NodeOp::Condition:
                 case NodeOp::Compare:
-                    if (!EvaluatePredicate(current, context))
+                    if (!EvaluateNodePredicate(current, context))
                     {
                         result = ActionResult::Failure;
                         bubbling = true;
@@ -213,7 +190,7 @@ namespace GOAT
                     continue;
 
                 case NodeOp::ConditionalLoop:
-                    if (!EvaluatePredicate(current, context))
+                    if (!EvaluateNodePredicate(current, context))
                     {
                         result = ActionResult::Success;
                         bubbling = true;
@@ -326,7 +303,7 @@ namespace GOAT
             }
 
             case NodeOp::ConditionalLoop:
-                if (result == ActionResult::Success && EvaluatePredicate(parent, context))
+                if (result == ActionResult::Success && EvaluateNodePredicate(parent, context))
                 {
                     node = parent.m_firstChild;
                     bubbling = false;

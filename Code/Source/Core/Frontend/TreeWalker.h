@@ -40,6 +40,10 @@ namespace GOAT
             const PlanContext& context,
             ActionResult lastResult) const;
 
+        //! Re-enters the tree at a node a lower priority guard just started allowing.
+        WalkStep Restart(
+            const DecisionProgram& program, DecisionCursor& cursor, const PlanContext& context, NodeIndex node) const;
+
     private:
         //! Runs the walk from a node, either descending into it or bubbling a result out of it.
         WalkStep Run(
@@ -49,9 +53,6 @@ namespace GOAT
             NodeIndex node,
             bool bubbling,
             ActionResult result) const;
-
-        //! Evaluates a condition or comparison node against the blackboard.
-        bool EvaluatePredicate(const DecisionNode& node, const PlanContext& context) const;
 
         //! Builds the intent a leaf node emits.
         Intent MakeIntent(const DecisionNode& node, NodeIndex index) const;

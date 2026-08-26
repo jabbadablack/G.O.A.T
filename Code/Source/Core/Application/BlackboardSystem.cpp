@@ -81,7 +81,7 @@ namespace GOAT
 
     BlackboardStorage* BlackboardSystem::FindStorage(BlackboardScope scope, AgentId agent)
     {
-        return const_cast<BlackboardStorage*>(AZStd::as_const(*this).FindStorage(scope, agent));
+        return const_cast<BlackboardStorage*>(static_cast<const BlackboardSystem*>(this)->FindStorage(scope, agent));
     }
 
     const BlackboardStorage* BlackboardSystem::FindStorage(BlackboardScope scope, AgentId agent) const
