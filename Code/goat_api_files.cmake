@@ -19,5 +19,6 @@ set(FILES
     Include/GOAT/Domain/NodeType.h
     Include/GOAT/Interfaces/IActionState.h
     Include/GOAT/Interfaces/IBackend.h
+    Include/GOAT/Interfaces/IAgentSystem.h
     Include/GOAT/Interfaces/IBlackboardSystem.h
 )

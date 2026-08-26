@@ -1,17 +1,22 @@
 #pragma once
 
+#include <Core/Application/ActionStateRegistry.h>
+#include <Core/Application/AgentRegistry.h>
+#include <Core/Application/AgentRuntime.h>
+#include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
+#include <Core/Application/NodeTypeRegistry.h>
+#include <Core/Frontend/TreeLibrary.h>
+#include <Core/Scripting/AgentScriptContext.h>
+#include <Core/Scripting/LuaDispatch.h>
 
 #include <GOAT/GOATBus.h>
+#include <GOAT/Interfaces/IAgentSystem.h>
 
 #include <AzCore/Asset/AssetCommon.h>
 #include <AzCore/Component/Component.h>
+#include <AzCore/std/containers/unordered_map.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
-
-namespace AzFramework
-{
-    class GenericAssetHandlerBase;
-}
 
 namespace GOAT
 {
@@ -19,6 +24,7 @@ namespace GOAT
     //! The editor system component derives from this, so registering here covers both modules.
     class GOATSystemComponent
         : public AZ::Component
+        , public IAgentSystem
         , protected GOATRequestBus::Handler
     {
     public:
@@ -34,6 +40,24 @@ namespace GOAT
         GOATSystemComponent();
         ~GOATSystemComponent();
 
+        ////////////////////////////////////////////////////////////////////////
+        // IAgentSystem
+        bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset) override;
+        AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) override;
+        AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) override;
+        AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) override;
+        void UnregisterAgent(AgentId agent) override;
+        void JoinSquad(AgentId agent, const AZ::Name& squad) override;
+        bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) override;
+        void UnregisterBackend(const AZ::Name& name) override;
+        ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) override;
+        void UnregisterAction(ActionStateId id) override;
+        AZStd::vector<AZ::Name> GetBackendNames() const override;
+        AZStd::vector<AZ::Name> GetActionNames() const override;
+        AZStd::vector<AZ::Name> GetTreeNames() const override;
+        AZStd::string DescribeAgent(AgentId agent) const override;
+        ////////////////////////////////////////////////////////////////////////
+
     protected:
         ////////////////////////////////////////////////////////////////////////
         // AZ::Component
@@ -43,11 +67,31 @@ namespace GOAT
         ////////////////////////////////////////////////////////////////////////
 
     private:
-        //! Registers the asset handlers this gem owns. Safe to call when another module already did.
+        //! Registers the asset handlers this gem owns. Safe when another module already did.
         void RegisterAssetHandlers();
         void UnregisterAssetHandlers();
 
+        //! Brings up the pipeline: registries, the direct backend, the core verbs and Lua.
+        void StartServices();
+        void StopServices();
+
+        //! Loads the Lua authoring vocabulary shipped with the gem.
+        bool LoadVocabulary();
+
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
+        AZStd::unique_ptr<ActionStateRegistry> m_actions;
+        AZStd::unique_ptr<BackendRegistry> m_backends;
+        AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
+        AZStd::unique_ptr<TreeLibrary> m_trees;
+        AZStd::unique_ptr<LuaDispatch> m_dispatch;
+        //! Stable for the gem's lifetime, because Lua receives a raw pointer to it.
+        AZStd::unique_ptr<AgentScriptContext> m_scriptContext;
+        AZStd::unique_ptr<IBackend> m_directBackend;
+        AZStd::unique_ptr<AgentRuntime> m_runtime;
+        AZStd::unique_ptr<AgentRegistry> m_agents;
+
+        //! Trees compiled so far, shared by every agent running the same one.
+        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const DecisionProgram>> m_programs;
         AZStd::vector<AZStd::unique_ptr<AZ::Data::AssetHandler>> m_assetHandlers;
     };
 } // namespace GOAT

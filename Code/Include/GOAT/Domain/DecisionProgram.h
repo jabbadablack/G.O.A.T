@@ -7,6 +7,7 @@
 #include <GOAT/Domain/NodeType.h>
 #include <GOAT/GOATTypeIds.h>
 
+#include <AzCore/Memory/SystemAllocator.h>
 #include <AzCore/Name/Name.h>
 #include <AzCore/std/containers/vector.h>
 
@@ -71,6 +72,7 @@ namespace GOAT
     {
     public:
         AZ_TYPE_INFO(DecisionProgram, DecisionProgramTypeId);
+        AZ_CLASS_ALLOCATOR(DecisionProgram, AZ::SystemAllocator);
 
         //! True when the program has no nodes to run.
         bool IsEmpty() const { return m_nodes.empty(); }
