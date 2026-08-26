@@ -7,6 +7,7 @@
 #include <AzCore/EBus/ScheduledEvent.h>
 #include <AzCore/Time/ITime.h>
 #include <AzCore/std/containers/array.h>
+#include <AzCore/std/containers/unordered_map.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 
 namespace GOAT
@@ -39,6 +40,15 @@ namespace GOAT
 
         //! The record for an agent, or nullptr when the handle is stale.
         AgentRecord* Find(AgentId agent);
+        const AgentRecord* Find(AgentId agent) const;
+
+        //! The agent driving an entity, or a null handle when it drives none.
+        //! Kept as a map rather than scanned, because a director resolves its reach from entities
+        //! on every tick and the console was already hand rolling the same scan twice.
+        AgentId FindByEntity(AZ::EntityId entity) const;
+
+        //! How often a band runs, so a caller can size a cache against it.
+        AZ::TimeMs GetBandInterval(size_t band) const;
 
         //! Moves an agent to a different pacing band.
         void SetBand(AgentId agent, size_t band);
@@ -95,6 +105,7 @@ namespace GOAT
         IBlackboardSystem& m_blackboard;
         LuaDispatch& m_dispatch;
         HandleTable<AZStd::unique_ptr<AgentRecord>, AgentTag> m_agents;
+        AZStd::unordered_map<AZ::EntityId, AgentId> m_byEntity;
         AZStd::array<Band, BandCount> m_bands;
     };
 } // namespace GOAT

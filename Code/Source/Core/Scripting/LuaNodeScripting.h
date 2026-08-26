@@ -3,6 +3,7 @@
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
 
+#include <GOAT/Interfaces/IBackend.h>
 #include <GOAT/Interfaces/INodeScripting.h>
 
 namespace GOAT

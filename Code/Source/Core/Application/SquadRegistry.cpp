@@ -69,6 +69,38 @@ namespace GOAT
         return membership != m_squadByAgent.end() ? membership->second : AZ::Name{};
     }
 
+    void SquadRegistry::FindMembers(const AZ::Name& squad, AZStd::vector<AgentId>& out) const
+    {
+        AZ_Assert(!squad.IsEmpty(), "Members are only looked up for a named squad");
+
+        for (const auto& [agent, name] : m_squadByAgent)
+        {
+            if (name == squad)
+            {
+                out.push_back(agent);
+            }
+        }
+    }
+
+    AZStd::vector<AZ::Name> SquadRegistry::GetNames() const
+    {
+        AZStd::vector<AZ::Name> names;
+        names.reserve(m_squads.size());
+        for (const auto& [name, squad] : m_squads)
+        {
+            names.push_back(name);
+        }
+
+        AZ_Assert(names.size() == m_squads.size(), "Listing squads must report exactly as many as exist");
+        return names;
+    }
+
+    BlackboardStorage* SquadRegistry::FindStorage(const AZ::Name& squad)
+    {
+        const auto found = m_squads.find(squad);
+        return found != m_squads.end() ? &found->second.m_storage : nullptr;
+    }
+
     BlackboardStorage* SquadRegistry::FindStorage(AgentId agent)
     {
         return const_cast<BlackboardStorage*>(static_cast<const SquadRegistry*>(this)->FindStorage(agent));

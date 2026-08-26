@@ -3,7 +3,9 @@
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Domain/AgentId.h>
+#include <GOAT/Domain/DirectorProfile.h>
 #include <GOAT/Domain/NodeType.h>
+#include <GOAT/Interfaces/IReachFilter.h>
 #include <GOAT/GOATTypeIds.h>
 #include <GOAT/Interfaces/IActionState.h>
 #include <GOAT/Interfaces/IBackend.h>
@@ -55,10 +57,14 @@ namespace GOAT
 
         //! Puts an agent onto another of its trees, ending whatever it was running first.
         //! Replaces outright and forgets anything it had interrupted.
-        virtual bool SetAgentTree(AgentId agent, const AZ::Name& treeName) = 0;
+        //! @param priority whoever is asking. A higher priority command replaces one still
+        //! waiting to be applied; a lower one arriving after it is dropped.
+        virtual bool SetAgentTree(
+            AgentId agent, const AZ::Name& treeName, AZ::u8 priority = SelfSwitchPriority) = 0;
 
         //! Interrupts an agent with another tree, remembering what to come back to.
-        virtual bool PushAgentTree(AgentId agent, const AZ::Name& treeName) = 0;
+        virtual bool PushAgentTree(
+            AgentId agent, const AZ::Name& treeName, AZ::u8 priority = SelfSwitchPriority) = 0;
 
         //! Returns an agent to the tree it last interrupted. False when it interrupted nothing.
         virtual bool PopAgentTree(AgentId agent) = 0;
@@ -68,6 +74,46 @@ namespace GOAT
 
         //! Puts an agent in a named squad, creating that squad on the first join.
         virtual void JoinSquad(AgentId agent, const AZ::Name& squad) = 0;
+
+        //! Takes an agent out of its squad, destroying that squad on the last leave.
+        virtual void LeaveSquad(AgentId agent) = 0;
+
+        //! The squad an agent is in, or an empty name when it is in none.
+        virtual AZ::Name GetAgentSquad(AgentId agent) const = 0;
+
+        //! Every registered agent. The roster a director's reach is filtered from.
+        virtual AZStd::vector<AgentId> GetAgents() const = 0;
+
+        //! The agent driving an entity, or a null handle when it drives none.
+        virtual AgentId FindAgent(AZ::EntityId entity) const = 0;
+
+        //! The entity an agent drives, or an invalid id when it is not registered.
+        virtual AZ::EntityId GetAgentEntity(AgentId agent) const = 0;
+
+        //! Moves an agent between pacing bands, which is the level of detail lever.
+        virtual bool SetAgentBand(AgentId agent, size_t band) = 0;
+        virtual size_t GetAgentBand(AgentId agent) const = 0;
+
+        //! Points a subtree slot at another tree and recompiles every tree that used it.
+        //! Agents already running an affected tree keep the program they started on, so a rebind
+        //! never rewrites a tree under an agent mid action; they pick the new one up next time
+        //! they enter that tree.
+        //! @return how many trees were recompiled.
+        virtual AZ::Outcome<size_t, AZStd::string> RebindSubtree(
+            const AZ::Name& slot, const AZ::Name& treeName) = 0;
+
+        //! Makes an agent a director governing a reach. False when it already is one.
+        virtual bool RegisterDirector(AgentId director, const DirectorProfile& profile) = 0;
+        virtual void UnregisterDirector(AgentId director) = 0;
+
+        //! How many agents a director governs, and which. Zero and null for a non director.
+        virtual size_t GetReachSize(AgentId director) = 0;
+        virtual AgentId GetInReach(AgentId director, size_t index) = 0;
+
+        //! Installs a way to narrow a reach that the core cannot judge for itself.
+        virtual bool RegisterReachFilter(AZStd::unique_ptr<IReachFilter> filter) = 0;
+        virtual void UnregisterReachFilter(const AZ::Name& name) = 0;
+        virtual AZStd::vector<AZ::Name> GetReachFilterNames() const = 0;
 
         //! Installs a backend. Removing one is what makes backends decoupled.
         virtual bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) = 0;

@@ -109,6 +109,17 @@ namespace GOAT
         return m_squads.Find(agent);
     }
 
+    BlackboardStorage* BlackboardSystem::FindSquadStorage(const AZ::Name& squad)
+    {
+        AZ_Assert(!squad.IsEmpty(), "Squad storage is only looked up by a name");
+        return m_squads.FindStorage(squad);
+    }
+
+    AZStd::vector<AZ::Name> BlackboardSystem::GetSquadNames() const
+    {
+        return m_squads.GetNames();
+    }
+
     BlackboardStorage* BlackboardSystem::FindStorage(BlackboardScope scope, AgentId agent)
     {
         return const_cast<BlackboardStorage*>(static_cast<const BlackboardSystem*>(this)->FindStorage(scope, agent));

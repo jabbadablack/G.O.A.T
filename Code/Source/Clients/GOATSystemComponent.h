@@ -6,6 +6,8 @@
 #include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
+#include <Core/Application/ReachFilterRegistry.h>
+#include <Core/Director/DirectorRegistry.h>
 #include <Core/Frontend/TreeLibrary.h>
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
@@ -53,11 +55,26 @@ namespace GOAT
         AgentId RegisterAgent(
             AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad) override;
         void UnregisterAgent(AgentId agent) override;
-        bool SetAgentTree(AgentId agent, const AZ::Name& treeName) override;
-        bool PushAgentTree(AgentId agent, const AZ::Name& treeName) override;
+        bool SetAgentTree(AgentId agent, const AZ::Name& treeName, AZ::u8 priority) override;
+        bool PushAgentTree(AgentId agent, const AZ::Name& treeName, AZ::u8 priority) override;
         bool PopAgentTree(AgentId agent) override;
         AZ::Name GetAgentTree(AgentId agent) const override;
         void JoinSquad(AgentId agent, const AZ::Name& squad) override;
+        void LeaveSquad(AgentId agent) override;
+        AZ::Name GetAgentSquad(AgentId agent) const override;
+        AZStd::vector<AgentId> GetAgents() const override;
+        AgentId FindAgent(AZ::EntityId entity) const override;
+        AZ::EntityId GetAgentEntity(AgentId agent) const override;
+        bool SetAgentBand(AgentId agent, size_t band) override;
+        size_t GetAgentBand(AgentId agent) const override;
+        AZ::Outcome<size_t, AZStd::string> RebindSubtree(const AZ::Name& slot, const AZ::Name& treeName) override;
+        bool RegisterDirector(AgentId director, const DirectorProfile& profile) override;
+        void UnregisterDirector(AgentId director) override;
+        size_t GetReachSize(AgentId director) override;
+        AgentId GetInReach(AgentId director, size_t index) override;
+        bool RegisterReachFilter(AZStd::unique_ptr<IReachFilter> filter) override;
+        void UnregisterReachFilter(const AZ::Name& name) override;
+        AZStd::vector<AZ::Name> GetReachFilterNames() const override;
         bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) override;
         void UnregisterBackend(const AZ::Name& name) override;
         bool RegisterNodeType(NodeTypeDescriptor descriptor) override;
@@ -138,7 +155,7 @@ namespace GOAT
 
         //! Asks for a tree change, deferred to the agent's next tick because a request can
         //! arrive from Lua running inside that agent's current one.
-        bool RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind);
+        bool RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind, AZ::u8 priority);
 
         //! Carries out a deferred request. Installed on the runtime, which calls it first thing.
         void ApplyTreeSwitch(AgentRecord& agent);
@@ -166,6 +183,8 @@ namespace GOAT
         //! Where every plan's steps live. Outlives the agents, because their plans are spans
         //! into it rather than copies.
         AZStd::unique_ptr<PlanStore> m_planStore;
+        AZStd::unique_ptr<ReachFilterRegistry> m_reachFilters;
+        AZStd::unique_ptr<DirectorRegistry> m_directors;
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;

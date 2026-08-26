@@ -32,6 +32,8 @@ namespace GOAT
         void JoinSquad(AgentId agent, const AZ::Name& squad) override;
         void LeaveSquad(AgentId agent) override;
         AZ::Name GetSquad(AgentId agent) const override;
+        BlackboardStorage* FindSquadStorage(const AZ::Name& squad) override;
+        AZStd::vector<AZ::Name> GetSquadNames() const override;
         BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) override;
         const BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) const override;
         ////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Domain/AgentId.h>
+#include <GOAT/Domain/BlackboardKey.h>
 #include <GOAT/GOATTypeIds.h>
 
 #include <AzCore/Component/EntityId.h>

@@ -6,6 +6,7 @@
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/AgentStateMachine.h>
 #include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT/Domain/DirectorProfile.h>
 #include <GOAT/Domain/Intent.h>
 
 #include <AzCore/Component/EntityId.h>
@@ -66,6 +67,10 @@ namespace GOAT
         //! references into, and ctx:SetTree is reachable from a behaviour running inside Tick.
         AZ::Name m_pendingTree;
         TreeSwitchKind m_pendingSwitch = TreeSwitchKind::None;
+        //! Priority of whoever asked. A higher one replaces a command still waiting; a lower one
+        //! arriving after is dropped rather than queued, because queueing it would land it on the
+        //! next window and undo the winner one tick later.
+        AZ::u8 m_pendingPriority = SelfSwitchPriority;
 
         //! Scratch reused each tick when collecting due services.
         AZStd::vector<AZ::u32> m_dueServices;

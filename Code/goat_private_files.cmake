@@ -22,6 +22,10 @@ set(FILES
     Source/Core/Application/BackendRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
+    Source/Core/Application/ReachFilterRegistry.cpp
+    Source/Core/Application/ReachFilterRegistry.h
+    Source/Core/Director/DirectorRegistry.cpp
+    Source/Core/Director/DirectorRegistry.h
     Source/Core/Application/BlackboardSystem.cpp
     Source/Core/Application/BlackboardSystem.h
     Source/Core/Application/SquadRegistry.cpp

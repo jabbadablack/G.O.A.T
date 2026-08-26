@@ -88,8 +88,10 @@ namespace GOAT
         raw->m_observer.Connect(*raw->m_program, m_blackboard, id);
 
         m_bands[band].m_members.push_back(id);
+        m_byEntity[entity] = id;
 
         AZ_Assert(Find(id) == raw, "A registered agent must be findable by the id it was given");
+        AZ_Assert(FindByEntity(entity) == id, "A registered agent must be findable by its entity");
         AZ_Assert(raw->m_band == band, "A registered agent must sit in the band it asked for");
 
         AZLOG(GoatAgent, "GOAT: entity %s became agent %u in band %zu",
@@ -133,6 +135,7 @@ namespace GOAT
 
         // Drop the Lua scratch before the slot can be reused, so a new agent starts clean.
         m_dispatch.ForgetAgent(agent);
+        m_byEntity.erase(record->m_entity);
         m_blackboard.DestroyAgentBlackboard(agent);
         m_agents.Release(agent);
 
@@ -143,6 +146,24 @@ namespace GOAT
     {
         AZStd::unique_ptr<AgentRecord>* found = m_agents.Find(agent);
         return found != nullptr ? found->get() : nullptr;
+    }
+
+    const AgentRecord* AgentRegistry::Find(AgentId agent) const
+    {
+        const AZStd::unique_ptr<AgentRecord>* found = m_agents.Find(agent);
+        return found != nullptr ? found->get() : nullptr;
+    }
+
+    AgentId AgentRegistry::FindByEntity(AZ::EntityId entity) const
+    {
+        const auto found = m_byEntity.find(entity);
+        return found != m_byEntity.end() ? found->second : AgentId{};
+    }
+
+    AZ::TimeMs AgentRegistry::GetBandInterval(size_t band) const
+    {
+        AZ_Assert(band < BandCount, "A band interval is only asked for a band that exists");
+        return band < BandCount ? m_bands[band].m_interval : AZ::TimeMs{ 0 };
     }
 
     void AgentRegistry::SetBand(AgentId agent, size_t band)

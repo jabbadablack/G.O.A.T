@@ -169,6 +169,8 @@ namespace GOAT
             *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
             *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
+        m_reachFilters = AZStd::make_unique<ReachFilterRegistry>();
+        m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents, *m_blackboardSystem, *m_reachFilters);
 
         // Resolving a tree name needs the compiled programs, which live here, so the runtime is
         // handed the step rather than reaching back up for it.
@@ -186,6 +188,9 @@ namespace GOAT
     void GOATSystemComponent::StopServices()
     {
         m_programs.clear();
+        // Before the agents, because a director record is keyed by an agent handle.
+        m_directors.reset();
+        m_reachFilters.reset();
         m_agents.reset();
         m_runtime.reset();
         m_directBackend = nullptr;
@@ -483,7 +488,8 @@ namespace GOAT
         }
     }
 
-    bool GOATSystemComponent::RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind)
+    bool GOATSystemComponent::RequestTreeSwitch(
+        AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind, AZ::u8 priority)
     {
         AZ_Assert(kind != TreeSwitchKind::None, "A switch request always says what it wants done");
 
@@ -491,6 +497,18 @@ namespace GOAT
         if (record == nullptr)
         {
             AZ_Warning("GOAT", false, "Agent %u cannot change tree because it is not registered", agent.GetIndex());
+            return false;
+        }
+
+        // The incumbent holds ties, so two directors of equal standing produce a stable outcome
+        // rather than one that flips with whichever ticked last. A loser is dropped, never
+        // queued: queueing would land it on the next window and undo the winner a tick later,
+        // which is the thrash this whole design exists to prevent.
+        if (record->m_pendingSwitch != TreeSwitchKind::None && priority <= record->m_pendingPriority)
+        {
+            AZLOG(GoatDirector,
+                "GOAT: agent %u refused a priority %u command; a priority %u one is already pending",
+                agent.GetIndex(), static_cast<AZ::u32>(priority), static_cast<AZ::u32>(record->m_pendingPriority));
             return false;
         }
 
@@ -510,6 +528,7 @@ namespace GOAT
         // Recorded rather than done: the caller may be Lua running inside this agent's own tick.
         record->m_pendingTree = treeName;
         record->m_pendingSwitch = kind;
+        record->m_pendingPriority = priority;
         return true;
     }
 
@@ -521,6 +540,10 @@ namespace GOAT
         // Cleared first, so a switch that cannot be carried out is not retried every tick.
         agent.m_pendingSwitch = TreeSwitchKind::None;
         agent.m_pendingTree = AZ::Name{};
+        agent.m_pendingPriority = SelfSwitchPriority;
+
+        AZ_Assert(agent.m_pendingPriority == SelfSwitchPriority,
+            "Applying a switch must leave no priority floor behind, or every later command is refused");
 
         if (kind == TreeSwitchKind::None || m_agents == nullptr)
         {
@@ -564,25 +587,183 @@ namespace GOAT
         }
     }
 
-    bool GOATSystemComponent::SetAgentTree(AgentId agent, const AZ::Name& treeName)
+    bool GOATSystemComponent::SetAgentTree(AgentId agent, const AZ::Name& treeName, AZ::u8 priority)
     {
-        return RequestTreeSwitch(agent, treeName, TreeSwitchKind::Set);
+        return RequestTreeSwitch(agent, treeName, TreeSwitchKind::Set, priority);
     }
 
-    bool GOATSystemComponent::PushAgentTree(AgentId agent, const AZ::Name& treeName)
+    bool GOATSystemComponent::PushAgentTree(AgentId agent, const AZ::Name& treeName, AZ::u8 priority)
     {
-        return RequestTreeSwitch(agent, treeName, TreeSwitchKind::Push);
+        return RequestTreeSwitch(agent, treeName, TreeSwitchKind::Push, priority);
     }
 
     bool GOATSystemComponent::PopAgentTree(AgentId agent)
     {
-        return RequestTreeSwitch(agent, AZ::Name{}, TreeSwitchKind::Pop);
+        // A pop carries no priority: an agent returning to what it interrupted is finishing
+        // something it started, not overruling anyone.
+        return RequestTreeSwitch(agent, AZ::Name{}, TreeSwitchKind::Pop, SelfSwitchPriority);
     }
 
     AZ::Name GOATSystemComponent::GetAgentTree(AgentId agent) const
     {
         const AgentRecord* record = m_agents != nullptr ? m_agents->Find(agent) : nullptr;
         return record != nullptr ? record->m_treeName : AZ::Name{};
+    }
+
+    void GOATSystemComponent::LeaveSquad(AgentId agent)
+    {
+        if (m_agents != nullptr)
+        {
+            m_agents->LeaveSquad(agent);
+        }
+    }
+
+    AZ::Name GOATSystemComponent::GetAgentSquad(AgentId agent) const
+    {
+        return m_blackboardSystem != nullptr ? m_blackboardSystem->GetSquad(agent) : AZ::Name{};
+    }
+
+    AZStd::vector<AgentId> GOATSystemComponent::GetAgents() const
+    {
+        return m_agents != nullptr ? m_agents->GetAgents() : AZStd::vector<AgentId>{};
+    }
+
+    AgentId GOATSystemComponent::FindAgent(AZ::EntityId entity) const
+    {
+        return m_agents != nullptr ? m_agents->FindByEntity(entity) : AgentId{};
+    }
+
+    AZ::EntityId GOATSystemComponent::GetAgentEntity(AgentId agent) const
+    {
+        const AgentRecord* record = m_agents != nullptr ? m_agents->Find(agent) : nullptr;
+        return record != nullptr ? record->m_entity : AZ::EntityId{};
+    }
+
+    bool GOATSystemComponent::SetAgentBand(AgentId agent, size_t band)
+    {
+        AgentRecord* record = m_agents != nullptr ? m_agents->Find(agent) : nullptr;
+        if (record == nullptr)
+        {
+            return false;
+        }
+
+        m_agents->SetBand(agent, band);
+        return true;
+    }
+
+    size_t GOATSystemComponent::GetAgentBand(AgentId agent) const
+    {
+        const AgentRecord* record = m_agents != nullptr ? m_agents->Find(agent) : nullptr;
+        return record != nullptr ? record->m_band : AgentRegistry::BandCount;
+    }
+
+    AZ::Outcome<size_t, AZStd::string> GOATSystemComponent::RebindSubtree(
+        const AZ::Name& slot, const AZ::Name& treeName)
+    {
+        if (m_trees == nullptr)
+        {
+            return AZ::Failure(AZStd::string("The tree library is not running"));
+        }
+
+        AZ_Assert(!slot.IsEmpty(), "A subtree slot is always rebound by name");
+        if (slot.IsEmpty() || treeName.IsEmpty())
+        {
+            return AZ::Failure(AZStd::string("A rebind names both a slot and the tree to bind to it"));
+        }
+
+        m_trees->Bind(slot, treeName);
+
+        // Which programs used the slot is recorded on the program itself, by the compiler that
+        // resolved it -- the only thing that could possibly know.
+        AZStd::vector<AZ::Name> affected;
+        for (const auto& [name, program] : m_programs)
+        {
+            if (program == nullptr)
+            {
+                continue;
+            }
+
+            const auto& slots = program->m_boundSlots;
+            if (AZStd::find(slots.begin(), slots.end(), slot) != slots.end())
+            {
+                affected.push_back(name);
+            }
+        }
+
+        // A failed recompile leaves the old program in place, because CompileTree fails before it
+        // touches m_programs. A bad rebind therefore leaves the world running.
+        for (const AZ::Name& name : affected)
+        {
+            if (auto compiled = CompileTree(name); !compiled.IsSuccess())
+            {
+                return AZ::Failure(compiled.TakeError());
+            }
+        }
+
+        // Agents already inside an affected tree keep the program they started on and finish it
+        // coherently; they take the new one the next time they enter that tree.
+        size_t stale = 0;
+        for (const AgentId agent : GetAgents())
+        {
+            const AgentRecord* record = m_agents->Find(agent);
+            const auto current = record != nullptr ? m_programs.find(record->m_treeName) : m_programs.end();
+            if (record != nullptr && current != m_programs.end() && record->m_program != current->second)
+            {
+                ++stale;
+            }
+        }
+
+        AZLOG(GoatDirector, "GOAT: slot '%s' now runs '%s'; %zu tree(s) recompiled, %zu agent(s) still on the old one",
+            slot.GetCStr(), treeName.GetCStr(), affected.size(), stale);
+
+        return AZ::Success(affected.size());
+    }
+
+    bool GOATSystemComponent::RegisterDirector(AgentId director, const DirectorProfile& profile)
+    {
+        return m_directors != nullptr && m_directors->Register(director, profile);
+    }
+
+    void GOATSystemComponent::UnregisterDirector(AgentId director)
+    {
+        if (m_directors != nullptr)
+        {
+            m_directors->Unregister(director);
+        }
+    }
+
+    size_t GOATSystemComponent::GetReachSize(AgentId director)
+    {
+        return m_directors != nullptr ? m_directors->Resolve(director).size() : 0;
+    }
+
+    AgentId GOATSystemComponent::GetInReach(AgentId director, size_t index)
+    {
+        if (m_directors == nullptr)
+        {
+            return AgentId{};
+        }
+
+        const auto& reach = m_directors->Resolve(director);
+        return index < reach.size() ? reach[index] : AgentId{};
+    }
+
+    bool GOATSystemComponent::RegisterReachFilter(AZStd::unique_ptr<IReachFilter> filter)
+    {
+        return m_reachFilters != nullptr && m_reachFilters->Register(AZStd::move(filter));
+    }
+
+    void GOATSystemComponent::UnregisterReachFilter(const AZ::Name& name)
+    {
+        if (m_reachFilters != nullptr)
+        {
+            m_reachFilters->Unregister(name);
+        }
+    }
+
+    AZStd::vector<AZ::Name> GOATSystemComponent::GetReachFilterNames() const
+    {
+        return m_reachFilters != nullptr ? m_reachFilters->GetNames() : AZStd::vector<AZ::Name>{};
     }
 
     void GOATSystemComponent::JoinSquad(AgentId agent, const AZ::Name& squad)
@@ -760,7 +941,10 @@ namespace GOAT
                 continue;
             }
 
-            AZLOG_INFO("%s agent %u to tree '%s'", SetAgentTree(agent, treeName) ? "moving" : "could not move",
+            // From the console, at the highest priority: someone typing a command is overruling
+            // whatever any director decided, which is what a debugging command is for.
+            AZLOG_INFO("%s agent %u to tree '%s'",
+                SetAgentTree(agent, treeName, AZStd::numeric_limits<AZ::u8>::max()) ? "moving" : "could not move",
                 agent.GetIndex(), treeName.GetCStr());
             return;
         }

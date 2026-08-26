@@ -46,6 +46,14 @@ namespace GOAT
         //! The squad an agent belongs to, or an empty name when it is in none.
         virtual AZ::Name GetSquad(AgentId agent) const = 0;
 
+        //! Storage for a named squad, or nullptr when no such squad exists.
+        //! Told apart from the agent keyed lookup below because a director writes to a squad it
+        //! is not a member of, and has no agent in it to ask through.
+        virtual BlackboardStorage* FindSquadStorage(const AZ::Name& squad) = 0;
+
+        //! Every squad that currently has a member.
+        virtual AZStd::vector<AZ::Name> GetSquadNames() const = 0;
+
         //! Storage backing one scope for one agent, or nullptr when it does not exist.
         //! Pass a null agent for global scope.
         virtual BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) = 0;

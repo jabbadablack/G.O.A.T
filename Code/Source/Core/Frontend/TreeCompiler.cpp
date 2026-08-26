@@ -152,6 +152,15 @@ namespace GOAT
             if (ReadName(*slot, slotName))
             {
                 treeName = m_library.GetBinding(slotName);
+
+                // Remembered so a rebind of this slot can recompile exactly the trees that used
+                // it, rather than every tree in the project.
+                if (AZStd::find(program.m_boundSlots.begin(), program.m_boundSlots.end(), slotName) ==
+                    program.m_boundSlots.end())
+                {
+                    program.m_boundSlots.push_back(slotName);
+                }
+
                 if (treeName.IsEmpty())
                 {
                     return AZ::Failure(
