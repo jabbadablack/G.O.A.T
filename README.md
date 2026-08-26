@@ -1,7 +1,7 @@
 # 🐐 G.O.A.T. – Gameplay Oriented Agent Toolkit
 
 **A Backend-Driven AI Framework for O3DE**  
-*Lua-First Authoring. C++ Performance. Unlimited Planning.*
+*Lua-First Authoring. C++ Performance.*
 
 ---
 
