@@ -1,6 +1,7 @@
 set(FILES
     Include/GOAT/GOATBus.h
     Include/GOAT/GOATTypeIds.h
+    Include/GOAT/Assets/BlackboardAsset.h
     Include/GOAT/Domain/ActionPlan.h
     Include/GOAT/Domain/ActionState.h
     Include/GOAT/Domain/AgentId.h

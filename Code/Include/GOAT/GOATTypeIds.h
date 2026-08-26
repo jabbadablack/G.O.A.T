@@ -25,6 +25,7 @@ namespace GOAT
     inline constexpr const char* AgentStateMachineTypeId = "{B5E297DA-3E67-4805-87E7-1339EEAF0632}";
 
     // Asset TypeIds
+    inline constexpr const char* BlackboardVariableTypeId = "{F6CFC1F4-AA6B-47DF-A8B4-19EA46F928E0}";
     inline constexpr const char* BlackboardAssetTypeId = "{29F4C31E-D14F-4DB2-8DBE-B13E59D1ED50}";
     inline constexpr const char* BehaviorTreeAssetTypeId = "{471B8D29-2A2E-4E77-8C33-B8E054EDCA00}";
 

@@ -7,6 +7,7 @@ set(FILES
     Source/Core/Application/BlackboardSystem.h
     Source/Core/Application/SquadRegistry.cpp
     Source/Core/Application/SquadRegistry.h
+    Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Domain/ActionPlan.cpp
     Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/BlackboardKey.cpp
