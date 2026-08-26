@@ -2,16 +2,16 @@
 
 namespace GOAT
 {
-    void TreeLibrary::Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeAsset> asset)
+    void TreeLibrary::Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeNode> root)
     {
-        if (name.IsEmpty() || asset == nullptr)
+        if (name.IsEmpty() || root == nullptr)
         {
             return;
         }
-        m_trees[name] = AZStd::move(asset);
+        m_trees[name] = AZStd::move(root);
     }
 
-    const BehaviorTreeAsset* TreeLibrary::Find(const AZ::Name& name) const
+    const BehaviorTreeNode* TreeLibrary::Find(const AZ::Name& name) const
     {
         const auto found = m_trees.find(name);
         return found != m_trees.end() ? found->second.get() : nullptr;
@@ -41,7 +41,7 @@ namespace GOAT
     {
         AZStd::vector<AZ::Name> names;
         names.reserve(m_trees.size());
-        for (const auto& [name, asset] : m_trees)
+        for (const auto& [name, root] : m_trees)
         {
             names.push_back(name);
         }

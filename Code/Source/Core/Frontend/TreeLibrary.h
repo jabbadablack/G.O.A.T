@@ -10,15 +10,16 @@
 namespace GOAT
 {
     //! The authored trees available to compile against, so one tree can reference another.
-    //! Holds the authored form, not the compiled one, because composition happens at compile time.
+    //! Holds authored roots rather than assets, so an in memory tree from Lua and a loaded
+    //! .bt asset are the same thing to the compiler.
     class TreeLibrary final
     {
     public:
         //! Adds or replaces a tree under a name.
-        void Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeAsset> asset);
+        void Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeNode> root);
 
-        //! The tree registered under a name, or nullptr when there is none.
-        const BehaviorTreeAsset* Find(const AZ::Name& name) const;
+        //! The authored root registered under a name, or nullptr when there is none.
+        const BehaviorTreeNode* Find(const AZ::Name& name) const;
 
         //! Removes a tree.
         void Remove(const AZ::Name& name);
@@ -36,7 +37,7 @@ namespace GOAT
         void Clear();
 
     private:
-        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const BehaviorTreeAsset>> m_trees;
+        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const BehaviorTreeNode>> m_trees;
         AZStd::unordered_map<AZ::Name, AZ::Name> m_bindings;
     };
 } // namespace GOAT

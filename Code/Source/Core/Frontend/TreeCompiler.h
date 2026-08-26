@@ -21,7 +21,7 @@ namespace GOAT
         TreeCompiler(const NodeTypeRegistry& types, const IBlackboardSystem& blackboard, const TreeLibrary& library);
 
         //! Compiles an authored tree. On failure the message names the offending node.
-        AZ::Outcome<DecisionProgram, AZStd::string> Compile(const BehaviorTreeAsset& asset) const;
+        AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AZ::Name& name, const BehaviorTreeNode& root) const;
 
     private:
         //! Emits one node and its subtree, returning the index it was written to.

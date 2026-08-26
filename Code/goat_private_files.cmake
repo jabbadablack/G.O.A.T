@@ -3,6 +3,8 @@ set(FILES
     Source/GOATModuleInterface.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
+    Source/Core/Actions/RunScriptAction.cpp
+    Source/Core/Actions/RunScriptAction.h
     Source/Core/Actions/WaitAction.cpp
     Source/Core/Actions/WaitAction.h
     Source/Core/Application/ActionStateRegistry.cpp
@@ -49,6 +51,8 @@ set(FILES
     Source/Core/Memory/HandleTable.h
     Source/Core/Scripting/AgentScriptContext.cpp
     Source/Core/Scripting/AgentScriptContext.h
+    Source/Core/Scripting/LuaDispatch.cpp
+    Source/Core/Scripting/LuaDispatch.h
     Source/Core/Scripting/LuaTreeBuilder.cpp
     Source/Core/Scripting/LuaTreeBuilder.h
 )

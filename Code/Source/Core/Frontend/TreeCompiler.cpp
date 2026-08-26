@@ -145,7 +145,7 @@ namespace GOAT
                 AZStd::string::format("Subtree '%s' refers to itself, directly or through another tree", treeName.GetCStr()));
         }
 
-        const BehaviorTreeAsset* referenced = m_library.Find(treeName);
+        const BehaviorTreeNode* referenced = m_library.Find(treeName);
         if (referenced == nullptr)
         {
             return AZ::Failure(AZStd::string::format("Unknown subtree '%s'", treeName.GetCStr()));
@@ -153,7 +153,7 @@ namespace GOAT
 
         // The subtree node itself leaves no trace: its referenced root takes its place.
         inlining.push_back(treeName);
-        auto emitted = Emit(referenced->m_root, parent, depth, program, inlining);
+        auto emitted = Emit(*referenced, parent, depth, program, inlining);
         inlining.pop_back();
         return emitted;
     }
@@ -397,22 +397,23 @@ namespace GOAT
         return AZ::Success(index);
     }
 
-    AZ::Outcome<DecisionProgram, AZStd::string> TreeCompiler::Compile(const BehaviorTreeAsset& asset) const
+    AZ::Outcome<DecisionProgram, AZStd::string> TreeCompiler::Compile(
+        const AZ::Name& name, const BehaviorTreeNode& root) const
     {
         DecisionProgram program;
-        program.m_name = AZ::Name(asset.m_name);
+        program.m_name = name;
 
-        if (asset.m_root.m_type.empty())
+        if (root.m_type.empty())
         {
-            return AZ::Failure(AZStd::string::format("Tree '%s' has no root node", asset.m_name.c_str()));
+            return AZ::Failure(AZStd::string::format("Tree '%s' has no root node", name.GetCStr()));
         }
 
         AZStd::vector<AZ::Name> inlining;
-        inlining.push_back(program.m_name);
-        auto root = Emit(asset.m_root, InvalidNodeIndex, 0, program, inlining);
-        if (!root.IsSuccess())
+        inlining.push_back(name);
+        auto emitted = Emit(root, InvalidNodeIndex, 0, program, inlining);
+        if (!emitted.IsSuccess())
         {
-            return AZ::Failure(AZStd::string::format("Tree '%s': %s", asset.m_name.c_str(), root.GetError().c_str()));
+            return AZ::Failure(AZStd::string::format("Tree '%s': %s", name.GetCStr(), emitted.GetError().c_str()));
         }
 
         AZStd::sort(program.m_observedKeys.begin(), program.m_observedKeys.end());

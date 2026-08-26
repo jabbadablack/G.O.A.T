@@ -39,6 +39,7 @@ namespace GOAT
     struct BehaviorTreeNode final
     {
         AZ_TYPE_INFO(BehaviorTreeNode, BehaviorTreeNodeTypeId);
+        AZ_CLASS_ALLOCATOR(BehaviorTreeNode, AZ::SystemAllocator);
 
         static void Reflect(AZ::ReflectContext* context);
 
