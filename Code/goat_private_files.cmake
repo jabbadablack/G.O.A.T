@@ -9,5 +9,10 @@ set(FILES
     Source/Core/Domain/BlackboardTypes.cpp
     Source/Core/Domain/Guard.cpp
     Source/Core/Domain/Intent.cpp
+    Source/Core/Domain/BlackboardLayout.h
+    Source/Core/Domain/BlackboardSchema.cpp
+    Source/Core/Domain/BlackboardSchema.h
+    Source/Core/Domain/BlackboardStorage.cpp
+    Source/Core/Domain/BlackboardStorage.h
     Source/Core/Memory/HandleTable.h
 )

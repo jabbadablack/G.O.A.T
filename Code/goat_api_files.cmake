@@ -4,6 +4,7 @@ set(FILES
     Include/GOAT/Domain/ActionPlan.h
     Include/GOAT/Domain/ActionState.h
     Include/GOAT/Domain/BlackboardKey.h
+    Include/GOAT/Domain/BlackboardTraits.h
     Include/GOAT/Domain/BlackboardTypes.h
     Include/GOAT/Domain/Guard.h
     Include/GOAT/Domain/Handle.h

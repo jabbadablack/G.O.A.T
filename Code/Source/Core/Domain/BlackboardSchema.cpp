@@ -1,0 +1,68 @@
+#include <Core/Domain/BlackboardSchema.h>
+
+#include <AzCore/std/string/conversions.h>
+
+namespace GOAT
+{
+    AZ::Outcome<BlackboardKey, AZStd::string> BlackboardSchema::Declare(
+        const AZ::Name& name, BlackboardScope scope, BlackboardType type, AZStd::any defaultValue)
+    {
+        if (name.IsEmpty())
+        {
+            return AZ::Failure(AZStd::string("A blackboard variable must have a name"));
+        }
+
+        if (scope >= BlackboardScope::Count || type >= BlackboardType::Count)
+        {
+            return AZ::Failure(AZStd::string::format("Blackboard variable '%s' has an invalid scope or type", name.GetCStr()));
+        }
+
+        if (auto existing = m_keysByName.find(name); existing != m_keysByName.end())
+        {
+            return AZ::Failure(AZStd::string::format(
+                "Blackboard variable '%s' is already declared as %s %s; names are shared across every .bbx asset",
+                name.GetCStr(), ToString(existing->second.GetScope()), ToString(existing->second.GetType())));
+        }
+
+        BlackboardLayout& layout = m_layouts[static_cast<size_t>(scope)];
+        AZ::u32& slotCount = layout.m_slotCounts[static_cast<size_t>(type)];
+        if (slotCount > BlackboardKey::MaxIndex)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "Too many %s blackboard variables of type %s", ToString(scope), ToString(type)));
+        }
+
+        const BlackboardKey key(scope, type, slotCount);
+        ++slotCount;
+
+        if (!defaultValue.empty())
+        {
+            layout.m_defaults.emplace_back(key, AZStd::move(defaultValue));
+        }
+
+        m_keysByName.emplace(name, key);
+        return AZ::Success(key);
+    }
+
+    BlackboardKey BlackboardSchema::Find(const AZ::Name& name) const
+    {
+        const auto found = m_keysByName.find(name);
+        return found != m_keysByName.end() ? found->second : BlackboardKey{};
+    }
+
+    const BlackboardLayout& BlackboardSchema::GetLayout(BlackboardScope scope) const
+    {
+        AZ_Assert(scope < BlackboardScope::Count, "Invalid blackboard scope");
+        return m_layouts[static_cast<size_t>(scope)];
+    }
+
+    void BlackboardSchema::Clear()
+    {
+        m_keysByName.clear();
+        for (BlackboardLayout& layout : m_layouts)
+        {
+            layout.m_slotCounts.fill(0);
+            layout.m_defaults.clear();
+        }
+    }
+} // namespace GOAT
