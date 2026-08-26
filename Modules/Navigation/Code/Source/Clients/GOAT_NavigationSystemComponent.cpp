@@ -1,6 +1,7 @@
 #include "GOAT_NavigationSystemComponent.h"
 
 #include <Navigation/MoveToAction.h>
+#include <Navigation/ReachFilters.h>
 #include <Navigation/SpatialChecks.h>
 
 #include <GOAT_Navigation/GOAT_NavigationTypeIds.h>
@@ -144,6 +145,13 @@ namespace GOAT_Navigation
             return false;
         }
 
+        GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get();
+        AZ_Assert(agents != nullptr, "Installing vocabulary needs the GOAT agent system");
+        if (agents == nullptr)
+        {
+            return false;
+        }
+
         const bool installed =
             InstallVerb(
                 AZStd::unique_ptr<GOAT::IActionState>(aznew MoveToAction(*m_service, *m_paths, m_keys)),
@@ -154,6 +162,20 @@ namespace GOAT_Navigation
             InstallVerb(
                 AZStd::unique_ptr<GOAT::IActionState>(aznew DoesPathExistAction(*m_service)),
                 "key", GOAT::BlackboardType::Vector3, "Succeeds when a walkable path to a position exists");
+
+        // A director's reach can then narrow by something the core cannot judge: how far an agent
+        // actually is to walk, and whether it is in front.
+        const auto installFilter = [this, agents](AZStd::unique_ptr<GOAT::IReachFilter> filter)
+        {
+            const AZ::Name name = filter->GetName();
+            if (agents->RegisterReachFilter(AZStd::move(filter)))
+            {
+                m_installedReachFilters.push_back(name);
+            }
+        };
+
+        installFilter(AZStd::unique_ptr<GOAT::IReachFilter>(aznew PathDistanceFilter(*m_service)));
+        installFilter(AZStd::unique_ptr<GOAT::IReachFilter>(aznew AheadOfFilter()));
 
         AZ_Error("GOAT", installed, "The navigation module could not install its full vocabulary");
         return installed;
@@ -167,8 +189,15 @@ namespace GOAT_Navigation
             // The core shut down first, which takes its registries with it.
             m_installedActions.clear();
             m_installedNodeTypes.clear();
+            m_installedReachFilters.clear();
             return;
         }
+
+        for (const AZ::Name& name : m_installedReachFilters)
+        {
+            agents->UnregisterReachFilter(name);
+        }
+        m_installedReachFilters.clear();
 
         for (const AZ::Name& name : m_installedNodeTypes)
         {

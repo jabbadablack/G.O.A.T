@@ -176,7 +176,7 @@ namespace GOAT
 
             // Last, because it is the only one that may cost a query.
             if (filter != nullptr && havePosition &&
-                !filter->IsInReach(candidate, agentPosition, directorPosition, reach.m_radius))
+                !filter->IsInReach(director, directorPosition, candidate, agentPosition, reach.m_radius))
             {
                 continue;
             }

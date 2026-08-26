@@ -73,8 +73,9 @@ namespace GOAT_Navigation
         AZStd::unique_ptr<PathPool> m_paths;
         NavigationKeys m_keys;
 
-        //! Verbs installed by this module, so Deactivate can remove exactly those.
+        //! Verbs and reach filters installed by this module, so Deactivate removes exactly those.
         AZStd::vector<GOAT::ActionStateId> m_installedActions;
+        AZStd::vector<AZ::Name> m_installedReachFilters;
         AZStd::vector<AZ::Name> m_installedNodeTypes;
     };
 } // namespace GOAT_Navigation

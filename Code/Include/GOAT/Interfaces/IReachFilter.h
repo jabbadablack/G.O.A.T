@@ -26,12 +26,18 @@ namespace GOAT
         virtual AZ::Name GetName() const = 0;
 
         //! True when an agent is in reach of a director.
+        //!
+        //! Both parties are named, not just their positions: a filter may care about something
+        //! only one of them has -- which way the director is facing, what the agent is doing --
+        //! and neither is derivable from a point.
+        //!
         //! Called once per candidate that survived the cheaper filters, on the director's own
         //! tick, so it must answer without blocking.
         virtual bool IsInReach(
+            AgentId director,
+            const AZ::Vector3& directorPosition,
             AgentId agent,
             const AZ::Vector3& agentPosition,
-            const AZ::Vector3& directorPosition,
             float range) const = 0;
     };
 } // namespace GOAT

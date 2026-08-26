@@ -16,6 +16,8 @@ set(FILES
     Source/Navigation/NavigationService.h
     Source/Navigation/PathPool.cpp
     Source/Navigation/PathPool.h
+    Source/Navigation/ReachFilters.cpp
+    Source/Navigation/ReachFilters.h
     Source/Navigation/SpatialChecks.cpp
     Source/Navigation/SpatialChecks.h
 )
