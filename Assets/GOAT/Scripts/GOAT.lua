@@ -1,0 +1,344 @@
+-- GOAT behaviour tree authoring vocabulary.
+-- Executed once into the script context at startup, so tree files need no require.
+
+GOAT = GOAT or {}
+
+-- Status values a behaviour tick returns. These mirror the C++ ActionResult order.
+RUNNING, SUCCESS, FAILURE = 0, 1, 2
+
+-- Behaviours, services and backends the user has defined, keyed by name.
+GOAT._behaviors = GOAT._behaviors or {}
+GOAT._backends = GOAT._backends or {}
+-- Control flow the user wrote, keyed by name.
+GOAT._flow = GOAT._flow or {}
+-- Trees the user has declared, keyed by name, so C++ can ask for one after loading a file.
+GOAT._trees = GOAT._trees or {}
+-- Per agent, per behaviour scratch tables, so one behaviour can serve many agents.
+GOAT._state = GOAT._state or {}
+
+--! Node types whose single string argument names their main property.
+local defaultProperty = {
+    script = "behavior",
+    behavior = "behavior",
+    service = "behavior",
+    condition = "key",
+    composite = "behavior",
+    decorator = "behavior",
+    conditional_loop = "key",
+    compare = "key",
+    delegate = "backend",
+    raw = "action",
+    subtree = "tree",
+    wait = "seconds",
+    cooldown = "seconds",
+    time_limit = "seconds",
+    loop = "count",
+}
+
+--! Lets a node be written as `name "x"`, as `name { ... }`, or as `name "x" { ... }`.
+--! Numbers need ordinary parentheses, as in `wait(2)`, because Lua only allows the
+--! parenthesis free call form for a string literal or a table constructor.
+local function callable(node)
+    return setmetatable(node, {
+        __call = function(self, arg)
+            if type(arg) == "table" then
+                for index, child in ipairs(arg) do
+                    if child.__goat_service then
+                        table.insert(self.services, child)
+                    else
+                        table.insert(self.children, child)
+                    end
+                end
+                for key, value in pairs(arg) do
+                    if type(key) == "string" then
+                        self.properties[key] = value
+                    end
+                end
+            elseif arg ~= nil then
+                self.properties[defaultProperty[self.type] or "name"] = arg
+            end
+            return self
+        end,
+    })
+end
+
+--! Builds the constructor for one node type.
+local function nodeType(typeName, isService)
+    return function(arg)
+        local node = callable({
+            type = typeName,
+            properties = {},
+            children = {},
+            services = {},
+            __goat_service = isService or nil,
+        })
+        return node(arg)
+    end
+end
+
+-- Composites.
+selector = nodeType("selector")
+sequence = nodeType("sequence")
+composite = nodeType("composite")
+
+-- Decorators.
+invert = nodeType("invert")
+force_success = nodeType("force_success")
+cooldown = nodeType("cooldown")
+loop = nodeType("loop")
+conditional_loop = nodeType("conditional_loop")
+time_limit = nodeType("time_limit")
+condition = nodeType("condition")
+compare = nodeType("compare")
+decorator = nodeType("decorator")
+
+-- Leaves.
+wait = nodeType("wait")
+raw = nodeType("raw")
+script = nodeType("script")
+delegate = nodeType("delegate")
+subtree = nodeType("subtree")
+
+-- Services attach to a composite rather than sitting in its child list.
+service = nodeType("service", true)
+
+--! Defines a leaf behaviour: `behavior "Patrol" { start = ..., tick = ..., stop = ... }`.
+function behavior(name)
+    return function(body)
+        GOAT._behaviors[name] = body
+        return body
+    end
+end
+
+--! Defines control flow in Lua, used by a `composite` or `decorator` node.
+--!
+--! A composite's start(me, ctx, childCount) and result(me, ctx, childIndex, childStatus)
+--! each return either a child index to run next, or nil plus the status to finish with.
+--! A decorator's result(me, ctx, childStatus) returns the status it reports upward.
+function flow(name)
+    return function(body)
+        GOAT._flow[name] = body
+        return body
+    end
+end
+
+--! Defines a backend in Lua: `backend "MyGoap" { plan = function(me, intent) ... end }`.
+function backend(name)
+    return function(body)
+        GOAT._backends[name] = body
+        return body
+    end
+end
+
+--! Declares a tree: `tree "Guard" { selector { ... } }`.
+function tree(name)
+    return function(body)
+        local root = body[1]
+        assert(root ~= nil, "tree '" .. tostring(name) .. "' has no root node")
+        local compiled = GOAT.Compile(name, root)
+        GOAT._trees[name] = compiled
+        return compiled
+    end
+end
+
+--! Flattens a node graph into the pre-order record list the C++ loader reads.
+--! Doing this in Lua keeps the fragile C++ side to reading a plain array.
+function GOAT.Compile(name, root)
+    local records = {}
+
+    local function emit(node)
+        assert(type(node) == "table" and node.type, "a tree may only contain nodes")
+        local record = {
+            type = node.type,
+            childCount = #node.children,
+            serviceCount = #node.services,
+            properties = node.properties,
+        }
+        table.insert(records, record)
+        for _, attached in ipairs(node.services) do
+            table.insert(records, {
+                type = attached.type,
+                childCount = 0,
+                serviceCount = 0,
+                properties = attached.properties,
+            })
+        end
+        for _, child in ipairs(node.children) do
+            emit(child)
+        end
+    end
+
+    emit(root)
+    return { __goat_tree = true, name = name, nodes = records }
+end
+
+--! Returns the scratch table one behaviour keeps for one agent.
+function GOAT._stateFor(agentKey, behaviorName)
+    local perAgent = GOAT._state[agentKey]
+    if perAgent == nil then
+        perAgent = {}
+        GOAT._state[agentKey] = perAgent
+    end
+    local state = perAgent[behaviorName]
+    if state == nil then
+        state = {}
+        perAgent[behaviorName] = state
+    end
+    return state
+end
+
+--! Drops every scratch table an agent owned, called when the agent goes away.
+--! Exposed as a plain global because C++ looks functions up with lua_getglobal, which
+--! does not resolve a dotted name.
+function GOAT_ForgetAgent(agentKey)
+    GOAT._state[agentKey] = nil
+end
+
+--! Kept for scripts that reach for it by its namespaced name.
+GOAT._forgetAgent = GOAT_ForgetAgent
+
+--! The single entry point C++ calls to run a behaviour phase.
+--! Returning a status here avoids C++ holding any Lua reference of its own.
+function GOAT_Dispatch(behaviorName, phase, agentKey, ctx, dt)
+    local body = GOAT._behaviors[behaviorName]
+    if body == nil then
+        return FAILURE
+    end
+
+    local fn = body[phase]
+    if fn == nil then
+        return phase == "tick" and SUCCESS or RUNNING
+    end
+
+    local state = GOAT._stateFor(agentKey, behaviorName)
+    local result = fn(state, ctx, dt)
+    if result == nil then
+        return SUCCESS
+    end
+    return result
+end
+
+--! Hands a declared tree to a C++ builder, one call per node and property.
+--! Pushing the data out this way means C++ never has to read the Lua stack itself.
+function GOAT_EmitTree(treeName, builder)
+    local compiled = GOAT._trees[treeName]
+    if compiled == nil then
+        return false
+    end
+
+    builder:BeginTree(treeName)
+    for _, record in ipairs(compiled.nodes) do
+        builder:AddNode(record.type, record.childCount, record.serviceCount)
+        for key, value in pairs(record.properties) do
+            local kind = type(value)
+            if kind == "boolean" then
+                builder:SetBoolProperty(key, value)
+            elseif kind == "number" then
+                builder:SetNumberProperty(key, value)
+            elseif kind == "string" then
+                builder:SetStringProperty(key, value)
+            end
+        end
+    end
+    builder:EndTree()
+    return true
+end
+
+--! Names every tree declared so far, so C++ can discover what a file produced.
+function GOAT_TreeNames()
+    local names = {}
+    for name in pairs(GOAT._trees) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    return names
+end
+
+--! Runs a Lua backend and pushes the plan it returns into a C++ builder.
+--! Each step is a table naming a verb, as in { action = "wait", seconds = 0.5 }.
+function GOAT_Plan(backendName, agentKey, ctx, goal, builder)
+    local body = GOAT._backends[backendName]
+    if body == nil or body.plan == nil then
+        return false
+    end
+
+    local state = GOAT._stateFor(agentKey, "backend:" .. backendName)
+    local steps = body.plan(state, ctx, goal)
+    if type(steps) ~= "table" or #steps == 0 then
+        return false
+    end
+
+    builder:BeginPlan()
+    for _, step in ipairs(steps) do
+        builder:AddStep(step.action or "script")
+        if step.behavior ~= nil then builder:SetTag(step.behavior) end
+        if step.tag ~= nil then builder:SetTag(step.tag) end
+        if step.seconds ~= nil then builder:SetDuration(step.seconds) end
+        if step.tolerance ~= nil then builder:SetTolerance(step.tolerance) end
+        if step.key ~= nil then builder:SetTargetKey(step.key) end
+    end
+    return builder:EndPlan()
+end
+
+--! True when a backend of that name was defined in Lua.
+function GOAT_HasBackend(backendName)
+    return GOAT._backends[backendName] ~= nil
+end
+
+--! Hands every declared backend name to a C++ collector.
+function GOAT_EmitBackendNames(collector)
+    local names = {}
+    for name in pairs(GOAT._backends) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        collector:Add(name)
+    end
+end
+
+--! Chooses the first child a user defined composite runs.
+--! Returns the child index, or -1 and a status when the node is already finished.
+function GOAT_FlowBegin(flowName, agentKey, ctx, nodeKey, childCount)
+    local body = GOAT._flow[flowName]
+    if body == nil or body.start == nil then
+        return -1, FAILURE
+    end
+
+    local state = GOAT._stateFor(agentKey, "flow:" .. flowName .. ":" .. nodeKey)
+    local child, status = body.start(state, ctx, childCount)
+    if type(child) ~= "number" then
+        return -1, status or SUCCESS
+    end
+    return child - 1, SUCCESS
+end
+
+--! Chooses what a user defined composite does after a child finished.
+function GOAT_FlowAdvance(flowName, agentKey, ctx, nodeKey, childIndex, childStatus)
+    local body = GOAT._flow[flowName]
+    if body == nil or body.result == nil then
+        return -1, childStatus
+    end
+
+    local state = GOAT._stateFor(agentKey, "flow:" .. flowName .. ":" .. nodeKey)
+    local child, status = body.result(state, ctx, childIndex + 1, childStatus)
+    if type(child) ~= "number" then
+        return -1, status or childStatus
+    end
+    return child - 1, SUCCESS
+end
+
+--! Filters the status a user defined decorator reports for its child.
+function GOAT_FlowFilter(flowName, agentKey, ctx, nodeKey, childStatus)
+    local body = GOAT._flow[flowName]
+    if body == nil or body.result == nil then
+        return childStatus
+    end
+
+    local state = GOAT._stateFor(agentKey, "flow:" .. flowName .. ":" .. nodeKey)
+    local status = body.result(state, ctx, childStatus)
+    if type(status) ~= "number" then
+        return childStatus
+    end
+    return status
+end

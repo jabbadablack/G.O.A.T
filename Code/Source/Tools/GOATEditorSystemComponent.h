@@ -2,6 +2,7 @@
 #pragma once
 
 #include <AzToolsFramework/API/ToolsApplicationAPI.h>
+#include <AzToolsFramework/AssetBrowser/AssetBrowserBus.h>
 
 #include <Clients/GOATSystemComponent.h>
 
@@ -11,6 +12,7 @@ namespace GOAT
     class GOATEditorSystemComponent
         : public GOATSystemComponent
         , protected AzToolsFramework::EditorEvents::Bus::Handler
+        , protected AzToolsFramework::AssetBrowser::AssetBrowserInteractionNotificationBus::Handler
     {
         using BaseSystemComponent = GOATSystemComponent;
     public:
@@ -30,5 +32,10 @@ namespace GOAT
         // AZ::Component
         void Activate() override;
         void Deactivate() override;
+
+        // AzToolsFramework::AssetBrowser::AssetBrowserInteractionNotificationBus
+        //! Gives .bbx source files their own thumbnail. The handler's browser icon only
+        //! covers the processed product, so without this the source row stays generic.
+        AzToolsFramework::AssetBrowser::SourceFileDetails GetSourceFileDetails(const char* fullSourceFileName) override;
     };
 } // namespace GOAT

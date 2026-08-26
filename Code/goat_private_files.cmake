@@ -1,7 +1,75 @@
-
 set(FILES
     Source/GOATModuleInterface.cpp
     Source/GOATModuleInterface.h
+    Source/Clients/GOATAgentComponent.cpp
+    Source/Clients/GOATAgentComponent.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
+    Source/Core/Actions/RunScriptAction.cpp
+    Source/Core/Actions/RunScriptAction.h
+    Source/Core/Actions/WaitAction.cpp
+    Source/Core/Actions/WaitAction.h
+    Source/Core/Application/ActionStateRegistry.cpp
+    Source/Core/Application/ActionStateRegistry.h
+    Source/Core/Application/AgentObserver.cpp
+    Source/Core/Application/AgentObserver.h
+    Source/Core/Application/AgentRecord.h
+    Source/Core/Application/AgentRegistry.cpp
+    Source/Core/Application/AgentRegistry.h
+    Source/Core/Application/AgentRuntime.cpp
+    Source/Core/Application/AgentRuntime.h
+    Source/Core/Application/BackendRegistry.cpp
+    Source/Core/Application/BackendRegistry.h
+    Source/Core/Application/NodeTypeRegistry.cpp
+    Source/Core/Application/NodeTypeRegistry.h
+    Source/Core/Application/BlackboardSystem.cpp
+    Source/Core/Application/BlackboardSystem.h
+    Source/Core/Application/SquadRegistry.cpp
+    Source/Core/Application/SquadRegistry.h
+    Source/Core/Assets/BehaviorTreeAsset.cpp
+    Source/Core/Assets/BlackboardAsset.cpp
+    Source/Core/Assets/BlackboardAssetHandler.cpp
+    Source/Core/Assets/BlackboardAssetHandler.h
+    Source/Core/Domain/ActionPlan.cpp
+    Source/Core/Domain/ActionState.cpp
+    Source/Core/Domain/AgentStateMachine.cpp
+    Source/Core/Domain/BlackboardKey.cpp
+    Source/Core/Domain/BlackboardSchema.cpp
+    Source/Core/Domain/BlackboardSchema.h
+    Source/Core/Domain/BlackboardStorage.cpp
+    Source/Core/Domain/BlackboardTypes.cpp
+    Source/Core/Domain/Guard.cpp
+    Source/Core/Domain/Intent.cpp
+    Source/Core/Domain/NodeType.cpp
+    Source/Core/Frontend/DirectBackend.cpp
+    Source/Core/Frontend/DirectBackend.h
+    Source/Core/Frontend/DecisionCursor.cpp
+    Source/Core/Frontend/DecisionCursor.h
+    Source/Core/Frontend/GuardEvaluator.cpp
+    Source/Core/Frontend/GuardEvaluator.h
+    Source/Core/Frontend/NodePredicate.cpp
+    Source/Core/Frontend/NodePredicate.h
+    Source/Core/Frontend/ServiceTracker.cpp
+    Source/Core/Frontend/ServiceTracker.h
+    Source/Core/Frontend/TreeCompiler.cpp
+    Source/Core/Frontend/TreeCompiler.h
+    Source/Core/Frontend/TreeWalker.cpp
+    Source/Core/Frontend/TreeLibrary.cpp
+    Source/Core/Frontend/TreeLibrary.h
+    Source/Core/Frontend/TreeWalker.h
+    Source/Core/Memory/HandleTable.h
+    Source/Core/Scripting/AgentScriptContext.cpp
+    Source/Core/Scripting/AgentScriptContext.h
+    Source/Core/Scripting/LuaBackend.cpp
+    Source/Core/Scripting/LuaBackend.h
+    Source/Core/Scripting/LuaDispatch.cpp
+    Source/Core/Scripting/LuaDispatch.h
+    Source/Core/Scripting/LuaNameCollector.cpp
+    Source/Core/Scripting/LuaNameCollector.h
+    Source/Core/Scripting/LuaNodeScripting.cpp
+    Source/Core/Scripting/LuaNodeScripting.h
+    Source/Core/Scripting/LuaPlanBuilder.cpp
+    Source/Core/Scripting/LuaPlanBuilder.h
+    Source/Core/Scripting/LuaTreeBuilder.cpp
+    Source/Core/Scripting/LuaTreeBuilder.h
 )
