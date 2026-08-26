@@ -47,4 +47,8 @@ set(FILES
     Source/Core/Frontend/TreeLibrary.h
     Source/Core/Frontend/TreeWalker.h
     Source/Core/Memory/HandleTable.h
+    Source/Core/Scripting/AgentScriptContext.cpp
+    Source/Core/Scripting/AgentScriptContext.h
+    Source/Core/Scripting/LuaTreeBuilder.cpp
+    Source/Core/Scripting/LuaTreeBuilder.h
 )

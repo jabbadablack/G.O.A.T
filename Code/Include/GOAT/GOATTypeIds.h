@@ -45,6 +45,10 @@ namespace GOAT
     inline constexpr const char* IBlackboardSystemTypeId = "{5B0B29DA-8F97-4C68-8273-74412E3EBFE2}";
     inline constexpr const char* IAgentSystemTypeId = "{363A84A2-B220-4ECA-BD6E-A606A6B41C90}";
 
+    // Scripting TypeIds
+    inline constexpr const char* LuaTreeBuilderTypeId = "{40FEAC94-3458-4DAE-9071-349CB7001E2A}";
+    inline constexpr const char* AgentScriptContextTypeId = "{B91A347D-6443-4023-A16E-AC2AAC21A283}";
+
     // Component TypeIds
     inline constexpr const char* GOATAgentComponentTypeId = "{60C89039-4265-4A0D-B3ED-75F7C272F371}";
 } // namespace GOAT

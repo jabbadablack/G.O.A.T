@@ -9,6 +9,8 @@ RUNNING, SUCCESS, FAILURE = 0, 1, 2
 -- Behaviours, services and backends the user has defined, keyed by name.
 GOAT._behaviors = GOAT._behaviors or {}
 GOAT._backends = GOAT._backends or {}
+-- Trees the user has declared, keyed by name, so C++ can ask for one after loading a file.
+GOAT._trees = GOAT._trees or {}
 -- Per agent, per behaviour scratch tables, so one behaviour can serve many agents.
 GOAT._state = GOAT._state or {}
 
@@ -113,7 +115,9 @@ function tree(name)
     return function(body)
         local root = body[1]
         assert(root ~= nil, "tree '" .. tostring(name) .. "' has no root node")
-        return GOAT.Compile(name, root)
+        local compiled = GOAT.Compile(name, root)
+        GOAT._trees[name] = compiled
+        return compiled
     end
 end
 
@@ -187,4 +191,40 @@ function GOAT_Dispatch(behaviorName, phase, agentKey, ctx, dt)
         return SUCCESS
     end
     return result
+end
+
+--! Hands a declared tree to a C++ builder, one call per node and property.
+--! Pushing the data out this way means C++ never has to read the Lua stack itself.
+function GOAT_EmitTree(treeName, builder)
+    local compiled = GOAT._trees[treeName]
+    if compiled == nil then
+        return false
+    end
+
+    builder:BeginTree(treeName)
+    for _, record in ipairs(compiled.nodes) do
+        builder:AddNode(record.type, record.childCount, record.serviceCount)
+        for key, value in pairs(record.properties) do
+            local kind = type(value)
+            if kind == "boolean" then
+                builder:SetBoolProperty(key, value)
+            elseif kind == "number" then
+                builder:SetNumberProperty(key, value)
+            elseif kind == "string" then
+                builder:SetStringProperty(key, value)
+            end
+        end
+    end
+    builder:EndTree()
+    return true
+end
+
+--! Names every tree declared so far, so C++ can discover what a file produced.
+function GOAT_TreeNames()
+    local names = {}
+    for name in pairs(GOAT._trees) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    return names
 end
