@@ -34,13 +34,13 @@ namespace GOAT
 
     namespace
     {
-        //! Where the authoring vocabulary lands in the cache. Gem assets are prefixed with the
-        //! gem name, and LuaBuilder emits .luac, so try the prefixed compiled form first.
+        //! Where the authoring vocabulary lands in the cache.
+        //! A scan folder contributes no prefix of its own, so the gem's assets live under an
+        //! Assets/GOAT/ subfolder to keep this path from colliding with a project's own
+        //! Scripts/GOAT.lua. LuaBuilder emits .luac, so prefer the compiled form.
         constexpr const char* VocabularyAssetPaths[] = {
             "goat/scripts/goat.luac",
             "goat/scripts/goat.lua",
-            "scripts/goat.luac",
-            "scripts/goat.lua",
         };
     } // namespace
 
