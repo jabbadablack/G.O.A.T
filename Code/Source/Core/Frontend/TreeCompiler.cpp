@@ -346,7 +346,8 @@ namespace GOAT
         if (descriptor->m_op == NodeOp::Action)
         {
             DecisionNode& node = program.m_nodes[index];
-            const AZ::Name verbName = typeName == AZ_NAME_LITERAL("raw") ? node.m_tag : typeName;
+            const bool isRaw = typeName == AZ_NAME_LITERAL("raw");
+            const AZ::Name verbName = isRaw ? node.m_tag : typeName;
 
             const ActionStateId verb = m_actions.FindId(verbName);
             if (verb == CoreActions::Invalid)
@@ -360,7 +361,37 @@ namespace GOAT
             node.m_action.m_amount = node.m_amount;
             node.m_action.m_tolerance = node.m_tolerance;
             node.m_action.m_targetKey = node.m_key;
-            node.m_action.m_tag = node.m_goal;
+
+            // An action request carries one name, so authoring has to pick which property fills
+            // it. `raw` spends its own tag naming the verb, so its payload arrives in m_goal;
+            // every other leaf puts its authored name straight in the tag. Reading only m_goal
+            // here was invisible while `wait` and `raw` were the only action leaves in the
+            // world, and silently emptied the name for every verb a module contributed.
+            node.m_action.m_tag = isRaw || node.m_tag.IsEmpty() ? node.m_goal : node.m_tag;
+
+            AZ_Assert(node.m_action.m_action != CoreActions::Invalid,
+                "A compiled action leaf must name a registered verb");
+
+            // Validate proved the property was authored; this proves it survived the mapping
+            // above and actually reached the verb. Without it a name can go missing between
+            // the two and only show up as a verb failing at tick time.
+            const bool needsName = AZStd::any_of(
+                descriptor->m_parameters.begin(), descriptor->m_parameters.end(),
+                [](const NodeParameter& parameter)
+                {
+                    return parameter.m_required && parameter.m_type == BlackboardType::Name &&
+                        !parameter.m_isBlackboardKey;
+                });
+
+            // `raw` is exempt: its required name is the verb to run, which the lookup above
+            // already proved, and its payload is genuinely optional.
+            if (!isRaw && needsName && node.m_action.m_tag.IsEmpty())
+            {
+                return AZ::Failure(AZStd::string::format(
+                    "'%s' requires a name but none reached the verb; the property it was authored "
+                    "with does not map to an action request",
+                    authored.m_type.c_str()));
+            }
         }
 
         // Guards are the only thing that needs observing, so collect just those keys.
