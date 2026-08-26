@@ -3,6 +3,10 @@ set(FILES
     Source/GOATModuleInterface.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
+    Source/Core/Actions/WaitAction.cpp
+    Source/Core/Actions/WaitAction.h
+    Source/Core/Application/ActionStateRegistry.cpp
+    Source/Core/Application/ActionStateRegistry.h
     Source/Core/Application/BlackboardSystem.cpp
     Source/Core/Application/BlackboardSystem.h
     Source/Core/Application/SquadRegistry.cpp
@@ -10,6 +14,7 @@ set(FILES
     Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Domain/ActionPlan.cpp
     Source/Core/Domain/ActionState.cpp
+    Source/Core/Domain/AgentStateMachine.cpp
     Source/Core/Domain/BlackboardKey.cpp
     Source/Core/Domain/BlackboardSchema.cpp
     Source/Core/Domain/BlackboardSchema.h

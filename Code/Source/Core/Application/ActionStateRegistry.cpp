@@ -1,0 +1,102 @@
+#include <Core/Application/ActionStateRegistry.h>
+
+namespace GOAT
+{
+    void ActionStateRegistry::EnsureSlot(ActionStateId id)
+    {
+        if (id >= m_states.size())
+        {
+            m_states.resize(static_cast<size_t>(id) + 1);
+        }
+    }
+
+    bool ActionStateRegistry::RegisterAt(ActionStateId id, AZStd::unique_ptr<IActionState> state)
+    {
+        if (state == nullptr || id == CoreActions::Invalid)
+        {
+            return false;
+        }
+
+        EnsureSlot(id);
+        if (m_states[id] != nullptr)
+        {
+            AZ_Warning("GOAT", false, "Action verb id %u is already registered", static_cast<AZ::u32>(id));
+            return false;
+        }
+
+        m_states[id] = AZStd::move(state);
+        return true;
+    }
+
+    ActionStateId ActionStateRegistry::Register(AZStd::unique_ptr<IActionState> state)
+    {
+        if (state == nullptr)
+        {
+            return CoreActions::Invalid;
+        }
+
+        const AZ::Name name = state->GetName();
+        if (FindId(name) != CoreActions::Invalid)
+        {
+            AZ_Warning("GOAT", false, "Action verb '%s' is already registered", name.GetCStr());
+            return CoreActions::Invalid;
+        }
+
+        EnsureSlot(CoreActions::FirstRegistered);
+        for (size_t id = CoreActions::FirstRegistered; id < m_states.size(); ++id)
+        {
+            if (m_states[id] == nullptr)
+            {
+                m_states[id] = AZStd::move(state);
+                return static_cast<ActionStateId>(id);
+            }
+        }
+
+        if (m_states.size() > AZStd::numeric_limits<ActionStateId>::max())
+        {
+            AZ_Warning("GOAT", false, "No action verb ids left for '%s'", name.GetCStr());
+            return CoreActions::Invalid;
+        }
+
+        m_states.push_back(AZStd::move(state));
+        return static_cast<ActionStateId>(m_states.size() - 1);
+    }
+
+    void ActionStateRegistry::Unregister(ActionStateId id)
+    {
+        if (id < m_states.size())
+        {
+            m_states[id].reset();
+        }
+    }
+
+    ActionStateId ActionStateRegistry::FindId(const AZ::Name& name) const
+    {
+        for (size_t id = 0; id < m_states.size(); ++id)
+        {
+            if (m_states[id] != nullptr && m_states[id]->GetName() == name)
+            {
+                return static_cast<ActionStateId>(id);
+            }
+        }
+        return CoreActions::Invalid;
+    }
+
+    IActionState* ActionStateRegistry::Find(ActionStateId id) const
+    {
+        return id < m_states.size() ? m_states[id].get() : nullptr;
+    }
+
+    AZStd::vector<AZ::Name> ActionStateRegistry::GetNames() const
+    {
+        AZStd::vector<AZ::Name> names;
+        for (const auto& state : m_states)
+        {
+            if (state != nullptr)
+            {
+                names.push_back(state->GetName());
+            }
+        }
+        return names;
+    }
+} // namespace GOAT
