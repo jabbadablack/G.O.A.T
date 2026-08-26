@@ -64,6 +64,13 @@ namespace GOAT
     AzToolsFramework::AssetBrowser::SourceFileDetails GOATEditorSystemComponent::GetSourceFileDetails(
         const char* fullSourceFileName)
     {
+        AZ_Assert(fullSourceFileName != nullptr, "The asset browser always asks about a named file");
+        if (fullSourceFileName == nullptr)
+        {
+            return {};
+        }
+
+        // Source rows are not covered by the handler's product icon, so they are answered here.
         if (AZStd::wildcard_match("*.bbx", fullSourceFileName))
         {
             return AzToolsFramework::AssetBrowser::SourceFileDetails(

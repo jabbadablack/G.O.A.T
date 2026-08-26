@@ -44,12 +44,19 @@ namespace GOAT
         const BlackboardKey key(scope, type, slotCount);
         ++slotCount;
 
+        AZ_Assert(key.GetScope() == scope && key.GetType() == type && key.GetIndex() == slotCount - 1,
+            "A packed key must round trip the scope, type and slot it was built from");
+
         if (!defaultValue.empty())
         {
             layout.m_defaults.emplace_back(key, AZStd::move(defaultValue));
         }
 
+        const size_t before = m_keysByName.size();
         m_keysByName.emplace(name, key);
+
+        AZ_Assert(m_keysByName.size() == before + 1, "Declaring a new variable must add exactly one name");
+        AZ_Assert(Find(name) == key, "A declared name must resolve back to the key it was given");
         return AZ::Success(key);
     }
 
