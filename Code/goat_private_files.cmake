@@ -1,6 +1,8 @@
 set(FILES
     Source/GOATModuleInterface.cpp
     Source/GOATModuleInterface.h
+    Source/Clients/GOATAgentComponent.cpp
+    Source/Clients/GOATAgentComponent.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
     Source/Core/Actions/RunScriptAction.cpp

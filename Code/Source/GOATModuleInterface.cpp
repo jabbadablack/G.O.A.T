@@ -4,6 +4,7 @@
 
 #include <GOAT/GOATTypeIds.h>
 
+#include <Clients/GOATAgentComponent.h>
 #include <Clients/GOATSystemComponent.h>
 
 namespace GOAT
@@ -21,6 +22,7 @@ namespace GOAT
         // This happens through the [MyComponent]::Reflect() function.
         m_descriptors.insert(m_descriptors.end(), {
             GOATSystemComponent::CreateDescriptor(),
+            GOATAgentComponent::CreateDescriptor(),
             });
     }
 
