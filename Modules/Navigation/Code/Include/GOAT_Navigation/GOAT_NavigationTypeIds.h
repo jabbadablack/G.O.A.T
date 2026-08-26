@@ -16,4 +16,7 @@ namespace GOAT_Navigation
 
     // Interface TypeIds
     inline constexpr const char* GOAT_NavigationRequestsTypeId = "{E4DE1C48-8EBA-42CA-BA8A-7BC22C42019C}";
+
+    // Navigation component TypeIds
+    inline constexpr const char* GOATNavMeshComponentTypeId = "{E9D2A791-4981-4B3C-93B3-62CA6A771669}";
 } // namespace GOAT_Navigation

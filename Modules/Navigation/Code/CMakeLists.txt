@@ -50,6 +50,8 @@ ly_add_target(
         PUBLIC
             AZ::AzCore
             AZ::AzFramework
+            Gem::GOAT.API
+            Gem::RecastNavigation.API
 )
 
 # Here add ${gem_name} target, it depends on the Private Object library and Public API interface
