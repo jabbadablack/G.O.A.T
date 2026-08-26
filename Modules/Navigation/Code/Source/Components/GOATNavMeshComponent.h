@@ -1,6 +1,7 @@
 #pragma once
 
 #include <AzCore/Component/Component.h>
+#include <AzCore/Component/TickBus.h>
 
 namespace GOAT_Navigation
 {
@@ -11,6 +12,7 @@ namespace GOAT_Navigation
     //! mesh notification bus is addressed by, so binding and listening come from the same place.
     class GOATNavMeshComponent final
         : public AZ::Component
+        , private AZ::TickBus::Handler
     {
     public:
         AZ_COMPONENT_DECL(GOATNavMeshComponent);
@@ -23,5 +25,15 @@ namespace GOAT_Navigation
     protected:
         void Activate() override;
         void Deactivate() override;
+
+        //! AZ::TickBus. Runs once, then disconnects.
+        void OnTick(float deltaTime, AZ::ScriptTimePoint time) override;
+
+    private:
+        //! Builds the navigation mesh once the level is running.
+        //! RecastNavigation creates an empty mesh on activation and never fills it, so without
+        //! this every path query fails. A project that decides for itself when to build -- a
+        //! streamed world, say -- turns this off and calls UpdateNavigationMeshAsync itself.
+        bool m_buildOnActivate = true;
     };
 } // namespace GOAT_Navigation

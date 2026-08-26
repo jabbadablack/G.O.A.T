@@ -1,6 +1,8 @@
 #include <Components/GOATNavMeshComponent.h>
 
 #include <GOAT_Navigation/GOAT_NavigationBus.h>
+
+#include <RecastNavigation/RecastNavigationMeshBus.h>
 #include <GOAT_Navigation/GOAT_NavigationTypeIds.h>
 
 #include <AzCore/Console/ILogger.h>
@@ -17,6 +19,7 @@ namespace GOAT_Navigation
         {
             serializeContext->Class<GOATNavMeshComponent, AZ::Component>()
                 ->Version(1)
+                ->Field("BuildOnActivate", &GOATNavMeshComponent::m_buildOnActivate)
                 ;
 
             if (AZ::EditContext* editContext = serializeContext->GetEditContext())
@@ -26,6 +29,10 @@ namespace GOAT_Navigation
                     ->Attribute(AZ::Edit::Attributes::Category, "GOAT")
                     ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
                     ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
+                    ->DataElement(AZ::Edit::UIHandlers::CheckBox, &GOATNavMeshComponent::m_buildOnActivate,
+                        "Build on activate",
+                        "Builds the navigation mesh when the level starts. Turn this off only if the project "
+                        "decides for itself when to build, because an unbuilt mesh fails every path query.")
                     ;
             }
         }
@@ -60,10 +67,33 @@ namespace GOAT_Navigation
 
         AZLOG_INFO("GOAT: binding path queries to navigation mesh entity %s", GetEntityId().ToString().c_str());
         GOAT_NavigationRequestBus::Broadcast(&GOAT_NavigationRequests::SetNavigationMesh, GetEntityId());
+
+        if (m_buildOnActivate)
+        {
+            // Deferred to the first tick, not done here: the geometry the provider voxelizes
+            // belongs to other entities, which have not all activated yet.
+            AZ::TickBus::Handler::BusConnect();
+        }
+    }
+
+    void GOATNavMeshComponent::OnTick([[maybe_unused]] float deltaTime, [[maybe_unused]] AZ::ScriptTimePoint time)
+    {
+        AZ_Assert(m_buildOnActivate, "This component only ticks in order to build the navigation mesh once");
+        AZ::TickBus::Handler::BusDisconnect();
+
+        bool started = false;
+        RecastNavigation::RecastNavigationMeshRequestBus::EventResult(
+            started, GetEntityId(), &RecastNavigation::RecastNavigationMeshRequests::UpdateNavigationMeshAsync);
+
+        AZ_Warning("GOAT", started,
+            "Navigation mesh entity %s did not start building; agents will find no paths until it does",
+            GetEntityId().ToString().c_str());
     }
 
     void GOATNavMeshComponent::Deactivate()
     {
+        AZ::TickBus::Handler::BusDisconnect();
+
         if (GOAT_NavigationInterface::Get() == nullptr)
         {
             return;
