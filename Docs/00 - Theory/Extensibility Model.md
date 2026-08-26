@@ -85,10 +85,9 @@ G.O.A.T. treats extensibility as a **first-class concern**. The core engine prov
 **Description:**  
 Action states are the **atomic operations** an agent can perform. They are registered by name and invoked by `ActionPlan`s.
 
-**Interface:**
+**Interface (from `IActionState.h`):**
 
 ```cpp
-// Code/Include/GOAT/Interfaces/IActionState.h
 class IActionState
 {
 public:
@@ -96,17 +95,17 @@ public:
 
     virtual ~IActionState() = default;
 
-    // Name this action is registered under.
+    // Name this verb is registered under and referenced by from Lua.
     virtual AZ::Name GetName() const = 0;
 
-    // Called when the action starts.
-    virtual ActionResult OnStart(const ActionRequest& request, const PlanContext& context) = 0;
+    // Begins the action for one agent.
+    virtual void Begin(const ActionContext& context) = 0;
 
-    // Called every tick while the action is running.
-    virtual ActionResult OnTick(const ActionRequest& request, const PlanContext& context, float deltaTime) = 0;
+    // Advances the action. The agent stays in this state while it returns Running.
+    virtual ActionResult Step(const ActionContext& context, float deltaTime) = 0;
 
-    // Called when the action finishes or is interrupted.
-    virtual void OnStop(const ActionRequest& request, const PlanContext& context) = 0;
+    // Ends the action, whether it completed or was aborted.
+    virtual void End(const ActionContext& context) = 0;
 };
 ```
 
@@ -118,21 +117,31 @@ m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitAction>());
 m_actions->RegisterAt(CoreActions::RunScript, AZStd::make_unique<RunScriptAction>(*m_dispatch, *m_scriptContext));
 ```
 
+For custom actions (from modules):
+
+```cpp
+// MyModuleSystemComponent.cpp
+if (auto* agentSystem = GOAT::AgentSystemInterface::Get())
+{
+    agentSystem->RegisterAction(AZStd::make_unique<MoveToAction>());
+}
+```
+
 **Visual Representation:**
 
 ```mermaid
 graph LR
     subgraph Registry[ActionStateRegistry]
-        A[Register Wait] --> B[WaitAction]
-        A --> C[Register RunScript] --> D[RunScriptAction]
-        A --> E[Register MoveTo Future] --> F[MoveToAction]
-        A --> G[Register PlayAnim Future] --> H[PlayAnimationAction]
+        A[RegisterAt Wait] --> B[WaitAction]
+        A --> C[RegisterAt RunScript] --> D[RunScriptAction]
+        E[Register MoveTo] --> F[MoveToAction]
+        E --> G[Register PlayAnim] --> H[PlayAnimationAction]
     end
 
     subgraph Usage[Usage in Trees]
-        B --> I[script Wait or raw wait]
+        B --> I[raw wait or script Wait]
         D --> J[script RunScript]
-        F --> K[script MoveTo]
+        F --> K[raw MoveTo or script MoveTo]
         H --> L[script PlayAnim]
     end
 ```
@@ -147,19 +156,18 @@ public:
 
     AZ::Name GetName() const override { return AZ_NAME_LITERAL("MoveTo"); }
 
-    ActionResult OnStart(const ActionRequest& request, const PlanContext& context) override
+    void Begin(const ActionContext& context) override
     {
-        // Start movement logic
+        // Store state in context.m_scratch
+    }
+
+    ActionResult Step(const ActionContext& context, float deltaTime) override
+    {
+        // Update movement
         return ActionResult::Running;
     }
 
-    ActionResult OnTick(const ActionRequest& request, const PlanContext& context, float deltaTime) override
-    {
-        // Update movement
-        return ActionResult::Success;
-    }
-
-    void OnStop(const ActionRequest& request, const PlanContext& context) override
+    void End(const ActionContext& context) override
     {
         // Cancel movement
     }
@@ -173,10 +181,9 @@ public:
 **Description:**  
 Backends are **planning algorithms** that turn `Intent`s from tree leaves into `ActionPlan`s. This is how you add GOAP, HTN, Utility AI, or Director AI.
 
-**Interface:**
+**Interface (from `IBackend.h`):**
 
 ```cpp
-// Code/Include/GOAT/Interfaces/IBackend.h
 class IBackend
 {
 public:
@@ -189,6 +196,15 @@ public:
 
     // Produces a plan for one intent. Returns false when this backend cannot satisfy it.
     virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
+
+    // Reports the conditions that invalidate the plan while it runs.
+    virtual void CollectGuards(
+        [[maybe_unused]] const PlanContext& context,
+        [[maybe_unused]] const ActionPlan& plan,
+        [[maybe_unused]] GuardList& outGuards) const { }
+
+    // Releases any per agent state held for this agent.
+    virtual void Release([[maybe_unused]] const PlanContext& context) { }
 };
 ```
 
@@ -211,9 +227,9 @@ virtual bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) = 0;
 graph TD
     subgraph Registry[BackendRegistry]
         A[Register direct] --> B[DirectBackend]
-        A --> C[Register Errand Lua] --> D[LuaBackend]
-        A --> E[Register Goap Future] --> F[GoapBackend]
-        A --> G[Register Director Future] --> H[DirectorBackend]
+        C[Register Errand Lua] --> D[LuaBackend]
+        E[Register Goap Future] --> F[GoapBackend]
+        G[Register Director Future] --> H[DirectorBackend]
     end
 
     subgraph Usage[Usage in Trees]
@@ -264,33 +280,34 @@ backend "Errand" {
 ### 3. Node Types (`NodeTypeRegistry`)
 
 **Description:**  
-Node types define the **vocabulary** available in trees. They are registered with a name, an operation (`NodeOp`), and a set of accepted properties.
+Node types define the **vocabulary** available in trees. They are registered with a name, a kind (`NodeKind`), an operation (`NodeOp`), and a set of accepted parameters.
 
-**Interface:**
+**Interface (from `NodeTypeRegistry.h`):**
 
 ```cpp
-// Code/Source/Core/Application/NodeTypeRegistry.h
-class NodeTypeRegistry
+class NodeTypeRegistry final
 {
 public:
-    bool Register(const NodeTypeDescriptor& descriptor);
+    NodeTypeRegistry(); // Seeds built-ins
+
+    bool Register(NodeTypeDescriptor descriptor);
+    void Unregister(const AZ::Name& name);
     const NodeTypeDescriptor* Find(const AZ::Name& name) const;
     AZStd::vector<const NodeTypeDescriptor*> GetAll() const;
 };
 ```
 
-**NodeTypeDescriptor:**
+**NodeTypeDescriptor (from `NodeType.h`):**
 
 ```cpp
-// Code/Include/GOAT/Domain/NodeType.h
 struct NodeTypeDescriptor
 {
     AZ::Name m_name;
     NodeKind m_kind;
     NodeOp m_op;
-    AZStd::vector<NodeParameter> m_parameters;
     AZStd::string m_category;
     AZStd::string m_description;
+    AZStd::vector<NodeParameter> m_parameters;
 };
 ```
 
@@ -301,8 +318,8 @@ graph TD
     subgraph Registry[NodeTypeRegistry]
         A[Register selector] --> B[NodeKind Composite]
         A --> C[Register script] --> D[NodeKind Leaf]
-        A --> E[Register condition] --> F[NodeKind Leaf]
-        A --> G[Register CustomNode Future] --> H[NodeKind Decorator]
+        A --> E[Register condition] --> F[NodeKind Decorator]
+        G[Register CustomNode Future] --> H[NodeKind Decorator]
     end
 
     subgraph Authoring[Usage in Lua]
@@ -320,7 +337,7 @@ NodeTypeDescriptor descriptor;
 descriptor.m_name = AZ_NAME_LITERAL("MyCustomNode");
 descriptor.m_kind = NodeKind::Decorator;
 descriptor.m_op = NodeOp::LuaDecorator;
-descriptor.m_parameters.push_back({ AZ_NAME_LITERAL("behavior"), true, false, BlackboardType::Name });
+descriptor.m_parameters.push_back({ AZ_NAME_LITERAL("behavior"), BlackboardType::Name, false, true });
 m_nodeTypes->Register(descriptor);
 ```
 
@@ -339,17 +356,36 @@ public:
 
     virtual ~IAgentSystem() = default;
 
-    // Registers an action verb (e.g., MoveTo, Attack, PlayAnimation)
-    virtual ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) = 0;
-    virtual void UnregisterAction(ActionStateId id) = 0;
+    // Runs a Lua script, registering whatever behaviours, backends and trees it declares.
+    virtual bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset) = 0;
 
-    // Registers a planning backend (e.g., Goap, Htn, Director)
+    // Declares the variables a blackboard asset holds. Duplicate names fail.
+    virtual AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) = 0;
+
+    // Compiles a declared tree so agents can run it.
+    virtual AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) = 0;
+
+    // Registers an entity as an agent running a compiled tree.
+    virtual AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) = 0;
+
+    // Removes an agent and everything held for it.
+    virtual void UnregisterAgent(AgentId agent) = 0;
+
+    // Puts an agent in a named squad, creating that squad on the first join.
+    virtual void JoinSquad(AgentId agent, const AZ::Name& squad) = 0;
+
+    // Installs a backend. Removing one is what makes backends decoupled.
     virtual bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) = 0;
     virtual void UnregisterBackend(const AZ::Name& name) = 0;
 
-    // Lists available extensions (for console output)
+    // Installs an action verb, which is how a module contributes vocabulary.
+    virtual ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) = 0;
+    virtual void UnregisterAction(ActionStateId id) = 0;
+
+    // Names of what is currently installed, for console output and validation.
     virtual AZStd::vector<AZ::Name> GetBackendNames() const = 0;
     virtual AZStd::vector<AZ::Name> GetActionNames() const = 0;
+    virtual AZStd::vector<AZ::Name> GetTreeNames() const = 0;
 };
 ```
 

@@ -8,13 +8,13 @@ tags: [cpp, core, component]
 
 > **File Location:** `Code/Source/Core/Scripting/LuaDispatch.cpp`  
 > **Header:** `Code/Source/Core/Scripting/LuaDispatch.h`  
-> **Inherits:** None (Plain class instantiated by `GOATSystemComponent`)
+> **Inherits:** None (Plain class, owned by `GOATSystemComponent`)
 
 ---
 
 ## Overview
 
-`LuaDispatch` is the **critical bridge** between the C++ core and the Lua authoring vocabulary. It is responsible for calling global functions defined in `GOAT.lua` (like `GOAT_EmitTree`, `GOAT_Dispatch`, `GOAT_Plan`) and marshalling data across the C++/Lua boundary. 
+`LuaDispatch` is the **critical bridge** between the C++ core and the Lua authoring vocabulary. It is responsible for calling global functions defined in `GOAT.lua` (like `GOAT_EmitTree`, `GOAT_Dispatch`, `GOAT_Plan`) and marshalling data across the C++/Lua boundary.
 
 It hides the complexity of `AZ::ScriptContext` and `AZ::ScriptDataContext` from the rest of the engine. It owns the `LuaTreeBuilder`, `LuaPlanBuilder`, and `LuaNameCollector` objects, which are passed to Lua as raw pointers so that Lua can push data into them without C++ reading the Lua stack directly.
 
@@ -54,6 +54,9 @@ AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> EmitTree(c
 // Runs one phase of a Lua behaviour and reports what it returned.
 ActionResult CallBehavior(
     const AZ::Name& behavior, const char* phase, AgentId agent, AgentScriptContext& context, float deltaTime);
+
+// Points the plan builder at the registries a Lua backend's steps resolve against.
+void ConfigurePlanBuilder(const ActionStateRegistry* actions, const IBlackboardSystem* blackboard);
 
 // Runs a Lua backend's plan function. Returns nullptr when it produced nothing.
 const ActionPlan* CallBackendPlan(
@@ -97,7 +100,7 @@ graph LR
 ```
 
 - **Depends on:** `AZ::ScriptContext` (provided by O3DE), `LuaTreeBuilder`, `LuaPlanBuilder`, `LuaNameCollector`, `AgentScriptContext`.
-- **Required by:** `GOATSystemComponent`, `LuaNodeScripting`, `RunScriptAction`.
+- **Required by:** `GOATSystemComponent`, `LuaNodeScripting`, `RunScriptAction`, `LuaBackend`.
 - **Interacts with:** `LuaTreeBuilder` (to receive tree data), `LuaPlanBuilder` (to receive backend plans), `LuaNameCollector` (to list backends).
 
 ---
@@ -110,7 +113,7 @@ graph LR
 
 1. **Calling Lua Functions:** It uses `m_scriptContext->Call("GOAT_Dispatch", call)`. If the function returns false (doesn't exist), it safely returns failure.
 2. **Marshalling Data:** It converts C++ types (e.g., `AZStd::string`, `double`, `AgentId`) into Lua arguments using `call.PushArg()`. It reads Lua return values using `call.ReadResult()`.
-3. **Raw Stack Operations:** For `RunScript`, it manually calls `lua_pop(m_scriptContext->NativeContext(), 1)` to clear the return value left on the stack by the script (since `GOAT.lua` returns a table/tree).
+3. **Raw Stack Operations:** For `RunScript`, it manually calls `lua_pop(m_scriptContext->NativeContext(), 1)` to clear the return value left on the stack by the script.
 
 ### Performance Considerations
 
@@ -131,7 +134,6 @@ Example of Lua calling a C++ object:
 function GOAT_EmitTree(treeName, builder)
     builder:BeginTree(treeName)
     builder:AddNode("selector", 2, 0)
-    -- ... etc
     builder:EndTree()
     return true
 end
@@ -158,6 +160,7 @@ Unit tests for `LuaDispatch` should cover:
 - [[LuaTreeBuilder]]
 - [[LuaPlanBuilder]]
 - [[LuaNodeScripting]]
+- [[LuaBackend]]
 - [[GOATSystemComponent]]
 - [[AgentScriptContext]]
 

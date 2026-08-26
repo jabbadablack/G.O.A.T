@@ -80,11 +80,75 @@ graph LR
 4. **Register Agent:** Calls `RegisterAgent()` to create the runtime handle.
 5. **Join Squad:** If `m_squad` is not empty, calls `JoinSquad()`.
 
+```cpp
+// Code/Source/Clients/GOATAgentComponent.cpp
+void GOATAgentComponent::Activate()
+{
+    IAgentSystem* agents = AgentSystemInterface::Get();
+    if (agents == nullptr)
+    {
+        AZ_Warning("GOAT", false, "The GOAT agent system is not available");
+        return;
+    }
+
+    // Variables must be declared before the tree compiles.
+    for (auto& blackboard : m_blackboards)
+    {
+        if (EnsureLoaded(blackboard))
+        {
+            if (auto declared = agents->LoadBlackboard(*blackboard.Get()); !declared.IsSuccess())
+            {
+                AZ_Warning("GOAT", false, "%s", declared.GetError().c_str());
+            }
+        }
+    }
+
+    for (auto& script : m_scripts)
+    {
+        if (EnsureLoaded(script))
+        {
+            agents->LoadScript(script);
+        }
+    }
+
+    if (m_treeName.empty())
+    {
+        AZ_Warning("GOAT", false, "Entity %s has no tree name set", GetEntityId().ToString().c_str());
+        return;
+    }
+
+    const AZ::Name treeName(m_treeName);
+    if (auto compiled = agents->CompileTree(treeName); !compiled.IsSuccess())
+    {
+        AZ_Warning("GOAT", false, "%s", compiled.GetError().c_str());
+        return;
+    }
+
+    m_agent = agents->RegisterAgent(GetEntityId(), treeName, static_cast<size_t>(m_band));
+
+    if (!m_squad.empty() && !m_agent.IsNull())
+    {
+        agents->JoinSquad(m_agent, AZ::Name(m_squad));
+    }
+}
+```
+
 ### Performance Considerations
 
 - **Allocation:** `m_agent` is a lightweight handle; no heavy allocation in `Activate()`.
 - **Tick Rate:** The `m_band` field determines how often `AgentRuntime` ticks this agent.
 - **Concurrency:** Runs on main thread during entity activation.
+
+---
+
+## Editor Integration
+
+`GOATAgentComponent` uses `EditContext` to expose its fields to the Editor:
+
+- **Category:** "AI"
+- **Appears In:** Add Component Menu (Game)
+- **Icon:** `Editor/Icons/GOAT/Components/GOATAgent.svg`
+- **Viewport Icon:** `Editor/Icons/GOAT/Components/Viewport/GOATAgent.svg`
 
 ---
 
@@ -97,6 +161,7 @@ graph LR
 ## Testing
 
 Unit tests should cover:
+
 - Correct loading of blackboard and script assets.
 - Correct compile failure when `m_treeName` is invalid.
 - Proper registration and unregistration on `Activate`/`Deactivate`.
@@ -109,6 +174,7 @@ Unit tests should cover:
 - [[GOATSystemComponent]]
 - [[Layered Overview]]
 - [[Blackboard System]]
+- [[IAgentSystem]]
 
 ---
 

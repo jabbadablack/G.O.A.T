@@ -30,6 +30,15 @@ public:
 
     // Produces a plan for one intent. Returns false when this backend cannot satisfy it.
     virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
+
+    // Reports the conditions that invalidate the plan while it runs.
+    virtual void CollectGuards(
+        [[maybe_unused]] const PlanContext& context,
+        [[maybe_unused]] const ActionPlan& plan,
+        [[maybe_unused]] GuardList& outGuards) const { }
+
+    // Releases any per agent state held for this agent.
+    virtual void Release([[maybe_unused]] const PlanContext& context) { }
 };
 ```
 
@@ -43,7 +52,7 @@ Any leaf node in a tree can emit an `Intent`, and any backend can turn that `Int
 graph TD
     subgraph Tree[Behavior Tree]
         A[Action Leaf] -->|Intent| B[Delegate Leaf]
-        B -->|Intent with Goal| C[Backend Registry]
+        B -->|Intent with Goal| C[BackendRegistry]
     end
 
     subgraph Backends[Backend Implementations]
@@ -63,12 +72,13 @@ graph TD
     end
 
     subgraph Execution[Execution]
-        I --> N[ActionState]
+        I --> N[AgentStateMachine]
         J --> N
         K --> N
         L --> N
         M --> N
-        N --> O[Game World]
+        N --> O[IActionState]
+        O --> P[Game World]
     end
 ```
 
@@ -112,17 +122,10 @@ An `Intent` is the message a tree leaf sends to a backend. It contains either:
 // Code/Include/GOAT/Domain/Intent.h
 struct Intent
 {
-    // The tree node that produced this intent.
-    NodeIndex m_node = InvalidNodeIndex;
-
-    // The backend that should handle this intent.
     AZ::Name m_backend;
-
-    // The goal to achieve (for delegate leaves).
     AZ::Name m_goal;
-
-    // Direct action information (for raw/script leaves).
     ActionRequest m_direct;
+    NodeIndex m_node = InvalidNodeIndex;
 };
 ```
 
@@ -152,12 +155,14 @@ Backends are registered by name and looked up when a `delegate` node is encounte
 
 ```cpp
 // Code/Source/Core/Application/BackendRegistry.cpp
-class BackendRegistry
+class BackendRegistry final
 {
 public:
     bool Register(AZStd::unique_ptr<IBackend> backend);
     void Unregister(const AZ::Name& name);
     IBackend* Find(const AZ::Name& name) const;
+    AZStd::vector<AZ::Name> GetNames() const;
+    void Clear();
 };
 ```
 
@@ -199,6 +204,8 @@ script "Patrol",
 wait(0.5)
 ```
 
+---
+
 ### LuaBackend
 
 A backend defined entirely in Lua. Used when you want to write planning logic in scripting.
@@ -218,7 +225,25 @@ backend "Errand" {
 }
 ```
 
-This is registered by `GOATSystemComponent::RegisterLuaBackends()`, which scans for `GOAT_HasBackend` and creates a `LuaBackend` wrapper.
+The C++ side wraps this in a `LuaBackend`:
+
+```cpp
+// Code/Source/Core/Scripting/LuaBackend.cpp
+bool LuaBackend::Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan)
+{
+    m_scriptContext.Bind(context.m_agent, context.m_entity, context.m_blackboard);
+    const ActionPlan* planned = m_dispatch.CallBackendPlan(m_name, intent.m_goal, context.m_agent, m_scriptContext);
+    m_scriptContext.Unbind();
+
+    if (planned == nullptr || planned->IsEmpty())
+    {
+        return false;
+    }
+
+    outPlan = *planned;
+    return true;
+}
+```
 
 ### Future Backends
 

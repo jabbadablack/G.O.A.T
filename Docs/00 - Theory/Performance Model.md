@@ -8,13 +8,13 @@ tags: [performance, architecture, design]
 
 > **Category:** Performance Model  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Frontend/DecisionCursor.h`, `Code/Source/Core/Application/AgentRuntime.cpp`, `Code/Source/Core/Domain/BlackboardStorage.cpp`
+> **Core Files:** `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Application/AgentRegistry.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`, `Code/Source/Core/Memory/HandleTable.h`
 
 ---
 
 ## 💡 Core Concept
 
-G.O.A.T. is designed to support **thousands of agents** without frame spikes. It achieves this through a combination of **structural optimizations** (flat programs, iterative traversal) and **scheduling optimizations** (tick bands, interval services). The goal is to provide **predictable performance** at scale, ensuring that no single agent can cause a significant frame hitch.
+G.O.A.T. is designed to support **thousands of agents** without frame spikes. It achieves this through a combination of **structural optimizations** (flat programs, iterative traversal, dense storage) and **scheduling optimizations** (tick bands, interval services, event-driven guards). The goal is to provide **predictable performance** at scale, ensuring that no single agent can cause a significant frame hitch.
 
 ---
 
@@ -23,28 +23,35 @@ G.O.A.T. is designed to support **thousands of agents** without frame spikes. It
 ```mermaid
 graph TD
     subgraph Scheduling[Agent Scheduling]
-        A[AgentRegistry] --> B[Band 0 - Every Frame]
-        A --> C[Band 1 - Every 2nd Frame]
-        A --> D[Band 2 - Every 4th Frame]
-        A --> E[Band 3 - Every 8th Frame]
+        A[AgentRegistry] --> B[Band 0 - 33ms]
+        A --> C[Band 1 - 100ms]
+        A --> D[Band 2 - 250ms]
+        A --> E[Band 3 - 1000ms]
     end
 
     subgraph Execution[Tree Execution]
-        B --> F[TreeWalker]
+        B --> F[AgentRuntime Tick]
         C --> F
         D --> F
         E --> F
-        F --> G[DecisionProgram]
-        G --> H[Intent]
-        H --> I[Backend]
-        I --> J[ActionPlan]
-        J --> K[AgentRuntime]
+        F --> G[GuardEvaluator]
+        F --> H[ServiceTracker]
+        F --> I[AgentStateMachine]
+        I --> J[IActionState]
+        F --> K[TreeWalker]
+        K --> L[Intent]
+        L --> M[Backend]
+        M --> N[ActionPlan]
+        N --> I
     end
 
     subgraph Storage[Data Storage]
-        G --> L[Flat Node Array]
-        K --> M[BlackboardStorage]
-        M --> N[Typed Arrays]
+        F --> O[AgentRecord]
+        O --> P[HandleTable]
+        O --> Q[DecisionCursor]
+        O --> R[AgentObserver]
+        G --> S[BlackboardStorage]
+        I --> S
     end
 ```
 
@@ -136,26 +143,23 @@ WalkStep TreeWalker::Run(
 {
     while (node != InvalidNodeIndex)
     {
-        // ... process node ...
+        if (!bubbling)
+        {
+            const DecisionNode& current = program.m_nodes[node];
+            switch (current.m_op)
+            {
+            case NodeOp::Selector:
+            case NodeOp::Sequence:
+                cursor.ChildIndex(node) = 0;
+                node = current.m_firstChild;
+                continue;
+            // ... other nodes ...
+            }
+        }
+        // Bubbling logic
     }
     return Finished(result);
 }
-```
-
-**Visual Representation:**
-
-```mermaid
-graph TD
-    subgraph Iterative[Iterative Loop]
-        A[Start at Node] --> B{Is Node Valid?}
-        B -->|Yes| C[Process Node]
-        C --> D{Descend or Bubble?}
-        D -->|Descend| E[Move to Child]
-        D -->|Bubble| F[Move to Parent]
-        E --> B
-        F --> B
-        B -->|No| G[Return Result]
-    end
 ```
 
 **Benefits:**
@@ -168,45 +172,36 @@ graph TD
 ### 3. Tick Bands (Scheduling Optimization)
 
 **Description:**  
-Agents are assigned to "bands" that determine how often they run. Band 0 runs every frame, Band 1 every other frame, Band 2 every 4th frame, and Band 3 every 8th frame.
+Agents are assigned to "bands" that determine how often they run. `AgentRegistry::BandCount` is 4.
+
+| Band | Interval | Description |
+| :--- | :--- | :--- |
+| 0 | 33ms | Most frequent (close, high priority agents) |
+| 1 | 100ms | Standard AI |
+| 2 | 250ms | Distant agents |
+| 3 | 1000ms | Least frequent (background, director AI) |
 
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Clients/GOATAgentComponent.h
-// The band selects how often it runs, from most frequent at zero.
-int m_band = 1;
-```
-
-```cpp
-// Code/Include/GOAT/Interfaces/IAgentSystem.h
-// The band selects how often it runs, from most frequent at zero.
-virtual AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) = 0;
+// Code/Source/Core/Application/AgentRegistry.cpp
+const AZ::TimeMs defaults[BandCount] = { AZ::TimeMs{ 33 }, AZ::TimeMs{ 100 }, AZ::TimeMs{ 250 }, AZ::TimeMs{ 1000 } };
 ```
 
 **Visual Representation:**
 
 ```mermaid
-graph LR
-    subgraph Frame[Frame 0]
-        A[Band 0: Run]
-        B[Band 1: Skip]
-        C[Band 2: Skip]
-        D[Band 3: Skip]
+graph TD
+    subgraph Scheduler[Event Scheduler]
+        A[Band 0] -->|33ms| B[TickBand 0]
+        B --> C[Agent 1]
+        B --> D[Agent 2]
     end
 
-    subgraph Frame2[Frame 1]
-        A2[Band 0: Run]
-        B2[Band 1: Run]
-        C2[Band 2: Skip]
-        D2[Band 3: Skip]
-    end
-
-    subgraph Frame3[Frame 2]
-        A3[Band 0: Run]
-        B3[Band 1: Skip]
-        C3[Band 2: Run]
-        D3[Band 3: Skip]
+    subgraph Scheduler2[Event Scheduler]
+        E[Band 3] -->|1000ms| F[TickBand 3]
+        F --> G[Director Agent]
+        F --> H[Background Agent]
     end
 ```
 
@@ -224,38 +219,33 @@ Services attached to composites run at fixed intervals, not every frame. This re
 
 **How it works in the code:**
 
-```lua
--- Example from ExampleAgent.lua
-selector {
-    service "Sense" { interval = 0.25 },
-    sequence {
-        condition "target_seen" { abort = "lower_priority" },
-        script "Alert",
-        wait(1.0),
-    },
-    sequence {
-        script "Patrol",
-        wait(0.5),
-    },
-}
-```
-
 ```cpp
-// Code/Source/Core/Frontend/TreeCompiler.cpp
-if (const AZStd::any* interval = FindProperty(authoredService, AZ_NAME_LITERAL("interval")))
+// Code/Source/Core/Frontend/ServiceTracker.cpp
+void ServiceTracker::CollectDue(
+    const DecisionProgram& program, DecisionCursor& cursor, AZStd::vector<AZ::u32>& outServices) const
 {
-    double seconds = 0.0;
-    if (ReadNumber(*interval, seconds))
+    outServices.clear();
+    const NodeIndex leaf = cursor.GetActiveLeaf();
+    if (leaf == InvalidNodeIndex) { return; }
+
+    const float now = cursor.GetNow();
+    for (const NodeIndex nodeIndex : program.m_serviceNodes)
     {
-        service.m_interval = static_cast<float>(seconds);
+        const DecisionNode& node = program.m_nodes[nodeIndex];
+        // In scope means the running leaf is somewhere inside this composite's subtree.
+        if (leaf < nodeIndex || leaf >= node.m_subtreeEnd) { continue; }
+
+        for (AZ::u16 offset = 0; offset < node.m_serviceCount; ++offset)
+        {
+            const AZ::u32 service = node.m_firstService + offset;
+            float& due = cursor.ServiceDue(service);
+            if (due > now) { continue; }
+
+            due = now + AZStd::max(program.m_services[service].m_interval, 0.0f);
+            outServices.push_back(service);
+        }
     }
 }
-```
-
-```cpp
-// Code/Source/Core/Frontend/DecisionCursor.h
-// Absolute time a service is next due to run.
-float& ServiceDue(AZ::u32 service) { return m_serviceDue[service]; }
 ```
 
 **Visual Representation:**
@@ -263,18 +253,12 @@ float& ServiceDue(AZ::u32 service) { return m_serviceDue[service]; }
 ```mermaid
 graph TD
     subgraph Service[Interval Service]
-        A[Service "Sense"] --> B{Time Elapsed?}
+        A[Service Sense] --> B{Time Elapsed?}
         B -->|No| C[Skip]
         B -->|Yes| D[Run Service]
         D --> E[Write to Blackboard]
         C --> A
         E --> A
-    end
-
-    subgraph Tree[Tree Reaction]
-        F[Condition "target_seen"] --> G{Abort?}
-        G -->|Yes| H[Preempt Lower Priority]
-        G -->|No| I[Continue]
     end
 ```
 
@@ -285,7 +269,43 @@ graph TD
 
 ---
 
-### 5. Shared DecisionPrograms (Memory Optimization)
+### 5. Event-Driven Guards (AgentObserver)
+
+**Description:**  
+`AgentObserver` watches only the blackboard slots an agent's tree actually guards on. When a watched slot changes, it marks the agent as "dirty" so the `GuardEvaluator` re-checks conditions only when necessary.
+
+**How it works in the code:**
+
+```cpp
+// Code/Source/Core/Application/AgentObserver.cpp
+void AgentObserver::Connect(const DecisionProgram& program, IBlackboardSystem& blackboard, AgentId agent)
+{
+    Disconnect();
+    m_observed = program.m_observedKeys;
+    if (m_observed.empty()) { return; }
+
+    for (AZ::u8 scopeIndex = 0; scopeIndex < static_cast<AZ::u8>(BlackboardScope::Count); ++scopeIndex)
+    {
+        const auto scope = static_cast<BlackboardScope>(scopeIndex);
+        BlackboardStorage* storage = blackboard.FindStorage(scope, agent);
+        if (storage == nullptr) { continue; }
+
+        m_handlers[scopeIndex] = BlackboardStorage::ChangedEvent::Handler(
+            [this](BlackboardKey key) { OnChanged(key); });
+        storage->ConnectChangedHandler(m_handlers[scopeIndex]);
+    }
+    m_dirty = true;
+}
+```
+
+**Benefits:**
+- **Zero polling:** No conditions evaluated when nothing changes.
+- **Targeted wake-ups:** Agents only re-check guards when a watched key changes.
+- **Scalable:** Thousands of agents can have active guards without CPU cost.
+
+---
+
+### 6. Shared DecisionPrograms (Memory Optimization)
 
 **Description:**  
 Multiple agents running the same tree share an immutable `DecisionProgram`. This eliminates per-agent tree duplication.
@@ -298,33 +318,6 @@ m_programs[treeName] =
     AZStd::shared_ptr<const DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
 ```
 
-```cpp
-// Code/Include/GOAT/Domain/DecisionProgram.h
-struct DecisionProgram
-{
-    AZStd::vector<DecisionNode> m_nodes;
-    AZStd::vector<DecisionService> m_services;
-    AZStd::vector<NodeIndex> m_guardNodes;
-    AZStd::vector<BlackboardKey> m_observedKeys;
-};
-```
-
-**Visual Representation:**
-
-```mermaid
-graph LR
-    subgraph Program[Shared DecisionProgram]
-        A[Tree "Guard"] --> B[Immutable Program]
-    end
-
-    subgraph Agents[Agents]
-        C[Agent 1] --> B
-        D[Agent 2] --> B
-        E[Agent 3] --> B
-        F[Agent 4] --> B
-    end
-```
-
 **Benefits:**
 - **Memory savings:** Hundreds of agents can share one tree.
 - **Cache efficiency:** Shared program data is hot in CPU cache.
@@ -332,7 +325,7 @@ graph LR
 
 ---
 
-### 6. Blackboard Indexing (Type-Safe, String-Free Access)
+### 7. Blackboard Indexing (Type-Safe, String-Free Access)
 
 **Description:**  
 Blackboard variables are resolved to typed indices at compile time, not looked up by string at runtime.
@@ -343,33 +336,69 @@ Blackboard variables are resolved to typed indices at compile time, not looked u
 // Code/Source/Core/Domain/BlackboardStorage.cpp
 void BlackboardStorage::EnsureCapacity(const BlackboardLayout& layout)
 {
-    // Resize typed arrays based on layout counts
     m_bools.resize(count(BlackboardType::Bool), false);
     m_ints.resize(count(BlackboardType::Int), 0);
     m_floats.resize(count(BlackboardType::Float), 0.0f);
-    // ...
+    // ... etc
 }
-```
-
-**Visual Representation:**
-
-```mermaid
-graph LR
-    subgraph Compile[Compile Time]
-        A[Variable Name "Health"] --> B[TreeCompiler]
-        B --> C[BlackboardKey Index 5]
-    end
-
-    subgraph Runtime[Runtime]
-        C --> D[m_floats[5]]
-        D --> E[Read/Write Value]
-    end
 ```
 
 **Benefits:**
 - **No string hashing:** O(1) array access.
 - **Type safety:** Compile-time validation prevents type mismatches.
 - **Cache locality:** Typed arrays are contiguous in memory.
+
+---
+
+### 8. HandleTable (Dense Storage)
+
+**Description:**  
+`HandleTable` uses generation-checked handles (like `AgentId`) to safely manage agents while keeping data contiguous. When a slot is released, the generation is bumped, invalidating stale handles.
+
+**How it works in the code:**
+
+```cpp
+// Code/Source/Core/Memory/HandleTable.h
+template<typename T, typename Tag>
+class HandleTable final
+{
+public:
+    HandleType Acquire(Args&&... args);      // Stores value, returns handle
+    bool Release(HandleType handle);         // Destroys value, bumps generation
+    T* Find(HandleType handle);              // Returns value, nullptr if stale
+    AZStd::vector<T>& GetValues();           // Contiguous iteration
+};
+```
+
+**Benefits:**
+- **Dense iteration:** Values are contiguous for cache-friendly loops.
+- **Stale detection:** Generation counters prevent use-after-free.
+- **Slot reuse:** Freed slots are recycled without fragmentation.
+
+---
+
+### 9. Bounded Intents Per Tick
+
+**Description:**  
+`AgentRuntime` limits the number of intents it satisfies in a single tick to prevent a tree of instantly-completing leaves from spinning the frame.
+
+**How it works in the code:**
+
+```cpp
+// Code/Source/Core/Application/AgentRuntime.cpp
+constexpr int MaxIntentsPerTick = 8;
+
+for (int attempt = 0; attempt < MaxIntentsPerTick; ++attempt)
+{
+    if (step.m_outcome == WalkOutcome::Finished) { ... }
+    if (StartPlan(agent, planContext, step.m_intent)) { return; }
+    step = m_walker.Advance(*agent.m_program, agent.m_cursor, planContext, ActionResult::Failure);
+}
+```
+
+**Benefits:**
+- **Frame budget protection:** No single agent can monopolize a frame.
+- **Fair scheduling:** Each agent gets a bounded amount of work per tick.
 
 ---
 
@@ -382,6 +411,7 @@ graph LR
 | Memory efficiency | Fewer per-agent customizations (shared programs) |
 | No stack overflow | More complex debugging for deep trees |
 | Type-safe blackboard access | Schema must be declared before trees compile |
+| Event-driven guards | Requires careful setup of `AgentObserver` |
 
 ---
 
@@ -397,8 +427,10 @@ graph LR
 
 - `TreeCompiler` flattens trees into contiguous programs.
 - `TreeWalker` executes iteratively with no recursion.
-- `AgentRuntime` manages tick bands and service intervals.
-- `BlackboardStorage` uses typed arrays for fast access.
+- `AgentRegistry` schedules agents into bands.
+- `AgentRuntime` bounds work per tick.
+- `AgentObserver` enables event-driven guards.
+- `HandleTable` provides dense, generation-checked storage.
 
 ### Extensibility
 

@@ -8,7 +8,7 @@ tags: [cpp, core, component]
 
 > **File Location:** `Code/Source/Core/Frontend/TreeWalker.cpp`  
 > **Header:** `Code/Source/Core/Frontend/TreeWalker.h`  
-> **Inherits:** None (Plain class instantiated by `AgentRuntime`)
+> **Inherits:** None (Plain class, instantiated by `AgentRuntime`)
 
 ---
 
@@ -54,8 +54,12 @@ WalkStep Restart(
 ```cpp
 // Runs the walk from a node, either descending into it or bubbling a result out of it.
 WalkStep Run(
-    const DecisionProgram& program, DecisionCursor& cursor, const PlanContext& context, 
-    NodeIndex node, bool bubbling, ActionResult result) const;
+    const DecisionProgram& program,
+    DecisionCursor& cursor,
+    const PlanContext& context,
+    NodeIndex node,
+    bool bubbling,
+    ActionResult result) const;
 
 // Builds the intent a leaf node emits.
 Intent MakeIntent(const DecisionNode& node, NodeIndex index) const;
@@ -88,8 +92,49 @@ graph LR
 The core method is `Run()`, which is an iterative loop using a `bubbling` flag:
 
 1. **Descending (bubbling=false):** The walker looks at the current node. If it's a `Selector` or `Sequence`, it resets the `childIndex` to 0 and moves to the first child. If it's a `Condition`, it evaluates the predicate; on failure, it sets `bubbling=true`. If it's a `Leaf` (Action/Script/Delegate), it sets the `activeLeaf` and returns an `Intent`.
-2. **Bubbling (bubbling=true):** The walker looks at the parent node. If it's a `Selector` and the child failed, it moves to the next sibling. If it's a `Sequence` and the child succeeded, it moves to the next sibling. If it's an `Invert`, it flips the result. If it's a `Cooldown`, it sets the deadline. 
+2. **Bubbling (bubbling=true):** The walker looks at the parent node. If it's a `Selector` and the child failed, it moves to the next sibling. If it's a `Sequence` and the child succeeded, it moves to the next sibling. If it's an `Invert`, it flips the result. If it's a `Cooldown`, it sets the deadline.
 3. **Lua Composites/Decorators:** When it hits a `LuaComposite` or `LuaDecorator`, it calls `context.m_scripting` (which routes to Lua) to ask for the next child index or to filter the result.
+
+```cpp
+// Code/Source/Core/Frontend/TreeWalker.cpp
+WalkStep TreeWalker::Run(
+    const DecisionProgram& program,
+    DecisionCursor& cursor,
+    const PlanContext& context,
+    NodeIndex node,
+    bool bubbling,
+    ActionResult result) const
+{
+    while (node != InvalidNodeIndex)
+    {
+        if (!bubbling)
+        {
+            const DecisionNode& current = program.m_nodes[node];
+            switch (current.m_op)
+            {
+            case NodeOp::Selector:
+            case NodeOp::Sequence:
+                cursor.ChildIndex(node) = 0;
+                node = current.m_firstChild;
+                continue;
+
+            case NodeOp::Action:
+            case NodeOp::Script:
+            case NodeOp::Delegate:
+                cursor.SetActiveLeaf(node);
+                return Emitted(MakeIntent(current, node));
+
+            // ... other node types ...
+            }
+        }
+
+        // Bubbling logic
+        // ...
+    }
+
+    return Finished(result);
+}
+```
 
 ### Performance Considerations
 

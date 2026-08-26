@@ -8,7 +8,7 @@ tags: [architecture, core]
 
 > **Category:** Architecture Overview  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Clients/GOATAgentComponent.cpp`, `Code/Source/Core/Application/GOATSystemComponent.cpp`, `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Source/Core/Frontend/TreeCompiler.cpp`, `Code/Source/Core/Frontend/TreeWalker.cpp`
+> **Core Files:** `Code/Source/Clients/GOATAgentComponent.cpp`, `Code/Source/Core/Application/GOATSystemComponent.cpp`, `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Source/Core/Frontend/TreeCompiler.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`
 
 ---
 
@@ -19,7 +19,7 @@ G.O.A.T. is organized into **three distinct layers**, each with a clear and rigi
 | Layer | Core Responsibility | Primary Files |
 | :--- | :--- | :--- |
 | **Lua Authoring Layer** | Define trees, behaviors, flows, and backends | `GOAT.lua`, `ExampleAgent.lua`, `ExampleAdvanced.lua` |
-| **C++ Core Layer** | Compile, execute, plan, and manage agents | `LuaDispatch`, `TreeCompiler`, `TreeWalker`, `AgentRuntime`, `BlackboardSystem` |
+| **C++ Core Layer** | Compile, execute, plan, and manage agents | `LuaDispatch`, `TreeCompiler`, `TreeWalker`, `AgentRuntime`, `BlackboardSystem`, `AgentRegistry` |
 | **Runtime Component Layer** | Bridge O3DE entities to the AI system | `GOATAgentComponent`, `GOATSystemComponent` |
 
 ---
@@ -42,7 +42,7 @@ graph TD
         I --> J[Intent]
         J --> K[BackendRegistry]
         K --> L[ActionPlan]
-        L --> M[AgentRuntime]
+        L --> M[AgentStateMachine]
         M --> N[IActionState]
     end
 
@@ -70,9 +70,10 @@ graph LR
     B -->|BehaviorTreeNode| C[TreeCompiler]
     C -->|DecisionProgram| W[TreeWalker]
     W -->|Intent| K[BackendRegistry]
-    K -->|ActionPlan| R[AgentRuntime]
+    K -->|ActionPlan| R[AgentStateMachine]
     R -->|IActionState| A[Game World]
-    A -->|Blackboard Updates| W
+    A -->|Blackboard Updates| O[AgentObserver]
+    O -->|Dirty Flag| W
 ```
 
 ---
@@ -130,53 +131,18 @@ graph LR
     Bridge[Bridge] --> Compiler[Compiler]
     Compiler --> Executor[Executor]
     Executor --> Planning[Planning]
-    Planning --> Runtime[Runtime]
-    Runtime --> Data[Data]
+    Planning --> StateMachine[State Machine]
+    StateMachine --> Data[Data]
 ```
 
 | Subsystem | Responsibility | Key Files |
 | :--- | :--- | :--- |
-| **Bridge** | Calls into the Lua VM (`GOAT_EmitTree`, `GOAT_Dispatch`) | `LuaDispatch.cpp`, `LuaTreeBuilder.cpp` |
-| **Compiler** | Validates nodes, resolves blackboard keys, flattens the tree | `TreeCompiler.cpp` |
-| **Executor** | Iteratively walks the `DecisionProgram`, producing `Intent`s | `TreeWalker.cpp`, `DecisionCursor.h` |
+| **Bridge** | Calls into the Lua VM (`GOAT_EmitTree`, `GOAT_Dispatch`) | `LuaDispatch.cpp`, `LuaTreeBuilder.cpp`, `LuaPlanBuilder.cpp`, `AgentScriptContext.cpp` |
+| **Compiler** | Validates nodes, resolves blackboard keys, flattens the tree | `TreeCompiler.cpp`, `NodeTypeRegistry.cpp`, `TreeLibrary.cpp` |
+| **Executor** | Iteratively walks the `DecisionProgram`, producing `Intent`s | `TreeWalker.cpp`, `DecisionCursor.h`, `GuardEvaluator.cpp`, `ServiceTracker.cpp` |
 | **Planning** | Turns `Intent`s into executable `ActionPlan`s | `BackendRegistry.cpp`, `DirectBackend.cpp`, `LuaBackend.cpp` |
-| **Runtime** | Executes `ActionPlan`s, manages tick bands and active actions | `AgentRuntime.cpp`, `AgentRegistry.cpp` |
-| **Data** | Stores typed blackboard variables across scopes | `BlackboardSystem.cpp`, `BlackboardStorage.cpp` |
-
-### The Compilation Pipeline
-1. **LuaDispatch** calls `GOAT_EmitTree`.
-2. **LuaTreeBuilder** reconstructs a `BehaviorTreeNode` hierarchy.
-3. **TreeCompiler** validates the node types and checks against the `BlackboardSchema`.
-4. **TreeCompiler** emits a flat `DecisionProgram` (a contiguous array of `DecisionNode`s).
-5. **TreeWalker** executes this program iteratively, maintaining state in a `DecisionCursor`.
-
-```cpp
-// Code/Source/Core/Scripting/LuaDispatch.cpp
-AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> LuaDispatch::EmitTree(const AZ::Name& treeName)
-{
-    AZ::ScriptDataContext call;
-    if (!m_scriptContext->Call("GOAT_EmitTree", call))
-    {
-        return AZ::Failure(AZStd::string("The GOAT Lua vocabulary is not loaded"));
-    }
-
-    call.PushArg(AZStd::string(treeName.GetStringView()));
-    call.PushArg(m_builder);
-
-    if (!call.CallExecute())
-    {
-        return AZ::Failure(AZStd::string::format("Emitting tree '%s' raised a Lua error", treeName.GetCStr()));
-    }
-
-    if (!m_builder.IsComplete())
-    {
-        return AZ::Failure(AZStd::string::format(
-            "Tree '%s' could not be assembled: %s", treeName.GetCStr(), m_builder.GetError().c_str()));
-    }
-
-    return AZ::Success(AZStd::shared_ptr<const BehaviorTreeNode>(aznew BehaviorTreeNode(m_builder.GetRoot())));
-}
-```
+| **State Machine** | Executes `ActionPlan`s, calling `IActionState::Begin/Step/End` | `AgentStateMachine.cpp`, `ActionStateRegistry.cpp` |
+| **Data** | Stores typed blackboard variables across scopes | `BlackboardSystem.cpp`, `BlackboardStorage.cpp`, `BlackboardSchema.cpp`, `SquadRegistry.cpp` |
 
 ---
 
@@ -192,7 +158,7 @@ Bridge O3DE entities to the AI system. This layer handles the lifecycle of an ag
 ### Agent Lifecycle Diagram
 
 ```mermaid
-graph LR
+flowchart LR
     A[Entity Activated] --> B[GOATAgentComponent Activate]
     B --> C[Load Blackboard Assets]
     C --> D[Load Lua Scripts]
@@ -233,6 +199,24 @@ void GOATAgentComponent::Activate()
     m_agent = agents->RegisterAgent(GetEntityId(), AZ::Name(m_treeName), static_cast<size_t>(m_band));
 }
 ```
+
+---
+
+## 🧩 Agent Scheduling (AgentRegistry)
+
+`AgentRegistry` schedules agents into pacing bands using O3DE's `AZ::ScheduledEvent`.
+
+```cpp
+// Code/Source/Core/Application/AgentRegistry.cpp
+const AZ::TimeMs defaults[BandCount] = {
+    AZ::TimeMs{ 33 },   // Band 0 - Most frequent
+    AZ::TimeMs{ 100 },  // Band 1 - Standard
+    AZ::TimeMs{ 250 },  // Band 2 - Distant
+    AZ::TimeMs{ 1000 }  // Band 3 - Least frequent (Director, Background)
+};
+```
+
+Each band has its own `AZ::ScheduledEvent` that calls `TickBand()`, which iterates through that band's agents and calls `AgentRuntime::Tick()`.
 
 ---
 
@@ -280,7 +264,7 @@ graph LR
 ## 🧩 Performance Considerations per Layer
 
 - **Lua Layer**: Lightweight; only runs on script load and `GOAT_Dispatch` calls.
-- **C++ Core**: Runs every tick (depending on Band). Uses `DecisionCursor` and `HandleTable` to avoid heap allocations during runtime.
+- **C++ Core**: Runs every tick (depending on Band). Uses `DecisionCursor`, `HandleTable`, and `AgentObserver` to avoid heap allocations during runtime and reduce unnecessary polling.
 - **Runtime Layer**: Very lightweight; `GOATAgentComponent` is a thin shell that just passes data.
 
 ---
@@ -292,6 +276,8 @@ graph LR
 - [[GOATSystemComponent]]
 - [[GOATAgentComponent]]
 - [[Extensibility Model]]
+- [[AgentRegistry]]
+- [[AgentRuntime]]
 
 ---
 

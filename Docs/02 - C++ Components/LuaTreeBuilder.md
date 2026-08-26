@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`LuaTreeBuilder` is the **C++ counterpart** to the Lua `GOAT.EmitTree` function. It receives a flat, pre-order stream of node calls from the Lua DSL (via `GOAT.lua`) and reconstructs a nested `BehaviorTreeNode` hierarchy. 
+`LuaTreeBuilder` is the **C++ counterpart** to the Lua `GOAT_EmitTree` function. It receives a flat, pre-order stream of node calls from the Lua DSL (via `GOAT.lua`) and reconstructs a nested `BehaviorTreeNode` hierarchy.
 
 The builder acts as a "push-based" assembly mechanism: Lua calls `BeginTree`, `AddNode`, `SetBoolProperty`, etc., and the builder stores these calls in a temporary record list. When `EndTree` is called, it rebuilds the recursive node tree from the flat records, validating that the child counts match the actual number of children provided. This allows the Lua authoring layer to stay completely decoupled from C++ memory management.
 
@@ -63,16 +63,6 @@ const AZStd::string& GetTreeName() const { return m_name; }
 // Why the last emission failed, when it did.
 const AZStd::string& GetError() const { return m_error; }
 ```
-
-### Private Data Members
-
-| Member | Type | Description |
-| :--- | :--- | :--- |
-| `m_records` | `AZStd::vector<Record>` | Flat list of nodes as emitted by Lua. |
-| `m_root` | `BehaviorTreeNode` | The assembled root node. |
-| `m_name` | `AZStd::string` | Name of the tree being built. |
-| `m_error` | `AZStd::string` | Error message if assembly fails. |
-| `m_complete` | `bool` | Whether the tree is fully assembled and valid. |
 
 ---
 
@@ -143,7 +133,7 @@ size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
 
 ## Lua Exposure
 
-`LuaTreeBuilder` is directly exposed to Lua via `BehaviorContext` (see `Reflect` method). It is passed as a `builder` argument to the `GOAT_EmitTree` function. 
+`LuaTreeBuilder` is directly exposed to Lua via `BehaviorContext` (see `Reflect` method). It is passed as a `builder` argument to the `GOAT_EmitTree` function.
 
 Example Lua code:
 

@@ -13,7 +13,7 @@ tags: [theory, director, architecture]
 
 ## 💡 Core Concept
 
-**Orchestration Patterns** are architectural approaches for controlling groups of agents from a central authority. In G.O.A.T., this is achieved using the **Backend Abstraction** combined with **Global Blackboard Scopes**. Instead of adding a complex new system, orchestration leverages the existing planning pipeline.
+**Orchestration Patterns** are architectural approaches for controlling groups of agents from a central authority. In G.O.A.T., this is achieved using the **Backend Abstraction** combined with **Global and Squad Blackboard Scopes**. Instead of adding a complex new system, orchestration leverages the existing planning pipeline.
 
 ---
 
@@ -26,6 +26,38 @@ Games often need a "brain" that coordinates many NPCs:
 - **Environmental events:** The game triggers earthquakes, ambushes, or patrol changes.
 
 Without a clean pattern, this logic often becomes scattered across many components. Orchestration Patterns provide a **single, unified way** to handle global decisions.
+
+---
+
+## 🗺️ Visual Overview
+
+```mermaid
+graph TD
+    subgraph Director[Director Agent]
+        A[Global Entity] --> B[GOATAgentComponent]
+        B --> C[Band 3 - 1000ms]
+        C --> D[Global Tree]
+        D --> E[delegate Director]
+        E --> F[Director Backend]
+        F --> G[ActionPlan]
+    end
+
+    subgraph Blackboard[Blackboard Scopes]
+        G --> H[Global Scope]
+        H --> I[wave_number]
+        H --> J[game_state]
+        G --> K[Squad Scope]
+        K --> L[Squad Leader]
+        K --> M[Squad Target]
+    end
+
+    subgraph Agents[Individual Agents]
+        I --> N[Agent 1]
+        J --> O[Agent 2]
+        L --> P[Agent 3]
+        M --> Q[Agent 4]
+    end
+```
 
 ---
 
@@ -93,6 +125,7 @@ tree "DirectorTree" {
 | **Schema-Driven Blackboard** | Global and Squad scopes allow cross-agent data sharing. |
 | **Performance-Aware** | Band 3 for global agents minimizes CPU cost. |
 | **Behavior-Driven Data** | Agents react to Global keys via conditions and aborts. |
+| **Event-Driven Guards** | `AgentObserver` wakes agents only when watched keys change. |
 
 ---
 
@@ -119,6 +152,104 @@ backend "Director" {
     end,
 }
 ```
+
+---
+
+## 🧩 Example: Difficulty Scaling
+
+```lua
+-- Global tree
+return tree "DifficultyTree" {
+    sequence {
+        condition "player_progress" { abort = "lower_priority" },
+        delegate "Director" { goal = "ScaleDifficulty" },
+        wait(5.0),
+    },
+}
+
+-- Director backend
+backend "Director" {
+    plan = function(me, ctx, goal)
+        local progress = ctx:GetInt("player_progress") or 1
+        local difficulty = math.floor(progress / 10)
+        return {
+            { action = "script", behavior = "SetDifficulty", tag = "difficulty_" .. difficulty },
+        }
+    end,
+}
+```
+
+---
+
+## 🧩 Example: Squad Coordination
+
+```lua
+-- Global tree
+return tree "SquadTree" {
+    sequence {
+        condition "squad_target" { abort = "lower_priority" },
+        delegate "Director" { goal = "CoordinateSquad" },
+        wait(1.0),
+    },
+}
+
+-- Director backend
+backend "Director" {
+    plan = function(me, ctx, goal)
+        if goal == "CoordinateSquad" then
+            local squad = ctx:GetName("active_squad")
+            return {
+                { action = "script", behavior = "SetSquadFormation", tag = squad },
+                { action = "wait", seconds = 2.0 },
+            }
+        end
+        return nil
+    end,
+}
+```
+
+---
+
+## ⚖️ Trade-offs
+
+| ✅ Advantage | ⚠️ Disadvantage |
+| :--- | :--- |
+| Centralized control over game flow | Single point of failure if not designed carefully |
+| Minimal CPU cost (runs at Band 3) | Requires careful management of Global Blackboard state |
+| Uses existing Backend abstraction | Need to design a tree that handles multiple goals |
+| No new C++ components needed | Debugging can be harder with cross-scope effects |
+| Leverages `AgentRegistry` scheduling | Must ensure Director entity is always active |
+
+---
+
+## 🧩 Impact on the Codebase
+
+### Lua Layer
+
+- Global trees are authored in Lua like any other tree.
+- Services with `interval` run at fixed rates.
+- Backends are defined in Lua via `backend "Name" { plan = ... }`.
+
+### C++ Core
+
+- `AgentRegistry` schedules the Director entity at Band 3.
+- `BackendRegistry` routes `delegate` intents to the Director backend.
+- `BlackboardSystem` provides Global and Squad storage.
+- `AgentObserver` wakes the Director only when watched Global keys change.
+
+### Extensibility
+
+- New orchestration styles can be added without touching core.
+- Directors can be swapped at runtime by rebinding backend names.
+- Squad coordination uses the same `SquadRegistry` as individual agents.
+
+---
+
+## 🗺️ Future Evolution
+
+- **Director AI** can be extended to support multiple simultaneous goals.
+- **Squad Registry** can be used for dynamic grouping and formation control.
+- **Navigation Library** will allow Directors to move entities (e.g., spawn points, patrol paths).
 
 ---
 

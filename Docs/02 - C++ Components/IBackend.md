@@ -7,13 +7,13 @@ tags: [cpp, core, interface]
 # IBackend
 
 > **File Location:** `Code/Include/GOAT/Interfaces/IBackend.h`  
-> **Inherits:** `AZ::RTTI` (via `AZ_RTTI` macro)  
+> **Inherits:** `AZ::RTTI` (via `AZ_RTTI` macro)
 
 ---
 
 ## Overview
 
-`IBackend` is the **core planning interface** of G.O.A.T. It unifies all AI paradigms (Behavior Trees, HTN, GOAP, Utility AI, Director AI) under a single contract. A backend receives an `Intent` from a tree leaf (via a `delegate` node) and produces an `ActionPlan`—a sequence of `ActionRequest`s that the `AgentRuntime` will execute.
+`IBackend` is the **core planning interface** of G.O.A.T. It unifies all AI paradigms (Behavior Trees, HTN, GOAP, Utility AI, Director AI) under a single contract. A backend receives an `Intent` from a tree leaf (via a `delegate` node) and produces an `ActionPlan`—a sequence of `ActionRequest`s that the `AgentStateMachine` will execute.
 
 This interface is what makes G.O.A.T. **backend-driven**: the tree structure never changes, but the planning algorithm behind it can be swapped at runtime.
 
@@ -26,6 +26,7 @@ This interface is what makes G.O.A.T. **backend-driven**: the tree structure nev
 | 1 | **Plan Generation** | Receives an `Intent` (containing a backend name and goal) and produces an `ActionPlan`. |
 | 2 | **Guard Collection** | Optionally reports conditions that invalidate the plan while it runs (for reactive replanning). |
 | 3 | **Agent Cleanup** | Releases any per-agent state held by the backend when an agent is unregistered. |
+| 4 | **Naming** | Provides a stable `AZ::Name` for registration and lookup. |
 
 ---
 
@@ -44,17 +45,13 @@ virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& 
 virtual void CollectGuards(
     [[maybe_unused]] const PlanContext& context,
     [[maybe_unused]] const ActionPlan& plan,
-    [[maybe_unused]] GuardList& outGuards) const
-{
-}
+    [[maybe_unused]] GuardList& outGuards) const { }
 
 // Releases any per agent state held for this agent.
-virtual void Release([[maybe_unused]] const PlanContext& context)
-{
-}
+virtual void Release([[maybe_unused]] const PlanContext& context) { }
 ```
 
-### PlanContext
+### PlanContext Struct
 
 ```cpp
 struct PlanContext
@@ -75,11 +72,11 @@ graph LR
     A[TreeWalker] -->|Intent| B[BackendRegistry]
     B --> C[IBackend]
     C --> D[ActionPlan]
-    D --> E[AgentRuntime]
+    D --> E[AgentStateMachine]
 ```
 
-- **Depends on:** `PlanContext` (provides agent, entity, blackboard, and scripting access).
-- **Interacts with:** `BackendRegistry` (for registration/lookup), `AgentRuntime` (to execute the produced plan).
+- **Depends on:** `PlanContext`, `Intent`, `ActionPlan`, `GuardList`.
+- **Interacts with:** `BackendRegistry` (for registration/lookup), `AgentStateMachine` (to execute the produced plan).
 - **Implemented by:** `DirectBackend`, `LuaBackend`, and any future C++ backends (e.g., GOAP, HTN).
 
 ---
@@ -124,6 +121,7 @@ Unit tests for `IBackend` should cover:
 - **Plan Generation:** Correctly producing an `ActionPlan` for a given `Intent`.
 - **Guard Collection:** Ensuring guards are collected for reactive replanning.
 - **Release:** Properly cleaning up per-agent state.
+- **Name:** Correctly returning the registered name.
 
 ---
 

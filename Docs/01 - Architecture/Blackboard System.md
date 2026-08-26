@@ -8,7 +8,7 @@ tags: [architecture, blackboard, core]
 
 > **Category:** Architecture  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Core/Domain/BlackboardSchema.h`, `Code/Source/Core/Domain/BlackboardStorage.cpp`, `Code/Source/Core/Application/BlackboardSystem.cpp`, `Code/Include/GOAT/Domain/BlackboardKey.h`
+> **Core Files:** `Code/Source/Core/Domain/BlackboardSchema.h`, `Code/Source/Core/Domain/BlackboardStorage.cpp`, `Code/Source/Core/Application/BlackboardSystem.cpp`, `Code/Include/GOAT/Domain/BlackboardKey.h`, `Code/Source/Core/Application/SquadRegistry.cpp`
 
 ---
 
@@ -16,11 +16,10 @@ tags: [architecture, blackboard, core]
 
 The Blackboard is the **shared data layer** that connects behavior trees, backends, and actions. It provides a type-safe, schema-driven interface that eliminates runtime string lookups. Variables are declared in `.bbx` assets, merged into a global `BlackboardSchema`, and resolved into typed indices at compile time.
 
-This architecture ensures:
-- **O(1) access** – No string hashing at runtime.
-- **Type safety** – Compile-time validation catches mismatches.
-- **Cross-scope sharing** – Global, Agent, and Squad scopes allow flexible data ownership.
-- **Memory efficiency** – Storage is dynamically provisioned based on declared variables.
+The system supports three scopes:
+- **Global** – Shared across all agents.
+- **Agent** – Per-agent storage.
+- **Squad** – Shared within a named group (managed by `SquadRegistry`).
 
 ---
 
@@ -36,18 +35,16 @@ graph TD
 
     subgraph Storage[Storage Layer]
         D --> E[BlackboardStorage]
-        E --> F[Typed Arrays]
-        F --> G[Bool Array]
-        F --> H[Int Array]
-        F --> I[Float Array]
-        F --> J[Vector3 Array]
-        F --> K[EntityId Array]
+        E --> F[Global Storage]
+        E --> G[Agent Storage]
+        E --> H[Squad Storage via SquadRegistry]
     end
 
     subgraph Usage[Usage Layer]
-        L[TreeCompiler] -->|Resolves Name to Key| D
-        M[TreeWalker] -->|Reads/Write Key| E
-        N[AgentRuntime] -->|Reads/Write Key| E
+        I[TreeCompiler] -->|Resolves Name to Key| D
+        J[TreeWalker] -->|Reads/Writes| E
+        K[AgentRuntime] -->|Reads/Writes| E
+        L[AgentObserver] -->|Listens to changes| E
     end
 ```
 
@@ -59,22 +56,18 @@ graph TD
 
 **Purpose:** Merges all loaded `.bbx` assets into a single global namespace. It declares variables and assigns them typed indices.
 
-**Interface:**
+**Interface (from `BlackboardSchema.h`):**
 
 ```cpp
-// Code/Source/Core/Domain/BlackboardSchema.h
 class BlackboardSchema final
 {
 public:
     AZ::Outcome<BlackboardKey, AZStd::string> Declare(
-	        const AZ::Name& name, BlackboardScope scope, BlackboardType type, AZStd::any defaultValue = {});
+        const AZ::Name& name, BlackboardScope scope, BlackboardType type, AZStd::any defaultValue = {});
 
     BlackboardKey Find(const AZ::Name& name) const;
-
     const BlackboardLayout& GetLayout(BlackboardScope scope) const;
-
-    const AZStd::unordered_map<AZ::Name, BlackboardKey>& GetVariables() const { return m_keysByName; }
-
+    const AZStd::unordered_map<AZ::Name, BlackboardKey>& GetVariables() const;
     void Clear();
 };
 ```
@@ -90,15 +83,19 @@ public:
 
 **Purpose:** A lightweight, typed index used to access values. It encodes the scope and type of a variable.
 
+**Interface (from `BlackboardKey.h`):**
+
 ```cpp
-// Code/Include/GOAT/Domain/BlackboardKey.h
 class BlackboardKey
 {
 public:
+    BlackboardKey(BlackboardScope scope, BlackboardType type, AZ::u32 index);
+    bool IsValid() const;
     BlackboardScope GetScope() const;
     BlackboardType GetType() const;
     AZ::u32 GetIndex() const;
-    bool IsValid() const;
+    AZ::u32 GetPacked() const;
+    bool operator==(const BlackboardKey& rhs) const;
 };
 ```
 
@@ -110,25 +107,28 @@ public:
 
 **Purpose:** Stores the actual values in typed, contiguous arrays. Storage is sized per scope based on the schema layout.
 
-**Interface:**
+**Interface (from `BlackboardStorage.h`):**
 
 ```cpp
-// Code/Include/GOAT/Domain/BlackboardStorage.h
 class BlackboardStorage
 {
 public:
+    using ChangedEvent = AZ::Event<BlackboardKey>;
+
     void EnsureCapacity(const BlackboardLayout& layout);
     void Reset(const BlackboardLayout& layout);
 
     template<typename T>
-    const T& Get(BlackboardKey key) const;
+    const T* Find(BlackboardKey key) const;
 
     template<typename T>
-    void Set(BlackboardKey key, const T& value);
+    bool Set(BlackboardKey key, const T& value);
+
+    void ConnectChangedHandler(ChangedEvent::Handler& handler);
 };
 ```
 
-**Supported Types:**
+**Supported Types (from `BlackboardTypes.h`):**
 
 | Type | C++ Type | Lua Type |
 | :--- | :--- | :--- |
@@ -144,104 +144,61 @@ public:
 
 ---
 
-## 🧩 Scopes
+### 4. BlackboardSystem
 
-Blackboard variables can belong to one of three scopes. This determines their lifetime and visibility.
+**Purpose:** Owns the global blackboard, every agent blackboard, and every squad blackboard. One schema is shared by all of them.
+
+**Interface (from `BlackboardSystem.h`):**
+
+```cpp
+class BlackboardSystem final : public IBlackboardSystem
+{
+public:
+    AZ::Outcome<BlackboardKey, AZStd::string> Declare(
+        const AZ::Name& name, BlackboardScope scope, BlackboardType type, AZStd::any defaultValue = {}) override;
+    BlackboardKey FindKey(const AZ::Name& name) const override;
+    void CreateAgentBlackboard(AgentId agent) override;
+    void DestroyAgentBlackboard(AgentId agent) override;
+    void JoinSquad(AgentId agent, const AZ::Name& squad) override;
+    void LeaveSquad(AgentId agent) override;
+    AZ::Name GetSquad(AgentId agent) const override;
+    BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) override;
+    const BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) const override;
+    void Clear();
+};
+```
+
+---
+
+### 5. SquadRegistry
+
+**Purpose:** Manages named agent groups and their squad-scoped blackboard storage. A squad exists only while it has members.
+
+**Interface (from `SquadRegistry.h`):**
+
+```cpp
+class SquadRegistry final
+{
+public:
+    void Join(AgentId agent, const AZ::Name& squad, const BlackboardLayout& layout);
+    void Leave(AgentId agent);
+    AZ::Name Find(AgentId agent) const;
+    BlackboardStorage* FindStorage(AgentId agent);
+    const BlackboardStorage* FindStorage(AgentId agent) const;
+    void EnsureCapacity(const BlackboardLayout& layout);
+    void Clear();
+};
+```
+
+---
+
+## 🧩 Scopes
 
 | Scope | Description | Lifetime |
 | :--- | :--- | :--- |
 | **Global** | Shared across all agents | Whole game session |
 | **Agent** | Per-agent variables | Agent lifecycle |
-| **Squad** | Shared within a squad | Squad lifecycle |
-
-```mermaid
-graph LR
-    subgraph Global[Global Scope]
-        A[Player Progress]
-        B[Game State]
-        C[Time of Day]
-    end
-
-    subgraph Squad[Squad Scope]
-        D[Squad Leader]
-        E[Squad Target]
-        F[Squad Formation]
-    end
-
-    subgraph Agent[Agent Scope]
-        G[Health]
-        H[Target Entity]
-        I[Patrol Stop]
-    end
-```
-
----
-
-## 🧩 Declaration and Merging
-
-### How .bbx Assets are Loaded
-
-```cpp
-// Code/Source/Core/Application/GOATSystemComponent.cpp
-AZ::Outcome<void, AZStd::string> GOATSystemComponent::LoadBlackboard(const BlackboardAsset& asset)
-{
-    if (m_blackboardSystem == nullptr)
-    {
-        return AZ::Failure(AZStd::string("The blackboard system is not running"));
-    }
-
-    for (const BlackboardVariable& variable : asset.m_variables)
-    {
-        auto declared = m_blackboardSystem->Declare(
-            AZ::Name(variable.m_name), variable.m_scope, variable.m_type, variable.GetDefault());
-        if (!declared.IsSuccess())
-        {
-            return AZ::Failure(declared.TakeError());
-        }
-    }
-    return AZ::Success();
-}
-```
-
-### What Happens in Schema
-
-```cpp
-// Code/Source/Core/Domain/BlackboardSchema.cpp
-AZ::Outcome<BlackboardKey, AZStd::string> BlackboardSchema::Declare(
-    const AZ::Name& name, BlackboardScope scope, BlackboardType type, AZStd::any defaultValue)
-{
-    if (name.IsEmpty())
-    {
-        return AZ::Failure(AZStd::string("A blackboard variable must have a name"));
-    }
-
-    if (auto existing = m_keysByName.find(name); existing != m_keysByName.end())
-    {
-        return AZ::Failure(AZStd::string::format(
-            "Blackboard variable '%s' is already declared as %s %s",
-            name.GetCStr(), ToString(existing->second.GetScope()), ToString(existing->second.GetType())));
-    }
-
-    BlackboardLayout& layout = m_layouts[static_cast<size_t>(scope)];
-    AZ::u32& slotCount = layout.m_slotCounts[static_cast<size_t>(type)];
-    if (slotCount > BlackboardKey::MaxIndex)
-    {
-        return AZ::Failure(AZStd::string::format(
-            "Too many %s blackboard variables of type %s", ToString(scope), ToString(type)));
-    }
-
-    const BlackboardKey key(scope, type, slotCount);
-    ++slotCount;
-
-    if (!defaultValue.empty())
-    {
-        layout.m_defaults.emplace_back(key, AZStd::move(defaultValue));
-    }
-
-    m_keysByName.emplace(name, key);
-    return AZ::Success(key);
-}
-```
+| **Squad** | Shared within a squad | Squad lifecycle (created on first join, destroyed on last leave) |
 
 ---
 
@@ -265,15 +222,17 @@ behavior "Sense" {
 }
 ```
 
-**Key Methods:**
+**Key Methods (from `AgentScriptContext.h`):**
 - `ctx:SetBool(name, value)`
 - `ctx:GetBool(name)`
-- `ctx:SetInt(name, value)`
-- `ctx:GetInt(name)`
-- `ctx:SetFloat(name, value)`
-- `ctx:GetFloat(name)`
+- `ctx:SetNumber(name, value)` (works for Int and Float)
+- `ctx:GetNumber(name)` (returns a double)
 - `ctx:SetVector3(name, value)`
 - `ctx:GetVector3(name)`
+- `ctx:SetEntity(name, entityId)`
+- `ctx:GetEntity(name)`
+- `ctx:SetName(name, string)`
+- `ctx:GetName(name)`
 
 ---
 
@@ -287,9 +246,32 @@ class IBlackboardSystem
 {
 public:
     virtual BlackboardKey FindKey(const AZ::Name& name) const = 0;
-    virtual void SetValue(BlackboardKey key, const AZStd::any& value) = 0;
-    virtual AZStd::any GetValue(BlackboardKey key) const = 0;
+    virtual BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) = 0;
+    virtual const BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) const = 0;
+
+    template<typename T>
+    const T* Find(BlackboardKey key, AgentId agent = {}) const;
+
+    template<typename T>
+    bool Set(BlackboardKey key, const T& value, AgentId agent = {});
 };
+```
+
+---
+
+## 🧩 Event-Driven Changes
+
+`BlackboardStorage` exposes a `ChangedEvent` that fires whenever a slot is modified. `AgentObserver` subscribes to only the storages that hold watched keys, enabling event-driven guard evaluation.
+
+```cpp
+// Code/Source/Core/Application/AgentObserver.cpp
+void AgentObserver::OnChanged(BlackboardKey key)
+{
+    if (AZStd::binary_search(m_observed.begin(), m_observed.end(), key))
+    {
+        m_dirty = true;
+    }
+}
 ```
 
 ---
@@ -302,6 +284,7 @@ public:
 | Type-safe access prevents runtime errors | Schema must be maintained separately |
 | Scopes allow clean data ownership | Cross-scope access can be confusing |
 | Memory is provisioned dynamically | Duplicate declarations fail load |
+| Event-driven changes enable efficient guards | Observers must be connected correctly |
 
 ---
 
@@ -310,7 +293,8 @@ public:
 - **Compile-time resolution:** Variables are resolved to keys once, not per-tick.
 - **Typed arrays:** Contiguous memory for cache locality.
 - **Dynamic provisioning:** Arrays grow only when new variables are declared.
-- **Replication:** Keys marked as replicated are synced to clients automatically.
+- **Event-driven guards:** `AgentObserver` wakes agents only when watched keys change.
+- **Replication:** Keys marked as replicated are synced to clients automatically (via O3DE).
 
 ---
 
@@ -320,6 +304,8 @@ public:
 - [[Layered Overview]]
 - [[GOATSystemComponent]]
 - [[TreeCompiler]]
+- [[AgentObserver]]
+- [[SquadRegistry]]
 
 ---
 

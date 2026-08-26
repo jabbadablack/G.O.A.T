@@ -3,12 +3,17 @@ type: architecture
 status: implemented
 tags: [architecture, core, pipeline]
 ---
+---
+type: architecture
+status: implemented
+tags: [architecture, core, pipeline]
+---
 
 # Data Flow
 
 > **Category:** Architecture Pipeline  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Source/Core/Frontend/LuaTreeBuilder.cpp`, `Code/Source/Core/Frontend/TreeCompiler.cpp`, `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`
+> **Core Files:** `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Source/Core/Frontend/LuaTreeBuilder.cpp`, `Code/Source/Core/Frontend/TreeCompiler.cpp`, `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`, `Code/Source/Core/Application/AgentStateMachine.cpp`
 
 ---
 
@@ -19,7 +24,7 @@ G.O.A.T. uses a **strict pipeline** to transform authored Lua trees into executa
 The flow is:
 
 ```text
-Lua Authoring → LuaTreeBuilder → TreeCompiler → DecisionProgram → TreeWalker → Intent → Backend → ActionPlan → AgentRuntime → IActionState → Game World
+Lua Authoring → LuaTreeBuilder → TreeCompiler → DecisionProgram → TreeWalker → Intent → Backend → ActionPlan → AgentStateMachine → IActionState → Game World
 ```
 
 ---
@@ -27,15 +32,30 @@ Lua Authoring → LuaTreeBuilder → TreeCompiler → DecisionProgram → TreeWa
 ## 🗺️ Visual Overview
 
 ```mermaid
-graph LR
-    L[Lua Script] -->|GOAT_EmitTree| D[LuaDispatch]
-    D -->|BeginTree / AddNode| B[LuaTreeBuilder]
-    B -->|BehaviorTreeNode| C[TreeCompiler]
-    C -->|DecisionProgram| W[TreeWalker]
-    W -->|Intent| K[BackendRegistry]
-    K -->|ActionPlan| R[AgentRuntime]
-    R -->|IActionState| A[Game World]
-    A -->|Blackboard Updates| W
+graph TD
+    subgraph Authoring[Authoring]
+        A[Lua Script] --> B[GOAT_EmitTree]
+    end
+
+    subgraph Build[Compilation]
+        B --> C[LuaTreeBuilder]
+        C --> D[BehaviorTreeNode]
+        D --> E[TreeCompiler]
+        E --> F[DecisionProgram]
+    end
+
+    subgraph Runtime[Runtime]
+        F --> G[TreeWalker]
+        G --> H[Intent]
+        H --> I[Backend]
+        I --> J[ActionPlan]
+        J --> K[AgentStateMachine]
+        K --> L[IActionState]
+        L --> M[Game World]
+    end
+
+    M -->|Blackboard Updates| N[AgentObserver]
+    N -->|Dirty Flag| G
 ```
 
 ---
@@ -93,17 +113,6 @@ AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> LuaDispatc
         return AZ::Failure(AZStd::string::format("Emitting tree '%s' raised a Lua error", treeName.GetCStr()));
     }
 
-    bool found = false;
-    if (call.GetNumResults() >= 1)
-    {
-        call.ReadResult(0, found);
-    }
-
-    if (!found)
-    {
-        return AZ::Failure(AZStd::string::format("No tree named '%s' was declared", treeName.GetCStr()));
-    }
-
     if (!m_builder.IsComplete())
     {
         return AZ::Failure(AZStd::string::format(
@@ -133,7 +142,6 @@ void LuaTreeBuilder::AddNode(AZStd::string type, int childCount, int serviceCoun
 ```
 
 ```cpp
-// Code/Source/Core/Scripting/LuaTreeBuilder.cpp
 size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
 {
     const Record& record = m_records[index++];
@@ -173,22 +181,11 @@ AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Emit(
     DecisionProgram& program,
     AZStd::vector<AZ::Name>& inlining) const
 {
-    if (depth >= MaxTreeDepth)
-    {
-        return AZ::Failure(AZStd::string::format("Tree is deeper than the %zu node limit", MaxTreeDepth));
-    }
+    if (depth >= MaxTreeDepth) { return AZ::Failure(...); }
 
     const AZ::Name typeName(authored.m_type);
     const NodeTypeDescriptor* descriptor = m_types.Find(typeName);
-    if (descriptor == nullptr)
-    {
-        return AZ::Failure(AZStd::string::format("Unknown node type '%s'", authored.m_type.c_str()));
-    }
-
-    if (auto valid = Validate(authored, *descriptor); !valid.IsSuccess())
-    {
-        return AZ::Failure(valid.TakeError());
-    }
+    if (descriptor == nullptr) { return AZ::Failure(...); }
 
     const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
     program.m_nodes.emplace_back();
@@ -199,7 +196,7 @@ AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Emit(
         node.m_childCount = aznumeric_cast<AZ::u16>(authored.m_children.size());
     }
 
-    // Resolve properties, blackboard keys, etc.
+    // Resolve properties, blackboard keys, services, etc.
     // ...
 
     // Emit children
@@ -207,10 +204,7 @@ AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Emit(
     for (const BehaviorTreeNode& child : authored.m_children)
     {
         auto emitted = Emit(child, index, depth + 1, program, inlining);
-        if (!emitted.IsSuccess())
-        {
-            return emitted;
-        }
+        if (!emitted.IsSuccess()) { return emitted; }
     }
 
     DecisionNode& node = program.m_nodes[index];
@@ -308,39 +302,116 @@ backend "Errand" {
 
 ---
 
-### Stage 7: AgentRuntime Executes Actions
+### Stage 7: AgentStateMachine Executes Actions
 
-`AgentRuntime` processes the `ActionPlan`, calling `IActionState::OnStart`, `OnTick`, and `OnStop` for each step.
+`AgentStateMachine` processes the `ActionPlan`, calling `IActionState::Begin`, `Step`, and `End` for each step.
+
+```cpp
+// Code/Source/Core/Domain/AgentStateMachine.cpp
+ActionResult AgentStateMachine::Step(const ActionStateRegistry& registry, ActionContext& context, float deltaTime)
+{
+    if (!HasPlan()) { return ActionResult::Success; }
+
+    FillContext(context);
+
+    IActionState* state = registry.Find(m_plan.m_steps[m_step].m_action);
+    if (state == nullptr) { return ActionResult::Failure; }
+
+    if (!m_begun)
+    {
+        m_scratch.fill(0);
+        m_elapsed = 0.0f;
+        state->Begin(context);
+        m_begun = true;
+    }
+
+    m_elapsed += deltaTime;
+    const ActionResult result = state->Step(context, deltaTime);
+    if (result == ActionResult::Running) { return ActionResult::Running; }
+
+    state->End(context);
+    m_begun = false;
+
+    if (result == ActionResult::Failure) { return ActionResult::Failure; }
+
+    ++m_step;
+    return HasPlan() ? ActionResult::Running : ActionResult::Success;
+}
+```
+
+---
+
+### Stage 8: AgentRuntime Orchestrates the Tick
+
+`AgentRuntime` ties everything together each tick:
+
+1. **Advance clock:** `agent.m_cursor.AdvanceClock(deltaTime)`.
+2. **Apply guards:** `ApplyGuards()` (only if `AgentObserver` is dirty).
+3. **Tick services:** `TickServices()` (collect due services, run them).
+4. **Advance action:** If `AgentStateMachine` has a plan, call `Step()`.
+5. **Walk tree:** If no plan, call `TreeWalker::Begin()` or `Advance()`.
+6. **Start plan:** When an `Intent` is produced, call `StartPlan()` (which routes to a backend).
 
 ```cpp
 // Code/Source/Core/Application/AgentRuntime.cpp
-ActionResult AgentRuntime::ExecutePlan(const ActionPlan& plan, const PlanContext& context)
+void AgentRuntime::Tick(AgentRecord& agent, float deltaTime)
 {
-    for (const ActionRequest& request : plan.m_steps)
+    if (agent.m_program == nullptr || agent.m_program->IsEmpty()) { return; }
+
+    agent.m_cursor.AdvanceClock(deltaTime);
+    const PlanContext planContext = MakePlanContext(agent);
+
+    WalkStep step;
+    bool haveStep = false;
+    ApplyGuards(agent, planContext, step, haveStep);
+
+    TickServices(agent, deltaTime);
+
+    if (!haveStep)
     {
-        IActionState* action = m_actions->Find(request.m_action);
-        if (action == nullptr)
+        if (agent.m_machine.HasPlan())
         {
-            return ActionResult::Failure;
+            ActionContext actionContext = MakeActionContext(agent);
+            const ActionResult result = agent.m_machine.Step(m_actions, actionContext, deltaTime);
+            if (result == ActionResult::Running) { return; }
+            step = m_walker.Advance(*agent.m_program, agent.m_cursor, planContext, result);
         }
-
-        ActionResult result = action->OnStart(request, context);
-        if (result == ActionResult::Running)
+        else
         {
-            // Store active action, tick until complete
-            m_activeAction = request;
-            m_activeResult = result;
-            return ActionResult::Running;
+            step = m_walker.Begin(*agent.m_program, agent.m_cursor, planContext);
         }
-
-        if (result == ActionResult::Failure)
-        {
-            return ActionResult::Failure;
-        }
+        haveStep = true;
     }
 
-    return ActionResult::Success;
+    for (int attempt = 0; attempt < MaxIntentsPerTick; ++attempt)
+    {
+        if (step.m_outcome == WalkOutcome::Finished)
+        {
+            step = m_walker.Begin(*agent.m_program, agent.m_cursor, planContext);
+            if (step.m_outcome == WalkOutcome::Finished) { return; }
+        }
+
+        if (StartPlan(agent, planContext, step.m_intent)) { return; }
+
+        step = m_walker.Advance(*agent.m_program, agent.m_cursor, planContext, ActionResult::Failure);
+    }
 }
+```
+
+---
+
+## 🧩 Visual Flow Summary
+
+```mermaid
+flowchart LR
+    A[Lua Tree] -->|GOAT_EmitTree| B[LuaTreeBuilder]
+    B -->|BehaviorTreeNode| C[TreeCompiler]
+    C -->|DecisionProgram| D[TreeWalker]
+    D -->|Intent| E[Backend]
+    E -->|ActionPlan| F[AgentStateMachine]
+    F -->|IActionState| G[Game World]
+    G -->|Blackboard Updates| H[AgentObserver]
+    H -->|Dirty Flag| D
 ```
 
 ---
@@ -353,22 +424,7 @@ ActionResult AgentRuntime::ExecutePlan(const ActionPlan& plan, const PlanContext
 | Compiled program is immutable and shared | Errors can be hard to trace if not logged |
 | Type-safe blackboard access | Schema must be declared before compile |
 | Modular backends allow paradigm swapping | Backend can fail silently if not handled |
-
----
-
-## 🧩 Impact on the Codebase
-
-### Lua Layer
-- Trees are authored in Lua, compiled once, shared by many agents.
-- Backends can be written in Lua or C++.
-
-### C++ Core
-- `TreeCompiler` and `TreeWalker` are the "brain" of the pipeline.
-- `AgentRuntime` executes plans and manages active actions.
-
-### Extensibility
-- New actions (`IActionState`) plug into the final stage.
-- New backends (`IBackend`) plug into the planning stage.
+| Event-driven guards reduce polling | Observers must be connected correctly |
 
 ---
 
@@ -379,6 +435,7 @@ ActionResult AgentRuntime::ExecutePlan(const ActionPlan& plan, const PlanContext
 - [[TreeCompiler]]
 - [[TreeWalker]]
 - [[AgentRuntime]]
+- [[AgentStateMachine]]
 
 ---
 

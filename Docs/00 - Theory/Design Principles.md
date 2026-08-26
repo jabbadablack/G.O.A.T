@@ -22,38 +22,6 @@ The design philosophy can be summarized as:
 
 ---
 
-## 🗺️ Architecture Overview
-
-```mermaid
-graph TD
-    subgraph Authoring[Lua Authoring Layer]
-        A[Tree DSL] --> B[Behavior Definitions]
-        B --> C[Backend Definitions]
-        C --> D[Flow Definitions]
-    end
-
-    subgraph Core[C++ Core Layer]
-        E[LuaDispatch] --> F[LuaTreeBuilder]
-        F --> G[TreeCompiler]
-        G --> H[DecisionProgram]
-        H --> I[TreeWalker]
-        I --> J[Intent]
-        J --> K[Backend Registry]
-    end
-
-    subgraph Execution[Execution Layer]
-        K --> L[ActionPlan]
-        L --> M[AgentRuntime]
-        M --> N[IActionState]
-        N --> O[Game World]
-    end
-
-    A --> E
-    D --> E
-```
-
----
-
 ## 🤔 Why This Matters
 
 Without these principles, AI frameworks often devolve into rigid, component-heavy monoliths. For example:
@@ -66,7 +34,42 @@ G.O.A.T. avoids all of this by enforcing a strict separation between **authoring
 
 ---
 
-## ⚖️ The Six Pillars (Detailed)
+## 🗺️ Visual Overview
+
+```mermaid
+graph TD
+    subgraph Lua[Lua Authoring Layer]
+        A[Tree Authoring] --> B[Behavior Definitions]
+        B --> C[Flow Definitions]
+        C --> D[Backend Definitions]
+    end
+
+    subgraph Core[C++ Core Layer]
+        E[LuaDispatch] --> F[LuaTreeBuilder]
+        F --> G[TreeCompiler]
+        G --> H[DecisionProgram]
+        H --> I[TreeWalker]
+        I --> J[Intent]
+        J --> K[BackendRegistry]
+        K --> L[ActionPlan]
+        L --> M[AgentStateMachine]
+        M --> N[IActionState]
+    end
+
+    subgraph Runtime[Runtime Component Layer]
+        O[GOATAgentComponent] --> E
+        P[GOATSystemComponent] --> E
+        O --> Q[Entity]
+        P --> R[Registries]
+    end
+
+    N --> Q
+    R --> O
+```
+
+---
+
+## ⚖️ The Six Pillars (Updated)
 
 ### 1. Backend as a Planning Abstraction
 
@@ -89,30 +92,16 @@ public:
 
     // Produces a plan for one intent. Returns false when this backend cannot satisfy it.
     virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
+
+    // Reports the conditions that invalidate the plan while it runs.
+    virtual void CollectGuards(
+        [[maybe_unused]] const PlanContext& context,
+        [[maybe_unused]] const ActionPlan& plan,
+        [[maybe_unused]] GuardList& outGuards) const { }
+
+    // Releases any per agent state held for this agent.
+    virtual void Release([[maybe_unused]] const PlanContext& context) { }
 };
-```
-
-**Visual Representation:**
-
-```mermaid
-graph LR
-    subgraph Tree[Behavior Tree]
-        A[delegate node] --> B[Intent]
-    end
-
-    subgraph Backends[Backends]
-        B --> C[DirectBackend]
-        B --> D[LuaBackend]
-        B --> E[FutureGOAPBackend]
-        B --> F[FutureHTNBackend]
-    end
-
-    subgraph Output[Action Plans]
-        C --> G[ActionPlan 1]
-        D --> H[ActionPlan 2]
-        E --> I[ActionPlan 3]
-        F --> J[ActionPlan 4]
-    end
 ```
 
 **Concrete examples:**
@@ -124,7 +113,7 @@ graph LR
 | `FutureGoapBackend` | Planned | Could implement full GOAP planning, reusable across all trees. |
 
 **Why this matters:**
-- **Flexibility:** A tree can switch from a simple "do this action" to a complex HTN planner without changing the tree structure – just change the `delegate` node.
+- **Flexibility:** A tree can switch from a simple "do this action" to a complex HTN planner without changing the tree structure.
 - **Extensibility:** New AI paradigms can be added by modules without modifying the core engine.
 - **Runtime swapping:** The `BackendRegistry` allows backends to be registered/unregistered at runtime.
 
@@ -142,27 +131,6 @@ The entire behavior tree DSL is defined in Lua (`GOAT.lua`). Trees, behaviors, f
 - `LuaDispatch::EmitTree` calls `GOAT_EmitTree`, which pushes node data into a `LuaTreeBuilder`.
 - `LuaTreeBuilder` reconstructs a `BehaviorTreeNode` hierarchy.
 - `TreeCompiler` compiles that hierarchy into a `DecisionProgram`.
-
-**Visual Representation:**
-
-```mermaid
-sequenceDiagram
-    participant L as Lua Script (GOAT.lua)
-    participant D as LuaDispatch (C++)
-    participant B as LuaTreeBuilder (C++)
-    participant C as TreeCompiler (C++)
-    participant P as DecisionProgram
-
-    L->>D: GOAT_EmitTree("ExampleAgent")
-    D->>B: BeginTree("ExampleAgent")
-    B->>B: AddNode("selector", 2, 0)
-    B->>B: SetStringProperty("key", "target_seen")
-    B->>D: Return true (complete)
-    D->>C: Compile("ExampleAgent", root)
-    C->>P: Flatten nodes & resolve keys
-    P-->>C: DecisionProgram object
-    C-->>D: Return compiled program
-```
 
 **Concrete example (from `ExampleAgent.lua`):**
 
@@ -210,49 +178,20 @@ Blackboard variables are declared in `.bbx` assets, merged into a global `Blackb
 - `TreeCompiler` resolves property names to `BlackboardKey`s at compile time.
 - `BlackboardStorage` stores values in typed, contiguous arrays indexed by `BlackboardKey`.
 
-**Visual Representation:**
-
-```mermaid
-graph TD
-    subgraph Schema[BlackboardSchema]
-        A[.bbx Asset] --> B[Declare Variable]
-        B --> C[Assign Key]
-        C --> D[Typed Slot]
-    end
-
-    subgraph Storage[BlackboardStorage]
-        D --> E[Bool Array]
-        D --> F[Int Array]
-        D --> G[Float Array]
-        D --> H[Vector3 Array]
-        D --> I[EntityId Array]
-        D --> J[Name Array]
-    end
-
-    subgraph Usage[Tree Execution]
-        K[TreeCompiler] -->|Resolves name to key| D
-        L[TreeWalker] -->|Reads key| E
-        L -->|Reads key| F
-        L -->|Reads key| G
-    end
-```
-
 **Concrete example (from `BlackboardSchema.h`):**
 
 ```cpp
 class BlackboardSchema final
 {
 public:
-    // Declares one variable and assigns it a slot.
     AZ::Outcome<BlackboardKey, AZStd::string> Declare(
         const AZ::Name& name, BlackboardScope scope, BlackboardType type, AZStd::any defaultValue = {});
 
-    // Resolves a name to its key, or an invalid key when the name is undeclared.
     BlackboardKey Find(const AZ::Name& name) const;
 };
 ```
 
-**Supported types:**
+**Supported types (from `BlackboardTypes.h`):**
 
 | Type | C++ Type | Lua Type |
 | :--- | :--- | :--- |
@@ -285,25 +224,6 @@ All AI decisions run on the server. Clients only receive replicated blackboard s
 - `GOATSystemComponent` registers services only on the server.
 - Blackboard keys marked as `replicated` are synced to clients via O3DE's replication system.
 
-**Visual Representation:**
-
-```mermaid
-graph LR
-    subgraph Server[Server - Authority]
-        A[GOATAgentComponent] --> B[TreeWalker]
-        B --> C[Backend Plan]
-        C --> D[Action Execution]
-        D --> E[Replicated Blackboard]
-    end
-
-    subgraph Client[Client - Visual Only]
-        F[Replicated Blackboard] --> G[Visual Smoothing]
-        G --> H[Animation / Audio]
-    end
-
-    E -->|Delta Compression + Replication| F
-```
-
 **Why this matters:**
 - **Deterministic behavior** – All AI decisions are consistent across clients.
 - **Prevents cheating** – Clients cannot influence AI decisions.
@@ -320,45 +240,44 @@ The framework uses multiple mechanisms to ensure agents run efficiently without 
 
 | Mechanism | Description |
 | :--- | :--- |
-| **Tick Bands** | Agents run at different frequencies (Band 0 = most frequent, Band 3 = least frequent). |
-| **Interval Services** | Services attached to composites run at fixed intervals, not every frame. |
+| **Tick Bands** | Agents run at different frequencies via `AgentRegistry::BandCount` (0 = most frequent, 3 = least). |
+| **Interval Services** | Services attached to composites run at fixed intervals, tracked by `ServiceTracker`. |
 | **Flat Programs** | Trees compile into contiguous `DecisionNode` arrays with precomputed indices. |
 | **Iterative Traversal** | `TreeWalker` uses a loop instead of recursion, avoiding stack overflow on deep trees. |
 | **Shared Programs** | Multiple agents running the same tree share an immutable `DecisionProgram`. |
 | **Blackboard Indexing** | Values are stored in typed arrays, accessed by index, not string. |
+| **Event-Driven Guards** | `AgentObserver` watches only the blackboard slots a tree guards on, waking the agent only when a relevant key changes. |
+| **HandleTable** | Dense storage with generation-checked handles prevents stale pointers and keeps memory contiguous. |
 
-**Visual Representation:**
-
-```mermaid
-graph TD
-    subgraph Program[Flat DecisionProgram]
-        A[Node 0: Selector] --> B[Node 1: Sequence]
-        B --> C[Node 2: Condition]
-        C --> D[Node 3: Script]
-        B --> E[Node 4: Wait]
-        A --> F[Node 5: Script]
-    end
-
-    subgraph Memory[Memory Layout]
-        G[Contiguous Vector<DecisionNode>]
-        H[Precomputed Child Indices]
-        I[Typed Blackboard Arrays]
-    end
-
-    Program --> Memory
-```
-
-**Concrete example (from `TreeCompiler.cpp`):**
+**Concrete example (from `AgentRuntime.cpp`):**
 
 ```cpp
-// Flattening the tree into a contiguous array
-const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
-program.m_nodes.emplace_back();
+void AgentRuntime::Tick(AgentRecord& agent, float deltaTime)
 {
-    DecisionNode& node = program.m_nodes[index];
-    node.m_op = descriptor->m_op;
-    node.m_parent = parent;
-    node.m_childCount = aznumeric_cast<AZ::u16>(authored.m_children.size());
+    agent.m_cursor.AdvanceClock(deltaTime);
+    const PlanContext planContext = MakePlanContext(agent);
+
+    WalkStep step;
+    bool haveStep = false;
+    ApplyGuards(agent, planContext, step, haveStep);
+
+    TickServices(agent, deltaTime);
+
+    if (!haveStep)
+    {
+        if (agent.m_machine.HasPlan())
+        {
+            ActionContext actionContext = MakeActionContext(agent);
+            const ActionResult result = agent.m_machine.Step(m_actions, actionContext, deltaTime);
+            if (result == ActionResult::Running) { return; }
+            step = m_walker.Advance(*agent.m_program, agent.m_cursor, planContext, result);
+        }
+        else
+        {
+            step = m_walker.Begin(*agent.m_program, agent.m_cursor, planContext);
+        }
+        haveStep = true;
+    }
 }
 ```
 
@@ -379,27 +298,7 @@ Behaviors declare which blackboard keys they need. The system dynamically provis
 - `TreeCompiler` collects `observedKeys` for conditions with `abort` modes.
 - `BlackboardStorage::EnsureCapacity` resizes arrays only when new keys are added.
 - `LuaPlanBuilder` validates that steps reference existing blackboard keys.
-
-**Visual Representation:**
-
-```mermaid
-graph TD
-    subgraph Authoring[Authoring]
-        A[Tree Definition] --> B[References Blackboard Keys]
-    end
-
-    subgraph Compilation[Compilation]
-        B --> C[TreeCompiler]
-        C --> D[Collects Observed Keys]
-        D --> E[Validates References]
-    end
-
-    subgraph Storage[Storage]
-        E --> F[BlackboardSchema]
-        F --> G[Ensures Capacity]
-        G --> H[Allocates Only Needed Slots]
-    end
-```
+- `AgentObserver` connects only to the storages that hold observed keys.
 
 **Why this matters:**
 - **Memory efficiency** – No wasted storage for unused variables.
@@ -414,20 +313,23 @@ graph TD
 
 - `GOAT.lua` defines the entire vocabulary (`tree`, `behavior`, `flow`, `backend`).
 - Users write trees in pure Lua, customizing control flow (`flow`) and planning (`backend`) without touching C++.
-- The `ctx` object passed to behaviors gives type-safe blackboard access (`SetBool`, `GetInt`, etc.).
+- The `ctx` object passed to behaviors gives type-safe blackboard access (`SetBool`, `GetInt`, `GetNumber`, `SetEntity`, etc.).
 
 ### C++ Core
 
 - `TreeCompiler` validates authored trees and flattens them into `DecisionProgram`s.
-- `TreeWalker` executes these flat programs iteratively, emitting `Intents`.
-- `DirectBackend` and `LuaBackend` interpret these `Intents` and produce `ActionPlan`s.
-- `AgentRuntime` processes `ActionPlan`s, executing each `ActionRequest` through registered `IActionState`s.
+- `TreeWalker` executes these flat programs iteratively, emitting `Intent`s.
+- `BackendRegistry` and `DirectBackend` interpret these `Intent`s and produce `ActionPlan`s.
+- `AgentStateMachine` executes `ActionPlan`s, calling `IActionState::Begin`, `Step`, `End`.
+- `GuardEvaluator` re-checks guards when observed keys change.
+- `ServiceTracker` determines which services are due to run.
 
 ### Extensibility
 
-- Modules register new `IActionState`s (e.g., `WaitAction`, `RunScriptAction`) via `IAgentSystem::RegisterAction`.
+- Modules register new `IActionState`s (e.g., `MoveTo`, `Attack`) via `IAgentSystem::RegisterAction`.
 - New planning algorithms (HTN, GOAP) are added by implementing `IBackend` and registering it via `IAgentSystem::RegisterBackend`.
 - New node types are added via `NodeTypeRegistry`.
+- New tree slots can be rebound at runtime via `TreeLibrary::Bind`.
 
 ---
 

@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`LuaPlanBuilder` is the **C++ counterpart** to the Lua `GOAT_Plan` function. It receives a stream of step definitions from a user-defined Lua backend (via `GOAT_Plan`) and assembles them into a valid `ActionPlan`. 
+`LuaPlanBuilder` is the **C++ counterpart** to the Lua `GOAT_Plan` function. It receives a stream of step definitions from a user-defined Lua backend (via `GOAT_Plan`) and assembles them into a valid `ActionPlan`.
 
 By using a builder, the C++ core ensures that a Lua backend produces exactly the same format as a C++ backend would. The builder validates every verb against the `ActionStateRegistry` and every blackboard key against the `IBlackboardSystem`, failing the entire plan with a warning if any step references an unknown verb or undeclared variable. This prevents runtime errors from reaching the `AgentRuntime`.
 
@@ -72,7 +72,7 @@ graph LR
     B --> C[ActionStateRegistry]
     B --> D[IBlackboardSystem]
     B --> E[ActionPlan]
-    E --> F[AgentRuntime]
+    E --> F[AgentStateMachine]
 ```
 
 - **Depends on:** `ActionStateRegistry` (to validate verbs), `IBlackboardSystem` (to validate blackboard keys).
@@ -129,14 +129,13 @@ void LuaPlanBuilder::AddStep(AZStd::string verb)
 
 ## Lua Exposure
 
-`LuaPlanBuilder` is directly exposed to Lua via `BehaviorContext` as `GoatPlanBuilder`. It is passed as a `builder` argument to the `GOAT_Plan` function. 
+`LuaPlanBuilder` is directly exposed to Lua via `BehaviorContext` as `GoatPlanBuilder`. It is passed as a `builder` argument to the `GOAT_Plan` function.
 
 Example Lua code:
 
 ```lua
 -- GOAT.lua
 function GOAT_Plan(backendName, agentKey, ctx, goal, builder)
-    -- Backend returns steps
     builder:BeginPlan()
     builder:AddStep("wait")
     builder:SetDuration(2.0)
