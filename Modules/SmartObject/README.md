@@ -46,7 +46,7 @@ Add **GOAT Smart Object** to any entity with a transform:
 | Field | Meaning |
 |---|---|
 | Uses | What an agent asks for, as in `sit`. One entity may offer several. |
-| Anchor offset | Where the agent should stand, relative to the entity. |
+| Anchor offset | Where the agent should stand, relative to the entity. It is a **local** offset, so it scales with the entity: on an object scaled to 0.6, a metre out is `-1.667`. |
 | Capacity | How many agents may use it at once. |
 
 The entity needs to know nothing about AI. Console variable `goat_smartObjectRadius` (default 20)
