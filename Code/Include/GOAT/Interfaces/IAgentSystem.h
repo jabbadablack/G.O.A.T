@@ -35,8 +35,13 @@ namespace GOAT
         //! Declares the variables a blackboard asset holds. Duplicate names fail.
         virtual AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) = 0;
 
-        //! Compiles a declared tree so agents can run it.
+        //! Compiles a declared tree so agents can run it. Always recompiles, which is what
+        //! makes it the way to pick up a rebound dynamic subtree.
         virtual AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) = 0;
+
+        //! True when a tree is already compiled and agents can be registered against it.
+        //! Tree names share one namespace, like blackboard variable names.
+        virtual bool IsTreeCompiled(const AZ::Name& treeName) const = 0;
 
         //! Registers an entity as an agent running a compiled tree.
         //! The band selects how often it runs, from most frequent at zero.

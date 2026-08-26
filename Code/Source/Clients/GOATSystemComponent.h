@@ -49,6 +49,7 @@ namespace GOAT
         bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset) override;
         AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) override;
         AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) override;
+        bool IsTreeCompiled(const AZ::Name& treeName) const override;
         AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) override;
         void UnregisterAgent(AgentId agent) override;
         void JoinSquad(AgentId agent, const AZ::Name& squad) override;

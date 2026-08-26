@@ -370,7 +370,15 @@ namespace GOAT
 
         m_programs[treeName] =
             AZStd::shared_ptr<const DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
+
+        AZ_Assert(IsTreeCompiled(treeName), "Compiling a tree must leave a program agents can be registered against");
         return AZ::Success();
+    }
+
+    bool GOATSystemComponent::IsTreeCompiled(const AZ::Name& treeName) const
+    {
+        AZ_Assert(!treeName.IsEmpty(), "A tree is always asked about by name");
+        return m_programs.find(treeName) != m_programs.end();
     }
 
     AgentId GOATSystemComponent::RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band)

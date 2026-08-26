@@ -125,12 +125,19 @@ namespace GOAT
             return;
         }
 
+        // The compiled program is immutable and shared, so agents past the first reuse it rather
+        // than re-emitting and recompiling identical content once per entity.
         const AZ::Name treeName(m_treeName);
-        if (auto compiled = agents->CompileTree(treeName); !compiled.IsSuccess())
+        if (!agents->IsTreeCompiled(treeName))
         {
-            AZ_Warning("GOAT", false, "%s", compiled.GetError().c_str());
-            return;
+            if (auto compiled = agents->CompileTree(treeName); !compiled.IsSuccess())
+            {
+                AZ_Warning("GOAT", false, "%s", compiled.GetError().c_str());
+                return;
+            }
         }
+
+        AZ_Assert(agents->IsTreeCompiled(treeName), "An agent is only registered against a compiled tree");
 
         m_agent = agents->RegisterAgent(GetEntityId(), treeName, static_cast<size_t>(m_band));
 

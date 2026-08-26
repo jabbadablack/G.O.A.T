@@ -16,9 +16,8 @@ namespace GOAT
             return;
         }
 
-        AZ_Warning("GOAT", m_trees.find(name) == m_trees.end(),
-            "Tree '%s' is being redefined; agents already running it keep the tree they compiled", name.GetCStr());
-
+        // Re-adding is routine: every agent sharing a script re-emits the same tree from it,
+        // so this is a replace, not a redefinition, and there is nothing to report.
         m_trees[name] = AZStd::move(root);
 
         AZ_Assert(Find(name) != nullptr, "A stored tree must be findable by its name");
