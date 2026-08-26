@@ -100,46 +100,4 @@ namespace GOAT
         }
         return BlackboardType::Count;
     }
-
-    const char* ToString(BlackboardType type)
-    {
-        switch (type)
-        {
-        case BlackboardType::Bool:
-            return "Bool";
-        case BlackboardType::Int:
-            return "Int";
-        case BlackboardType::Float:
-            return "Float";
-        case BlackboardType::Vector3:
-            return "Vector3";
-        case BlackboardType::EntityId:
-            return "EntityId";
-        case BlackboardType::Name:
-            return "Name";
-        case BlackboardType::Quaternion:
-            return "Quaternion";
-        case BlackboardType::Transform:
-            return "Transform";
-        case BlackboardType::EntityIdList:
-            return "EntityIdList";
-        default:
-            return "<invalid>";
-        }
-    }
-
-    const char* ToString(BlackboardScope scope)
-    {
-        switch (scope)
-        {
-        case BlackboardScope::Global:
-            return "Global";
-        case BlackboardScope::Agent:
-            return "Agent";
-        case BlackboardScope::Squad:
-            return "Squad";
-        default:
-            return "<invalid>";
-        }
-    }
 } // namespace GOAT

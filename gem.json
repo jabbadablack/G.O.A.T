@@ -32,6 +32,8 @@
     "compatible_engines": [],
     "engine_api_dependencies": [],
     "external_subdirectories": [
-        "Modules/Navigation"
+        "Modules/Navigation",
+        "Modules/Animation",
+        "Modules/SmartObject"
     ]
 }
