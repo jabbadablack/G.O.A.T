@@ -60,16 +60,104 @@ with the backend.
 
 ## Writing one in Lua instead
 
-A backend does not have to be C++:
+A backend does not have to be C++. In practice none of them are: every backend that ships is
+written in Lua, and the C++ interface exists for a project that needs a planner fast enough to
+justify it.
 
 ```lua
 backend "MyGoap" {
-  plan = function(me, intent)
+  plan = function(me, ctx, goal)
     return { { action = "script", behavior = "Approach" },
              { action = "wait",   seconds = 0.5 } }
   end,
 }
 ```
+
+A backend may instead implement `choose(me, ctx, goal, builder)` and drive the builder itself,
+which is what lets one hand back steps it has already had baked rather than pushing them again.
+
+## The `bt` backend, and declaring plans
+
+`Assets/GOAT/Backends/BehaviorTreeBackend.lua` ships with the gem and satisfies any goal declared
+with `plan`. It is loaded with the vocabulary, so a tree may delegate to it without the project
+declaring anything.
+
+```lua
+plan "SecurePerimeter" {
+  option {
+    when = "has_cover",
+    { action = "move_to", key = "cover_pos", tolerance = 0.5 },
+    { action = "script",  behavior = "Suppress" },
+  },
+  option {
+    unless = "suppressed",
+    { action = "script", behavior = "Advance" },
+  },
+  option {                                  -- no guard: the fallback, and it must be last
+    { action = "wait", seconds = 0.5 },
+  },
+}
+```
+
+```lua
+delegate "bt" { goal = "SecurePerimeter" }
+```
+
+Options are tried in order and the first whose guard holds contributes **all** of its steps. An
+option is all or nothing; a guard that fails contributes nothing at all.
+
+An ordered list of guarded step lists is a behaviour tree — it is exactly
+`selector { sequence {...}, sequence {...} }` restricted to two levels. What it adds over writing
+that in the tree itself is **commitment**: the whole sequence reaches the state machine as one
+plan, and the tree is not consulted again until the plan finishes or a guard aborts it.
+
+| Step key | Sets |
+|---|---|
+| `action` | The verb to run. Defaults to `script` |
+| `behavior` / `tag` | The thing to run: a Lua behaviour, an animation, a line |
+| `seconds` | The one scalar a verb needs -- a duration for `wait`, a speed for `move_to` |
+| `tolerance` | How close counts as arrived |
+| `key` | A blackboard variable holding the target |
+| `at` | A literal `Vector3` target |
+| `entity` | A literal entity, only reachable from the imperative form |
+
+**A guard is a blackboard bool name, not an expression.** That is what lets every plan be checked
+when the file loads rather than when an agent first delegates to it: a name can be resolved against
+the declared variables, a closure can only be checked by calling it, which needs an agent that does
+not exist yet. Anyone who needs `ammo > 0` writes an imperative `backend` instead, which has always
+been able to do anything.
+
+## Invalidating a plan while it runs
+
+A backend does not report guards. It does not need to: the tree's own guards cover a running plan,
+because the `delegate` node stays the agent's active leaf for the plan's whole lifetime.
+
+```lua
+sequence {
+  condition "has_cover" { abort = "self" },
+  delegate "bt" { goal = "SecurePerimeter" },
+}
+```
+
+Flipping `has_cover` aborts the plan mid step, ends the running verb so it gives back whatever it
+held, and returns control to the tree. Guard the delegate node, not the plan.
+
+## A plan cannot re-enter the tree
+
+A step names a *verb*. `delegate` is a tree word, never a verb, and nothing may register one under
+that name — so a plan structurally cannot delegate back to the tree that asked for it. The
+validator says so explicitly if a plan tries.
+
+## Checking and inspecting
+
+| Command | Prints |
+|---|---|
+| `GOATSystemComponent.ListPlans` | Every plan, its option count, and where it was declared |
+| `GOATSystemComponent.DumpPlan <name>` | One plan's options, their guards and their steps |
+| `GOATSystemComponent.ValidatePlans` | Re-checks every plan and reports what is wrong |
+
+`LoggerSystemComponent.EnableLog GoatPlan` reports which option won and why a plan came back
+empty — the inside of a backend call, which the `GoatAgent` channel cannot see.
 
 ## What a backend may reach
 
