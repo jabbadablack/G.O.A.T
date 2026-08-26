@@ -30,7 +30,11 @@ set(FILES
     Source/Core/Domain/NodeType.cpp
     Source/Core/Frontend/DirectBackend.cpp
     Source/Core/Frontend/DirectBackend.h
+    Source/Core/Frontend/DecisionCursor.cpp
+    Source/Core/Frontend/DecisionCursor.h
     Source/Core/Frontend/TreeCompiler.cpp
     Source/Core/Frontend/TreeCompiler.h
+    Source/Core/Frontend/TreeWalker.cpp
+    Source/Core/Frontend/TreeWalker.h
     Source/Core/Memory/HandleTable.h
 )

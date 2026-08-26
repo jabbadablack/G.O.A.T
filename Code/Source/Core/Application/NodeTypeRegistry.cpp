@@ -40,11 +40,6 @@ namespace GOAT
         Register(Simple("selector", NodeKind::Composite, NodeOp::Selector, "Composite", "Runs children until one succeeds"));
         Register(Simple("sequence", NodeKind::Composite, NodeOp::Sequence, "Composite", "Runs children until one fails"));
 
-        auto parallel = Simple("parallel", NodeKind::Composite, NodeOp::Parallel, "Composite",
-            "Runs a main child alongside a background child");
-        parallel.m_parameters.push_back(Param("succeed_on_main", BlackboardType::Bool));
-        Register(AZStd::move(parallel));
-
         Register(Simple("invert", NodeKind::Decorator, NodeOp::Invert, "Decorator", "Flips success and failure"));
         Register(Simple("force_success", NodeKind::Decorator, NodeOp::ForceSuccess, "Decorator", "Always reports success"));
 
@@ -92,11 +87,6 @@ namespace GOAT
         delegate.m_parameters.push_back(Param("backend", BlackboardType::Name, false, true));
         delegate.m_parameters.push_back(Param("goal", BlackboardType::Name));
         Register(AZStd::move(delegate));
-
-        auto subtree = Simple("subtree", NodeKind::Leaf, NodeOp::Subtree, "Leaf", "Runs another behavior tree");
-        subtree.m_parameters.push_back(Param("tree", BlackboardType::Name));
-        subtree.m_parameters.push_back(Param("tag", BlackboardType::Name));
-        Register(AZStd::move(subtree));
 
         auto service = Simple("service", NodeKind::Service, NodeOp::Script, "Service",
             "Runs a Lua behavior on an interval while its subtree is active");
