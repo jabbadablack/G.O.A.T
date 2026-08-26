@@ -40,6 +40,11 @@ namespace GOAT
         Register(Simple("selector", NodeKind::Composite, NodeOp::Selector, "Composite", "Runs children until one succeeds"));
         Register(Simple("sequence", NodeKind::Composite, NodeOp::Sequence, "Composite", "Runs children until one fails"));
 
+        // Exactly two children: the main branch, then a background branch of conditions that is
+        // re-checked while it runs. One agent has one action slot, so the background may not act.
+        Register(Simple("parallel", NodeKind::Composite, NodeOp::Parallel, "Composite",
+            "Runs a main branch while a background branch of conditions is re-checked"));
+
         Register(Simple("invert", NodeKind::Decorator, NodeOp::Invert, "Decorator", "Flips success and failure"));
         Register(Simple("force_success", NodeKind::Decorator, NodeOp::ForceSuccess, "Decorator", "Always reports success"));
 

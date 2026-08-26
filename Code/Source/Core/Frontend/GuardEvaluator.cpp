@@ -60,6 +60,40 @@ namespace GOAT
             }
         }
 
+        return EvaluateParallels(program, leaf, context);
+    }
+
+    AbortDecision GuardEvaluator::EvaluateParallels(
+        const DecisionProgram& program, NodeIndex leaf, const PlanContext& context) const
+    {
+        AZ_Assert(leaf != InvalidNodeIndex, "Parallels are only checked while a leaf is running");
+
+        AbortDecision decision;
+        for (const NodeIndex parallelIndex : program.m_parallelNodes)
+        {
+            AZ_Assert(parallelIndex < program.m_nodes.size(), "A parallel index must address a node in the program");
+
+            const DecisionNode& parallel = program.m_nodes[parallelIndex];
+            const NodeIndex main = parallel.m_firstChild;
+            AZ_Assert(main != InvalidNodeIndex, "A compiled parallel always has its two branches");
+
+            const NodeIndex background = program.m_nodes[main].m_subtreeEnd;
+
+            // Only a parallel whose *main* branch is the one running has anything to say.
+            if (leaf < main || leaf >= background)
+            {
+                continue;
+            }
+
+            if (EvaluateSubtree(program, background, context) == ActionResult::Failure)
+            {
+                // The background stopped holding, so the main branch it was watching stops too.
+                decision.m_action = AbortAction::Fail;
+                decision.m_node = parallelIndex;
+                return decision;
+            }
+        }
+
         return decision;
     }
 } // namespace GOAT

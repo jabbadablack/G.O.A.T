@@ -31,5 +31,10 @@ namespace GOAT
     public:
         AbortDecision Evaluate(
             const DecisionProgram& program, const DecisionCursor& cursor, const PlanContext& context) const;
+
+    private:
+        //! Re-checks the background branch of every parallel whose main branch is running.
+        AbortDecision EvaluateParallels(
+            const DecisionProgram& program, NodeIndex leaf, const PlanContext& context) const;
     };
 } // namespace GOAT

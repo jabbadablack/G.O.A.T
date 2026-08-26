@@ -83,6 +83,24 @@ namespace GOAT
         }
 
         //! How many children a node kind may have.
+        //! True when a node type may appear inside a parallel's background branch.
+        //! The branch is re-evaluated whole, so nothing in it may take time or emit an action.
+        bool IsInstantaneous(NodeOp op)
+        {
+            switch (op)
+            {
+            case NodeOp::Condition:
+            case NodeOp::Compare:
+            case NodeOp::Invert:
+            case NodeOp::ForceSuccess:
+            case NodeOp::Selector:
+            case NodeOp::Sequence:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         bool ChildCountIsLegal(NodeKind kind, size_t childCount)
         {
             switch (kind)
@@ -170,6 +188,56 @@ namespace GOAT
         return emitted;
     }
 
+    AZ::Outcome<void, AZStd::string> TreeCompiler::RegisterParallel(NodeIndex index, DecisionProgram& program) const
+    {
+        AZ_Assert(index < program.m_nodes.size(), "A parallel index must address a node in the program");
+        AZ_Assert(program.m_nodes[index].m_childCount == 2, "Arity was already checked before emitting");
+
+        const NodeIndex main = program.m_nodes[index].m_firstChild;
+        AZ_Assert(main != InvalidNodeIndex, "A parallel always has its two children by now");
+
+        const NodeIndex background = program.m_nodes[main].m_subtreeEnd;
+        const NodeIndex backgroundEnd = program.m_nodes[index].m_subtreeEnd;
+        AZ_Assert(background < backgroundEnd, "A parallel's background branch must be a real range");
+
+        // Nothing in the background may take time, because it is re-evaluated whole rather than
+        // resumed. Rejecting it here is what lets EvaluateSubtree be a plain recursive walk.
+        for (NodeIndex i = background; i < backgroundEnd; ++i)
+        {
+            if (!IsInstantaneous(program.m_nodes[i].m_op))
+            {
+                return AZ::Failure(AZStd::string(
+                    "a parallel's background branch may only contain conditions, comparisons and the "
+                    "composites over them, because it is re-checked rather than resumed; "
+                    "anything that acts belongs in the main branch"));
+            }
+
+            // An abort mode inside the background would register that node as a guard as well,
+            // scoped to a branch that never runs. The background is already a continuous check,
+            // so asking for one on top of it is a mistake worth naming.
+            if (program.m_nodes[i].m_abort != AbortMode::None)
+            {
+                return AZ::Failure(AZStd::string(
+                    "a node inside a parallel's background branch cannot declare an abort mode; "
+                    "the branch is already re-checked whenever a variable it reads changes"));
+            }
+
+            // The background is checked when a variable it reads changes, exactly like a guard,
+            // so an agent whose blackboard is quiet still evaluates nothing at all.
+            if (program.m_nodes[i].m_key.IsValid())
+            {
+                program.m_observedKeys.push_back(program.m_nodes[i].m_key);
+            }
+            if (program.m_nodes[i].m_otherKey.IsValid())
+            {
+                program.m_observedKeys.push_back(program.m_nodes[i].m_otherKey);
+            }
+        }
+
+        program.m_parallelNodes.push_back(index);
+        return AZ::Success();
+    }
+
     AZ::Outcome<void, AZStd::string> TreeCompiler::Validate(
         const BehaviorTreeNode& authored, const NodeTypeDescriptor& descriptor) const
     {
@@ -206,6 +274,15 @@ namespace GOAT
         {
             return AZ::Failure(AZStd::string::format(
                 "'%s' cannot have %zu children", descriptor.m_name.GetCStr(), authored.m_children.size()));
+        }
+
+        // A parallel is a main branch and a background branch, in that order, so its arity is
+        // exact rather than "one or more" like every other composite.
+        if (descriptor.m_op == NodeOp::Parallel && authored.m_children.size() != 2)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "'parallel' takes exactly two children, a main branch then a background branch, but has %zu",
+                authored.m_children.size()));
         }
 
         return AZ::Success();
@@ -472,6 +549,14 @@ namespace GOAT
         AZ_Assert(node.m_subtreeEnd > index, "A node's subtree must end after the node itself");
         AZ_Assert(node.m_firstChild == InvalidNodeIndex || node.m_firstChild == index + 1,
             "A node's first child must immediately follow it in pre-order");
+
+        if (node.m_op == NodeOp::Parallel)
+        {
+            if (auto checked = RegisterParallel(index, program); !checked.IsSuccess())
+            {
+                return AZ::Failure(checked.TakeError());
+            }
+        }
 
         return AZ::Success(index);
     }

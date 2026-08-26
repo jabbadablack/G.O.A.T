@@ -80,4 +80,70 @@ namespace GOAT
             "A condition reads a variable agent %u has no storage for, so it always fails", context.m_agent.GetIndex());
         return value != nullptr && *value;
     }
+    ActionResult EvaluateSubtree(const DecisionProgram& program, NodeIndex index, const PlanContext& context)
+    {
+        AZ_Assert(index < program.m_nodes.size(), "A background branch must address a node in the program");
+        if (index >= program.m_nodes.size())
+        {
+            return ActionResult::Failure;
+        }
+
+        const DecisionNode& node = program.m_nodes[index];
+        switch (node.m_op)
+        {
+        case NodeOp::Condition:
+        case NodeOp::Compare:
+            return EvaluateNodePredicate(node, context) ? ActionResult::Success : ActionResult::Failure;
+
+        case NodeOp::Invert:
+        {
+            AZ_Assert(node.m_firstChild != InvalidNodeIndex, "A decorator always has its one child");
+            const ActionResult child = EvaluateSubtree(program, node.m_firstChild, context);
+            return child == ActionResult::Success ? ActionResult::Failure : ActionResult::Success;
+        }
+
+        case NodeOp::ForceSuccess:
+            AZ_Assert(node.m_firstChild != InvalidNodeIndex, "A decorator always has its one child");
+            EvaluateSubtree(program, node.m_firstChild, context);
+            return ActionResult::Success;
+
+        case NodeOp::Selector:
+        {
+            // Succeeds on the first child that does, like the walker's own selector.
+            NodeIndex child = node.m_firstChild;
+            for (AZ::u16 i = 0; i < node.m_childCount; ++i)
+            {
+                AZ_Assert(child != InvalidNodeIndex, "A composite's child count must match its children");
+                if (EvaluateSubtree(program, child, context) == ActionResult::Success)
+                {
+                    return ActionResult::Success;
+                }
+                child = program.m_nodes[child].m_subtreeEnd;
+            }
+            return ActionResult::Failure;
+        }
+
+        case NodeOp::Sequence:
+        {
+            NodeIndex child = node.m_firstChild;
+            for (AZ::u16 i = 0; i < node.m_childCount; ++i)
+            {
+                AZ_Assert(child != InvalidNodeIndex, "A composite's child count must match its children");
+                if (EvaluateSubtree(program, child, context) == ActionResult::Failure)
+                {
+                    return ActionResult::Failure;
+                }
+                child = program.m_nodes[child].m_subtreeEnd;
+            }
+            return ActionResult::Success;
+        }
+
+        default:
+            // The compiler rejects everything else in a background branch, so reaching this
+            // means the two disagree about what "instantaneous" means.
+            AZ_Assert(false, "Node %u has op %u, which cannot appear in a parallel's background branch",
+                index, static_cast<AZ::u32>(node.m_op));
+            return ActionResult::Failure;
+        }
+    }
 } // namespace GOAT

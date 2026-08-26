@@ -82,6 +82,7 @@ end
 selector = nodeType("selector")
 sequence = nodeType("sequence")
 composite = nodeType("composite")
+parallel = nodeType("parallel")
 
 -- Decorators.
 invert = nodeType("invert")

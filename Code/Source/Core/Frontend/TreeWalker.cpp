@@ -190,6 +190,14 @@ namespace GOAT
                     bubbling = true;
                     continue;
 
+                case NodeOp::Parallel:
+                    // Only the main branch is ever walked. The background one is a predicate
+                    // that GuardEvaluator re-checks; stepping into it would need a second
+                    // action slot, and an agent's state machine has exactly one.
+                    cursor.ChildIndex(node) = 0;
+                    node = current.m_firstChild;
+                    continue;
+
                 case NodeOp::Invert:
                 case NodeOp::ForceSuccess:
                     node = current.m_firstChild;
@@ -332,6 +340,12 @@ namespace GOAT
                 result = ActionResult::Success;
                 continue;
             }
+
+            case NodeOp::Parallel:
+                // The main branch finishing finishes the parallel, carrying its result up.
+                AZ_Assert(parent.m_childCount == 2, "A compiled parallel always has two branches");
+                node = parentIndex;
+                continue;
 
             case NodeOp::Invert:
                 result = result == ActionResult::Success ? ActionResult::Failure : ActionResult::Success;
