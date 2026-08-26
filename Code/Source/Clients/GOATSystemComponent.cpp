@@ -1454,6 +1454,13 @@ namespace GOAT
 
     void GOATSystemComponent::ReloadVocabulary([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
     {
+        // The one place dropping baked plans is right: a reload means every declaration may have
+        // changed, so what agents are running is stale by definition.
+        if (m_dispatch != nullptr)
+        {
+            m_dispatch->GetPlanBuilder().ClearBaked();
+        }
+
         // Forces a fresh attempt, so a failure at activation can be diagnosed once the
         // asset catalog is up rather than only being reported as a warning at startup.
         m_vocabularyLoaded = false;

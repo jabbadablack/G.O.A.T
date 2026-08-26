@@ -140,6 +140,19 @@ namespace GOAT
     {
         AZ_Assert(m_store != nullptr, "Baking a plan needs a store to bake into");
 
+        // Baking the same option twice is a no op rather than a second copy. Every script load
+        // re-walks every declared plan, and an agent's plan is a span into what was baked before:
+        // clearing and re-baking would leave a running agent pointing at freed steps.
+        const AZ::Name planName(plan);
+        const int wanted = static_cast<int>(option);
+        for (const BakedOption& baked : m_bakedOptions)
+        {
+            if (baked.m_plan == planName && baked.m_option == wanted)
+            {
+                return true;
+            }
+        }
+
         if (m_failed || m_scratch.empty() || m_store == nullptr)
         {
             AZ_Error("GOAT", false, "Option %d of plan '%s' could not be baked", static_cast<int>(option),
@@ -153,7 +166,7 @@ namespace GOAT
             return false;
         }
 
-        m_bakedOptions.push_back(BakedOption{ AZ::Name(plan), static_cast<int>(option), span });
+        m_bakedOptions.push_back(BakedOption{ planName, wanted, span });
 
         AZ_Assert(span.m_block == InvalidPlanBlock, "A baked option is shared, so it is never owed back");
         return true;

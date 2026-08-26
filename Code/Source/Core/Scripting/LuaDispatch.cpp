@@ -58,10 +58,24 @@ namespace GOAT
             return false;
         }
 
+        // Measured either side of the load, because a script may return nothing at all. Popping a
+        // fixed one would then take something that was already on the stack, and the corruption
+        // only shows up as the *next* script mysteriously refusing to load.
+        lua_State* lua = m_scriptContext->NativeContext();
+        const int before = lua_gettop(lua);
+
         bool loaded = false;
         AZ::ScriptSystemRequestBus::BroadcastResult(
             loaded, &AZ::ScriptSystemRequests::Load, asset, AZ::k_scriptLoadBinaryOrText,
             AZ::ScriptContextIds::DefaultScriptContextId);
+
+        const int pushed = lua_gettop(lua) - before;
+        if (pushed > 0)
+        {
+            // Whatever the file returned is dropped: a GOAT script registers what it declares as
+            // a side effect, so nothing here reads the value.
+            lua_pop(lua, pushed);
+        }
 
         if (!loaded)
         {
@@ -70,9 +84,7 @@ namespace GOAT
             return false;
         }
 
-        // Load leaves whatever the file returned on the stack; the vocabulary registers
-        // itself as a side effect, so drop the value rather than reading it here.
-        lua_pop(m_scriptContext->NativeContext(), 1);
+        AZ_Assert(lua_gettop(lua) == before, "Running a script must leave the Lua stack as it found it");
         return true;
     }
 
@@ -175,10 +187,6 @@ namespace GOAT
         {
             return false;
         }
-
-        // Everything baked so far goes first: baking is idempotent only if it starts from empty,
-        // and re-running it after a script load must not leave the old steps behind.
-        m_planBuilder.ClearBaked();
 
         AZ::ScriptDataContext call;
         if (!m_scriptContext->Call("GOAT_BakePlans", call))
