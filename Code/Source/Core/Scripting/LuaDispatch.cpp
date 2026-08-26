@@ -212,7 +212,10 @@ namespace GOAT
         }
 
         call.PushArg(m_nameCollector);
-        AZ_Warning("GOAT", call.CallExecute(), "Listing Lua backends raised a Lua error");
+
+        // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
+        const bool executed = call.CallExecute();
+        AZ_Warning("GOAT", executed, "Listing Lua backends raised a Lua error");
         return m_nameCollector.GetNames();
     }
 
@@ -437,6 +440,9 @@ namespace GOAT
         }
 
         call.PushArg(AgentKey(agent));
-        AZ_Warning("GOAT", call.CallExecute(), "Dropping agent %u's Lua scratch raised a Lua error", agent.GetIndex());
+
+        // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
+        const bool executed = call.CallExecute();
+        AZ_Warning("GOAT", executed, "Dropping agent %u's Lua scratch raised a Lua error", agent.GetIndex());
     }
 } // namespace GOAT

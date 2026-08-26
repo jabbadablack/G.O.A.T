@@ -1,5 +1,6 @@
 #include <Core/Frontend/TreeCompiler.h>
 
+#include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/std/algorithm.h>
 #include <AzCore/std/sort.h>
@@ -118,6 +119,9 @@ namespace GOAT
         DecisionProgram& program,
         AZStd::vector<AZ::Name>& inlining) const
     {
+        AZ_Assert(depth < MaxTreeDepth, "Inlining is only reached from a depth the caller already checked");
+        AZ_Assert(!inlining.empty(), "The inlining stack always holds at least the tree being compiled");
+
         // A subtree may be named directly, or reached through a slot a director can rebind.
         AZ::Name treeName;
         if (const AZStd::any* named = FindProperty(authored, AZ_NAME_LITERAL("tree")))
@@ -156,15 +160,21 @@ namespace GOAT
         }
 
         // The subtree node itself leaves no trace: its referenced root takes its place.
+        const size_t depthBefore = inlining.size();
+
         inlining.push_back(treeName);
         auto emitted = Emit(*referenced, parent, depth, program, inlining);
         inlining.pop_back();
+
+        AZ_Assert(inlining.size() == depthBefore, "Inlining must leave the cycle detection stack as it found it");
         return emitted;
     }
 
     AZ::Outcome<void, AZStd::string> TreeCompiler::Validate(
         const BehaviorTreeNode& authored, const NodeTypeDescriptor& descriptor) const
     {
+        AZ_Assert(!descriptor.m_name.IsEmpty(), "A node type descriptor is always registered under a name");
+
         // Reject properties the node type does not accept, so typos fail at author time.
         for (const BehaviorTreeProperty& property : authored.m_properties)
         {
@@ -208,6 +218,8 @@ namespace GOAT
         DecisionProgram& program,
         AZStd::vector<AZ::Name>& inlining) const
     {
+        AZ_Assert(!authored.m_type.empty(), "Every authored node names a type");
+
         if (depth >= MaxTreeDepth)
         {
             return AZ::Failure(AZStd::string::format("Tree is deeper than the %zu node limit", MaxTreeDepth));
@@ -230,6 +242,8 @@ namespace GOAT
         {
             return Inline(authored, parent, depth, program, inlining);
         }
+
+        AZ_Assert(program.m_nodes.size() < InvalidNodeIndex, "A program cannot hold more nodes than an index can address");
 
         const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
         program.m_nodes.emplace_back();
@@ -421,12 +435,21 @@ namespace GOAT
         DecisionNode& node = program.m_nodes[index];
         node.m_firstChild = authored.m_children.empty() ? InvalidNodeIndex : firstChild;
         node.m_subtreeEnd = aznumeric_cast<NodeIndex>(program.m_nodes.size());
+
+        // The walker steps between siblings with m_subtreeEnd and scopes guards and services
+        // with the range [index, m_subtreeEnd), so both must hold for every node it emits.
+        AZ_Assert(node.m_subtreeEnd > index, "A node's subtree must end after the node itself");
+        AZ_Assert(node.m_firstChild == InvalidNodeIndex || node.m_firstChild == index + 1,
+            "A node's first child must immediately follow it in pre-order");
+
         return AZ::Success(index);
     }
 
     AZ::Outcome<DecisionProgram, AZStd::string> TreeCompiler::Compile(
         const AZ::Name& name, const BehaviorTreeNode& root) const
     {
+        AZ_Assert(!name.IsEmpty(), "A tree is always compiled under a name");
+
         DecisionProgram program;
         program.m_name = name;
 
@@ -443,9 +466,20 @@ namespace GOAT
             return AZ::Failure(AZStd::string::format("Tree '%s': %s", name.GetCStr(), emitted.GetError().c_str()));
         }
 
+        AZ_Assert(emitted.GetValue() == 0, "The root of a compiled program is always node zero");
+        AZ_Assert(!program.m_nodes.empty(), "A successful compile always produces at least one node");
+
+        // Sorted and unique because AgentObserver binary searches this list on every write.
         AZStd::sort(program.m_observedKeys.begin(), program.m_observedKeys.end());
         program.m_observedKeys.erase(
             AZStd::unique(program.m_observedKeys.begin(), program.m_observedKeys.end()), program.m_observedKeys.end());
+
+        AZ_Assert(program.m_nodes[0].m_subtreeEnd == program.m_nodes.size(),
+            "The root's subtree must span the whole program");
+
+        AZLOG_INFO("GOAT: tree '%s' compiled to %zu nodes, %zu guards, %zu services and %zu observed variables",
+            name.GetCStr(), program.m_nodes.size(), program.m_guardNodes.size(), program.m_services.size(),
+            program.m_observedKeys.size());
 
         return AZ::Success(AZStd::move(program));
     }

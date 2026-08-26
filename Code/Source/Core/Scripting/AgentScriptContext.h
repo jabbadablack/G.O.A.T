@@ -52,6 +52,10 @@ namespace GOAT
         void SetName(const AZStd::string& name, const AZStd::string& value);
 
     private:
+        //! Resolves a name a script supplied, reporting an undeclared one rather than letting
+        //! the read return a silent default. @param access what the script was trying to do.
+        BlackboardKey Resolve(const AZStd::string& name, const char* access) const;
+
         AgentId m_agent;
         AZ::EntityId m_entity;
         IBlackboardSystem* m_blackboard = nullptr;
