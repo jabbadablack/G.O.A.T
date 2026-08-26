@@ -46,6 +46,7 @@ namespace GOAT
     void LuaDispatch::Disconnect()
     {
         m_scriptContext = nullptr;
+        m_ranScripts.clear();
     }
 
     bool LuaDispatch::RunScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset)
@@ -56,6 +57,17 @@ namespace GOAT
             AZ_Error("GOAT", false, "Cannot run a GOAT script: %s",
                 m_scriptContext == nullptr ? "scripting is not connected" : "the asset id is invalid");
             return false;
+        }
+
+        // Asked for once per asset, never once per agent. The script system caches a loaded
+        // chunk as a reference to the table it returned, and a script that returns nothing gets
+        // LUA_REFNIL instead; every later load then reads that back, finds it is not a table and
+        // fails. Skipping here keeps a script that declares without returning working on the
+        // second entity that lists it, and costs a table-returning script nothing, because the
+        // cache would have declined to re-run it anyway.
+        if (m_ranScripts.contains(asset.GetId().m_guid))
+        {
+            return true;
         }
 
         // Measured either side of the load, because a script may return nothing at all. Popping a
@@ -85,6 +97,10 @@ namespace GOAT
         }
 
         AZ_Assert(lua_gettop(lua) == before, "Running a script must leave the Lua stack as it found it");
+
+        // Recorded only on success, so a script that failed to load is tried again rather than
+        // being remembered as though it had run.
+        m_ranScripts.insert(asset.GetId().m_guid);
         return true;
     }
 

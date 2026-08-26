@@ -1466,6 +1466,14 @@ namespace GOAT
         m_vocabularyLoaded = false;
         if (EnsureVocabulary())
         {
+            // Baked again from the declarations Lua still holds. Re-running the files cannot
+            // restore what clearing just dropped: the script system executes a chunk once and
+            // hands back a cached result ever after, so only re-baking puts the steps back.
+            if (m_dispatch != nullptr)
+            {
+                m_dispatch->BakePlans();
+            }
+
             AZLOG_INFO("GOAT: vocabulary loaded; %zu node types available", m_nodeTypes->GetAll().size());
         }
         else

@@ -13,9 +13,11 @@
 #include <GOAT/Interfaces/INodeScripting.h>
 
 #include <AzCore/Asset/AssetCommon.h>
+#include <AzCore/Math/Uuid.h>
 #include <AzCore/Name/Name.h>
 #include <AzCore/Outcome/Outcome.h>
 #include <AzCore/Script/ScriptAsset.h>
+#include <AzCore/std/containers/unordered_set.h>
 #include <AzCore/std/smart_ptr/shared_ptr.h>
 #include <AzCore/std/string/string.h>
 
@@ -40,6 +42,8 @@ namespace GOAT
         bool IsReady() const { return m_scriptContext != nullptr; }
 
         //! Runs a script, which registers whatever behaviours, backends and trees it declares.
+        //! Running the same asset again is a no op that reports success, because what a script
+        //! declares is registered globally rather than per caller.
         bool RunScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset);
 
         //! Asks Lua to hand a declared tree over through the reflected builder.
@@ -115,6 +119,10 @@ namespace GOAT
 
     private:
         AZ::ScriptContext* m_scriptContext = nullptr;
+
+        //! Assets already run, keyed the way the script system's own cache keys them, so a skip
+        //! here lines up exactly with a cache hit there rather than approximating one.
+        AZStd::unordered_set<AZ::Uuid> m_ranScripts;
         //! Stable, because Lua receives raw pointers to these during a call.
         LuaTreeBuilder m_builder;
         LuaPlanBuilder m_planBuilder;
