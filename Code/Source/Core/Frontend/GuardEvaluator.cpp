@@ -20,9 +20,12 @@ namespace GOAT
             const DecisionNode& guard = program.m_nodes[guardIndex];
             const bool holds = EvaluateNodePredicate(guard, context);
 
-            // Pre-order indices encode left to right order, so a leaf inside the guard's
-            // range is what the guard protects, and anything past its end is lower priority.
-            const bool leafIsInside = leaf >= guardIndex && leaf < guard.m_subtreeEnd;
+            // A condition is a leaf, so what it guards is the branch it sits in: its parent's
+            // subtree. Pre-order indices encode left to right order, so a running leaf inside
+            // that range is protected, and anything past its end is lower priority.
+            const NodeIndex owner = guard.m_parent != InvalidNodeIndex ? guard.m_parent : guardIndex;
+            const NodeIndex ownerEnd = program.m_nodes[owner].m_subtreeEnd;
+            const bool leafIsInside = leaf >= owner && leaf < ownerEnd;
 
             if (!holds && leafIsInside &&
                 (guard.m_abort == AbortMode::Self || guard.m_abort == AbortMode::Both))
@@ -32,12 +35,13 @@ namespace GOAT
                 return decision;
             }
 
-            if (holds && !leafIsInside && leaf >= guard.m_subtreeEnd &&
+            if (holds && !leafIsInside && leaf >= ownerEnd &&
                 (guard.m_abort == AbortMode::LowerPriority || guard.m_abort == AbortMode::Both))
             {
+                // Re-enter at the guarded branch, not at the condition, so the whole branch runs.
                 // The highest priority guard wins, and guards are stored in pre-order.
                 decision.m_action = AbortAction::Restart;
-                decision.m_node = guardIndex;
+                decision.m_node = owner;
                 return decision;
             }
         }

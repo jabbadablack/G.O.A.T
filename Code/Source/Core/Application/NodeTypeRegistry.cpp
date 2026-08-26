@@ -62,14 +62,16 @@ namespace GOAT
         timeLimit.m_parameters.push_back(Param("seconds", BlackboardType::Float, false, true));
         Register(AZStd::move(timeLimit));
 
-        auto condition = Simple("condition", NodeKind::Decorator, NodeOp::Condition, "Decorator",
-            "Guards a subtree on a blackboard value and may abort when it changes");
+        // A condition is a leaf, as in most behaviour tree implementations: it evaluates and
+        // reports, and what it guards is the branch it sits in rather than a child of its own.
+        auto condition = Simple("condition", NodeKind::Leaf, NodeOp::Condition, "Leaf",
+            "Checks a blackboard value, and may abort the branch it sits in when that value changes");
         condition.m_parameters.push_back(Param("key", BlackboardType::Bool, true, true));
         condition.m_parameters.push_back(Param("abort", BlackboardType::Name));
         Register(AZStd::move(condition));
 
-        auto compare = Simple("compare", NodeKind::Decorator, NodeOp::Compare, "Decorator",
-            "Guards a subtree by comparing two blackboard values");
+        auto compare = Simple("compare", NodeKind::Leaf, NodeOp::Compare, "Leaf",
+            "Compares two blackboard values, and may abort the branch it sits in when either changes");
         compare.m_parameters.push_back(Param("key", BlackboardType::Float, true, true));
         compare.m_parameters.push_back(Param("other", BlackboardType::Float, true, true));
         compare.m_parameters.push_back(Param("abort", BlackboardType::Name));

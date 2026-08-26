@@ -161,13 +161,9 @@ namespace GOAT
 
                 case NodeOp::Condition:
                 case NodeOp::Compare:
-                    if (!EvaluateNodePredicate(current, context))
-                    {
-                        result = ActionResult::Failure;
-                        bubbling = true;
-                        continue;
-                    }
-                    node = current.m_firstChild;
+                    // A leaf: evaluate and report straight back to the parent composite.
+                    result = EvaluateNodePredicate(current, context) ? ActionResult::Success : ActionResult::Failure;
+                    bubbling = true;
                     continue;
 
                 case NodeOp::Invert:
