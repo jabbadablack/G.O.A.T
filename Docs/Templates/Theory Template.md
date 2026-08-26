@@ -13,13 +13,13 @@ tags: [architecture, design, philosophy]
 
 ## 💡 Core Concept
 
-{{Describe the fundamental idea in one or two paragraphs. This is the "elevator pitch" of the theory.}}
+{{Describe the fundamental idea in one or two paragraphs.}}
 
 ---
 
 ## 🤔 Why This Matters
 
-{{Explain the problem this theory solves. Why was it necessary? What would happen without it?}}
+{{Explain the problem this theory solves. Why was it necessary?}}
 
 ---
 
@@ -29,7 +29,6 @@ tags: [architecture, design, philosophy]
 | :--- | :--- |
 | {{Benefit 1}} | {{Cost 1}} |
 | {{Benefit 2}} | {{Cost 2}} |
-| {{Benefit 3}} | {{Cost 3}} |
 
 ---
 
@@ -37,29 +36,28 @@ tags: [architecture, design, philosophy]
 
 ### Lua Layer
 
-{{How does this affect how developers write Lua scripts?}}
+{{How does this affect Lua authoring?}}
 
 ### C++ Core
 
-{{How does this affect the C++ implementation?}}
+{{How does this affect C++ implementation?}}
 
 ### Extensibility
 
-{{How does this enable (or constrain) future modules?}}
+{{How does this enable future modules?}}
 
 ---
 
 ## 🗺️ Future Evolution
 
-{{How might this theory evolve as the framework grows? Consider planned features like [[Navigation Library]] or [[Perception Module]].}}
+{{How might this evolve?}}
 
 ---
 
 ## 🔗 Related Concepts
 
-- [[Backend Abstraction Theory]]
-- [[Design Principles]]
-- [[Performance Model]]
+- [[Related Concept 1]]
+- [[Related Concept 2]]
 
 ---
 

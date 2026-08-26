@@ -32,11 +32,9 @@ tags: [asset, data, schema]
 ```lua
 -- Example usage in a Lua script
 return tree "ExampleAgent" {
-    sequence {
-        script "BehaviorA",
-        wait(1.0),
+    selector {
         condition "TargetVisible" { abort = "lower_priority" },
-        script "BehaviorB",
+        script "Patrol",
     }
 }
 ```
@@ -45,9 +43,7 @@ return tree "ExampleAgent" {
 
 ## 🔗 Related Assets & Notes
 
-- [[Blackboard System]]
-- [[Behavior DSL]]
-- [[GOATAgentComponent]]
+- [[Related Note]]
 
 ---
 

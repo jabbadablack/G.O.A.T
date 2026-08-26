@@ -1,14 +1,14 @@
 ---
 type: guide
 status: active
-tags: [tutorial, how-to]
+tags: [guide, tutorial, how-to]
 ---
 
 # {{Title}}
 
 > **Difficulty:** {{Beginner / Intermediate / Advanced}}  
 > **Time to Complete:** {{Estimated time}}  
-> **Prerequisites:** \[\[List any required notes or code knowledge\]\]
+> **Prerequisites:** [[List any required notes or code knowledge]]
 
 ---
 
@@ -20,11 +20,9 @@ tags: [tutorial, how-to]
 
 ## 📋 Prerequisites
 
-Before starting, ensure you have:
-
 - [ ] **O3DE Environment:** Set up and ready to build.
 - [ ] **G.O.A.T. Gem:** Activated in your project.
-- [ ] **Required Assets:** A basic `.bbx` file and a Lua script.
+- **Required Knowledge:** {{Basic C++ or Lua}}.
 
 ---
 
@@ -63,8 +61,6 @@ behavior "ExampleBehavior" {
 
 {{Explain the final step.}}
 
-
-
 ---
 
 ## ✅ Verification
@@ -81,16 +77,14 @@ Run the following checks to confirm success:
 
 | Issue | Cause | Solution |
 | :--- | :--- | :--- |
-| {{Issue description}} | {{Root cause}} | {{How to fix}} |
-| {{Issue description}} | {{Root cause}} | {{How to fix}} |
+| {{Issue}} | {{Root cause}} | {{How to fix}} |
 
 ---
 
 ## 🔗 Related Guides
 
-- [[Adding New Actions]]
-- [[Creating a Director AI]]
-- [[Writing Custom Backends]]
+- [[Related Guide 1]]
+- [[Related Guide 2]]
 
 ---
 

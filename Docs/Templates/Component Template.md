@@ -1,14 +1,14 @@
 ---
 type: component
 status: active
-tags: [cpp, core]
+tags: [cpp, core, component]
 ---
 
 # {{Title}}
 
 > **File Location:** `Code/Source/.../{{FileName}}.cpp`  
 > **Header:** `Code/Include/.../{{FileName}}.h`  
-> **Inherits:** `AZ::Component` / `IBackend` / `IActionState`  
+> **Inherits:** `AZ::Component` / `IActionState` / `IBackend`  
 
 ---
 
@@ -30,10 +30,7 @@ tags: [cpp, core]
 
 ## Public Interface
 
-
-
 ### Methods
-
 
 ```cpp
 // {{Return Type}} {{MethodName}}({{Parameters}});
@@ -41,7 +38,6 @@ tags: [cpp, core]
 ```
 
 ### Data Members
-
 
 | Member | Type | Description |
 | :--- | :--- | :--- |
@@ -58,9 +54,9 @@ graph LR
     B --> D[External System]
 ```
 
-- **Depends on:** [[IAgentSystem]], [[BlackboardSystem]]
-- **Required by:** [[GOATSystemComponent]]
-- **Interacts with:** [[TreeWalker]], [[LuaDispatch]]
+- **Depends on:** [[Related Interface]]
+- **Required by:** [[Parent Component]]
+- **Interacts with:** [[Other Component]]
 
 ---
 
@@ -74,7 +70,7 @@ graph LR
 
 - **Allocation:** {{Where memory is pooled or pre-allocated.}}
 - **Tick Rate:** {{At what frequency this runs.}}
-- **Concurrency:** {{Single-threaded / Main thread / Worker thread.}}
+- **Concurrency:** {{Main thread / Worker thread.}}
 
 ---
 
@@ -84,10 +80,9 @@ graph LR
 Example:
 
 ```lua
--- If exposed via BehaviorContext
-local builder = GoatTreeBuilder()
-builder:BeginTree("Example")
-builder:AddNode("selector", 2, 0)
+-- Example usage in a Lua tree
+script "BehaviorName"
+raw "VerbName" { key = "target_key" }
 ```
 
 ---
@@ -100,9 +95,8 @@ builder:AddNode("selector", 2, 0)
 
 ## Related Notes
 
-- [[TreeCompiler]]
-- [[TreeWalker]]
-- [[LuaDispatch]]
+- [[Related Note 1]]
+- [[Related Note 2]]
 
 ---
 
