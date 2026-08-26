@@ -70,6 +70,8 @@ set(FILES
     Source/Core/Scripting/LuaNodeScripting.h
     Source/Core/Scripting/LuaPlanBuilder.cpp
     Source/Core/Scripting/LuaPlanBuilder.h
+    Source/Core/Scripting/LuaPlanValidator.cpp
+    Source/Core/Scripting/LuaPlanValidator.h
     Source/Core/Scripting/LuaTreeBuilder.cpp
     Source/Core/Scripting/LuaTreeBuilder.h
 )

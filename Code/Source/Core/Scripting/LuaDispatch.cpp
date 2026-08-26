@@ -166,6 +166,56 @@ namespace GOAT
         const ActionStateRegistry* actions, const IBlackboardSystem* blackboard, PlanStore* store)
     {
         m_planBuilder.Configure(actions, blackboard, store);
+        m_planValidator.Configure(actions, blackboard);
+    }
+
+    bool LuaDispatch::BakePlans()
+    {
+        if (m_scriptContext == nullptr)
+        {
+            return false;
+        }
+
+        // Everything baked so far goes first: baking is idempotent only if it starts from empty,
+        // and re-running it after a script load must not leave the old steps behind.
+        m_planBuilder.ClearBaked();
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_BakePlans", call))
+        {
+            AZ_Error("GOAT", false, "GOAT_BakePlans is missing, so no authored plan can run");
+            return false;
+        }
+
+        call.PushArg(m_planBuilder);
+
+        // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
+        const bool executed = call.CallExecute();
+        AZ_Warning("GOAT", executed, "Baking the declared plans raised a Lua error");
+        return executed;
+    }
+
+    bool LuaDispatch::ValidatePlans()
+    {
+        m_planValidator.Reset();
+        if (m_scriptContext == nullptr)
+        {
+            return false;
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_ValidatePlans", call))
+        {
+            AZ_Error("GOAT", false, "GOAT_ValidatePlans is missing, so declared plans cannot be checked");
+            return false;
+        }
+
+        call.PushArg(m_planValidator);
+
+        // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
+        const bool executed = call.CallExecute();
+        AZ_Warning("GOAT", executed, "Checking the declared plans raised a Lua error");
+        return executed && m_planValidator.IsClean();
     }
 
     bool LuaDispatch::HasLuaBackend(const AZ::Name& backend)

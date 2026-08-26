@@ -40,6 +40,22 @@ backend "Errand" {
     end,
 }
 
+-- The same idea declared rather than written out. Options are tried in order and the first
+-- whose guard holds contributes all of its steps; the last one, having no guard, is the
+-- fallback. Unlike the backend above, every step here is checked when this file loads and
+-- baked once, so running it later pushes nothing across the Lua boundary at all.
+plan "Chores" {
+    option {
+        when = "announced",
+        { action = "script", behavior = "Chore" },
+        { action = "wait",   seconds = 0.25 },
+    },
+    option {
+        { action = "script", behavior = "Announce" },
+        { action = "wait",   seconds = 0.5 },
+    },
+}
+
 behavior "Announce" {
     tick = function(me, ctx)
         ctx:SetBool("announced", true)
@@ -57,6 +73,8 @@ return tree "ExampleAdvanced" {
     composite "AllOf" {
         decorator "NeverFails" { script "Chore" },
         delegate "Errand" { goal = "Deliver" },
+        -- The declarative form, reached through the backend the gem ships.
+        delegate "bt" { goal = "Chores" },
         -- raw reaches any registered verb by name, including one a module contributed.
         raw "wait" { seconds = 0.25 },
     },

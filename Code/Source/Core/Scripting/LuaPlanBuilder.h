@@ -61,12 +61,9 @@ namespace GOAT
         //! that is not registered, or the plan ran past the runaway guard.
         bool EndPlan();
 
-        //! Bakes an authored plan's option once, returning where its steps landed.
+        //! Bakes the steps built so far and remembers them as one option of an authored plan.
         //! Called while the vocabulary loads, never while an agent is running.
-        PlanStore::Span BakeCurrent();
-
-        //! Remembers a baked option so ChooseBaked can find it again.
-        void RecordBaked(const AZ::Name& plan, int option, PlanStore::Span span);
+        bool BakeOption(AZStd::string plan, double option);
 
         //! Drops every baked option. The store's own steps go with it.
         void ClearBaked();

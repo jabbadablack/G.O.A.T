@@ -8,6 +8,7 @@
 #include <Core/Scripting/LuaBackend.h>
 #include <Core/Scripting/LuaNameCollector.h>
 #include <Core/Scripting/LuaPlanBuilder.h>
+#include <Core/Scripting/LuaPlanValidator.h>
 #include <Core/Scripting/LuaTreeBuilder.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
@@ -43,6 +44,13 @@ namespace GOAT
             "goat/scripts/goat.luac",
             "goat/scripts/goat.lua",
         };
+
+        //! Backends the gem ships, loaded straight after the vocabulary and before any user
+        //! script, so a tree may delegate to one without the project declaring it.
+        constexpr const char* BackendAssetPaths[] = {
+            "goat/backends/behaviortreebackend.luac",
+            "goat/backends/behaviortreebackend.lua",
+        };
     } // namespace
 
     void GOATSystemComponent::Reflect(AZ::ReflectContext* context)
@@ -57,6 +65,7 @@ namespace GOAT
         BehaviorTreeAsset::Reflect(context);
         LuaTreeBuilder::Reflect(context);
         LuaPlanBuilder::Reflect(context);
+        LuaPlanValidator::Reflect(context);
         LuaNameCollector::Reflect(context);
         AgentScriptContext::Reflect(context);
 
@@ -230,10 +239,16 @@ namespace GOAT
         }
     }
 
-    bool GOATSystemComponent::LoadVocabulary()
+    bool GOATSystemComponent::RunFirstAvailable(const char* const* paths, size_t count, const char* what)
     {
-        for (const char* path : VocabularyAssetPaths)
+        AZ_Assert(paths != nullptr && count > 0, "Running a script needs somewhere to look for it");
+
+        // The paths are alternatives, best first: LuaBuilder emits .luac, so the compiled form is
+        // preferred and the plain one is the fallback for a project that ships source.
+        for (size_t i = 0; i < count; ++i)
         {
+            const char* path = paths[i];
+
             AZ::Data::AssetId assetId;
             AZ::Data::AssetCatalogRequestBus::BroadcastResult(
                 assetId, &AZ::Data::AssetCatalogRequests::GetAssetIdByPath, path, azrtti_typeid<AZ::ScriptAsset>(), false);
@@ -244,7 +259,7 @@ namespace GOAT
                 continue;
             }
 
-            AZLOG_INFO("GOAT: loading the authoring vocabulary from '%s'", path);
+            AZLOG_INFO("GOAT: loading %s from '%s'", what, path);
 
             auto asset = AZ::Data::AssetManager::Instance().GetAsset<AZ::ScriptAsset>(
                 assetId, AZ::Data::AssetLoadBehavior::PreLoad);
@@ -264,10 +279,25 @@ namespace GOAT
             AZLOG_INFO("GOAT: '%s' loaded but failed to run", path);
         }
 
-        AZ_Warning(
-            "GOAT", false,
-            "Could not load the GOAT Lua vocabulary; check that the Asset Processor produced goat/scripts/goat.luac");
         return false;
+    }
+
+    bool GOATSystemComponent::LoadVocabulary()
+    {
+        if (!RunFirstAvailable(VocabularyAssetPaths, AZStd::size(VocabularyAssetPaths), "the authoring vocabulary"))
+        {
+            AZ_Warning(
+                "GOAT", false,
+                "Could not load the GOAT Lua vocabulary; check that the Asset Processor produced goat/scripts/goat.luac");
+            return false;
+        }
+
+        // The backends the gem ships load straight after the words they are written in, and
+        // before any user script, so a tree may delegate to one without declaring it.
+        AZ_Warning("GOAT", RunFirstAvailable(BackendAssetPaths, AZStd::size(BackendAssetPaths), "the shipped backends"),
+            "Could not load GOAT's shipped backends; delegate \"bt\" will not resolve");
+
+        return true;
     }
 
     bool GOATSystemComponent::EnsureVocabulary()
@@ -287,6 +317,10 @@ namespace GOAT
         {
             // Covers node types registered by a module before the vocabulary was available.
             DeclareNodeWords();
+
+            // The shipped backends were declared by the file just run, so install them now
+            // rather than waiting for the first user script to trigger a sweep.
+            RegisterLuaBackends();
         }
         return m_vocabularyLoaded;
     }
@@ -306,7 +340,38 @@ namespace GOAT
         }
 
         RegisterLuaBackends();
+
+        // Baking turns every authored plan into steps C++ already holds, so running one later
+        // pushes nothing across this boundary. Validation then reports what is wrong with them
+        // while the author is still looking at the file.
+        m_dispatch->BakePlans();
+        ValidateLuaPlans();
+
+        // A bad plan does not fail the load: one malformed plan must not stop every tree in the
+        // same file from compiling. It fails later through the refusal path the walker handles.
         return true;
+    }
+
+    void GOATSystemComponent::ValidateLuaPlans()
+    {
+        AZ_Assert(m_dispatch != nullptr, "Checking plans needs the Lua dispatch");
+        if (m_dispatch == nullptr)
+        {
+            return;
+        }
+
+        m_dispatch->ValidatePlans();
+
+        const LuaPlanValidator& validator = m_dispatch->GetPlanValidator();
+        for (const AZStd::string& problem : validator.GetProblems())
+        {
+            AZ_Error("GOAT", false, "%s", problem.c_str());
+        }
+
+        if (validator.IsClean())
+        {
+            AZLOG(GoatPlan, "GOAT: %zu plan(s) checked with no problems", validator.GetSummaries().size());
+        }
     }
 
     void GOATSystemComponent::RegisterLuaBackends()
@@ -468,6 +533,13 @@ namespace GOAT
 
     ActionStateId GOATSystemComponent::RegisterAction(AZStd::unique_ptr<IActionState> action)
     {
+        // Narrow on purpose: `wait`, `move_to` and `claim_smart_object` are all legitimately both
+        // a node word and a verb. Only `delegate` is reserved, because a plan step naming it
+        // would be the one way a plan could re-enter the tree that asked for it.
+        AZ_Assert(action == nullptr || action->GetName() != AZ_NAME_LITERAL("delegate"),
+            "A verb may not be registered as 'delegate': that is the tree word for entering a "
+            "backend, and a plan step naming it would let a plan re-enter the tree");
+
         return m_actions != nullptr ? m_actions->Register(AZStd::move(action)) : CoreActions::Invalid;
     }
 
@@ -603,11 +675,80 @@ namespace GOAT
         }
     }
 
+    void GOATSystemComponent::ListPlans(const AZ::ConsoleCommandContainer&)
+    {
+        if (m_dispatch == nullptr)
+        {
+            return;
+        }
+
+        const auto& summaries = m_dispatch->GetPlanValidator().GetSummaries();
+        if (summaries.empty())
+        {
+            // Nothing has been checked yet, so check now rather than reporting an empty list
+            // that only means "no one has asked".
+            ValidateLuaPlans();
+        }
+
+        for (const auto& summary : m_dispatch->GetPlanValidator().GetSummaries())
+        {
+            AZLOG_INFO("plan: %-24s %zu option(s)   %s", summary.m_name.GetCStr(),
+                summary.m_options.size(), summary.m_source.c_str());
+        }
+    }
+
+    void GOATSystemComponent::DumpPlan(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.empty() || m_dispatch == nullptr)
+        {
+            AZLOG_INFO("usage: GOATSystemComponent.DumpPlan <name>");
+            return;
+        }
+
+        const AZ::Name wanted(AZStd::string(arguments.front()));
+        const auto* summary = m_dispatch->GetPlanValidator().FindSummary(wanted);
+        if (summary == nullptr)
+        {
+            AZLOG_INFO("no plan named '%s' has been declared", wanted.GetCStr());
+            return;
+        }
+
+        AZLOG_INFO("plan '%s' declared in %s", summary->m_name.GetCStr(), summary->m_source.c_str());
+        for (size_t option = 0; option < summary->m_options.size(); ++option)
+        {
+            const auto& entry = summary->m_options[option];
+            if (entry.m_guard.empty())
+            {
+                AZLOG_INFO("  option %zu  (fallback)", option + 1);
+            }
+            else
+            {
+                AZLOG_INFO("  option %zu  %s %s", option + 1, entry.m_negated ? "unless" : "when",
+                    entry.m_guard.c_str());
+            }
+
+            for (size_t step = 0; step < entry.m_lines.size(); ++step)
+            {
+                AZLOG_INFO("    %zu  %s", step + 1, entry.m_lines[step].c_str());
+            }
+        }
+    }
+
+    void GOATSystemComponent::ValidatePlans(const AZ::ConsoleCommandContainer&)
+    {
+        ValidateLuaPlans();
+
+        if (m_dispatch != nullptr && m_dispatch->GetPlanValidator().IsClean())
+        {
+            AZLOG_INFO("%zu plan(s), no problems", m_dispatch->GetPlanValidator().GetSummaries().size());
+        }
+    }
+
     void GOATSystemComponent::DumpAgent(const AZ::ConsoleCommandContainer& arguments)
     {
         if (arguments.empty() || m_agents == nullptr)
         {
-            AZLOG_INFO("usage: goat_dumpAgent <entityId>");
+            AZLOG_INFO("usage: GOATSystemComponent.DumpAgent <entityId>");
             return;
         }
 

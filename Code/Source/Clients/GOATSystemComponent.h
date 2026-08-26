@@ -90,6 +90,9 @@ namespace GOAT
         void ListAgents(const AZ::ConsoleCommandContainer& arguments);
         void DumpAgent(const AZ::ConsoleCommandContainer& arguments);
         void ReloadVocabulary(const AZ::ConsoleCommandContainer& arguments);
+        void ListPlans(const AZ::ConsoleCommandContainer& arguments);
+        void DumpPlan(const AZ::ConsoleCommandContainer& arguments);
+        void ValidatePlans(const AZ::ConsoleCommandContainer& arguments);
 
         AZ_CONSOLEFUNC(GOATSystemComponent, ListBackends, AZ::ConsoleFunctorFlags::Null,
             "Lists the decision backends currently installed");
@@ -105,6 +108,12 @@ namespace GOAT
             "Prints what one agent is doing, by entity id");
         AZ_CONSOLEFUNC(GOATSystemComponent, ReloadVocabulary, AZ::ConsoleFunctorFlags::Null,
             "Reloads the GOAT Lua vocabulary and reports where it was found");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListPlans, AZ::ConsoleFunctorFlags::Null,
+            "Lists the declarative plans the bt backend can satisfy");
+        AZ_CONSOLEFUNC(GOATSystemComponent, DumpPlan, AZ::ConsoleFunctorFlags::Null,
+            "Prints one plan's options, their guards and their steps, by name");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ValidatePlans, AZ::ConsoleFunctorFlags::Null,
+            "Re-checks every declared plan against the registries and reports what is wrong");
         ////////////////////////////////////////////////////////////////////////
 
     private:
@@ -118,6 +127,12 @@ namespace GOAT
 
         //! Loads the Lua authoring vocabulary shipped with the gem.
         bool LoadVocabulary();
+
+        //! Runs the first of a list of alternative asset paths that loads.
+        bool RunFirstAvailable(const char* const* paths, size_t count, const char* what);
+
+        //! Checks every declared plan and reports what is wrong with it.
+        void ValidateLuaPlans();
 
         //! Gives every registered node type a word in the authoring vocabulary.
         void DeclareNodeWords();

@@ -136,25 +136,27 @@ namespace GOAT
         m_sourceOption = static_cast<int>(option);
     }
 
-    PlanStore::Span LuaPlanBuilder::BakeCurrent()
+    bool LuaPlanBuilder::BakeOption(AZStd::string plan, double option)
     {
         AZ_Assert(m_store != nullptr, "Baking a plan needs a store to bake into");
 
-        PlanStore::Span span;
         if (m_failed || m_scratch.empty() || m_store == nullptr)
         {
-            return span;
+            AZ_Error("GOAT", false, "Option %d of plan '%s' could not be baked", static_cast<int>(option),
+                plan.c_str());
+            return false;
         }
 
-        return m_store->Bake(m_scratch.data(), static_cast<AZ::u32>(m_scratch.size()));
-    }
+        const PlanStore::Span span = m_store->Bake(m_scratch.data(), static_cast<AZ::u32>(m_scratch.size()));
+        if (span.IsEmpty())
+        {
+            return false;
+        }
 
-    void LuaPlanBuilder::RecordBaked(const AZ::Name& plan, int option, PlanStore::Span span)
-    {
-        AZ_Assert(!plan.IsEmpty(), "A baked option belongs to a named plan");
-        AZ_Assert(!span.IsEmpty(), "An option with no steps is not worth remembering");
+        m_bakedOptions.push_back(BakedOption{ AZ::Name(plan), static_cast<int>(option), span });
 
-        m_bakedOptions.push_back(BakedOption{ plan, option, span });
+        AZ_Assert(span.m_block == InvalidPlanBlock, "A baked option is shared, so it is never owed back");
+        return true;
     }
 
     void LuaPlanBuilder::ClearBaked()
@@ -231,6 +233,7 @@ namespace GOAT
             ->Method("SetTargetEntity", &LuaPlanBuilder::SetTargetEntity)
             ->Method("SetSource", &LuaPlanBuilder::SetSource)
             ->Method("ChooseBaked", &LuaPlanBuilder::ChooseBaked)
+            ->Method("BakeOption", &LuaPlanBuilder::BakeOption)
             ->Method("EndPlan", &LuaPlanBuilder::EndPlan);
     }
 } // namespace GOAT

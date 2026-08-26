@@ -3,6 +3,7 @@
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaNameCollector.h>
 #include <Core/Scripting/LuaPlanBuilder.h>
+#include <Core/Scripting/LuaPlanValidator.h>
 #include <Core/Scripting/LuaTreeBuilder.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
@@ -52,6 +53,16 @@ namespace GOAT
         //! Points the plan builder and the plan validator at what they need to resolve names.
         void ConfigurePlanBuilder(
             const ActionStateRegistry* actions, const IBlackboardSystem* blackboard, PlanStore* store);
+
+        //! Bakes every declared plan's steps into the store once. Called when the vocabulary
+        //! loads, so that running a plan afterwards pushes no steps across this boundary at all.
+        bool BakePlans();
+
+        //! Checks every declared plan against the registries. Returns false when any failed.
+        bool ValidatePlans();
+
+        //! What the last validation pass found, for reporting and for the console.
+        const LuaPlanValidator& GetPlanValidator() const { return m_planValidator; }
 
         //! The builder, so a caller can read which authored plan and option produced a plan.
         const LuaPlanBuilder& GetPlanBuilder() const { return m_planBuilder; }
@@ -103,6 +114,9 @@ namespace GOAT
         //! Stable, because Lua receives raw pointers to these during a call.
         LuaTreeBuilder m_builder;
         LuaPlanBuilder m_planBuilder;
+        //! A second object rather than a dry run through the builder: the builder holds the plan
+        //! an agent is about to receive, and validating through it would clobber that plan.
+        LuaPlanValidator m_planValidator;
         LuaNameCollector m_nameCollector;
     };
 } // namespace GOAT

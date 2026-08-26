@@ -1,5 +1,6 @@
 #include <Core/Scripting/LuaBackend.h>
 
+#include <AzCore/Console/ILogger.h>
 #include <AzCore/Debug/Trace.h>
 
 namespace GOAT
@@ -30,10 +31,28 @@ namespace GOAT
             AZ_Warning("GOAT", planned == nullptr,
                 "Lua backend '%s' returned an empty plan for goal '%s', which counts as refusing the intent",
                 m_name.GetCStr(), intent.m_goal.GetCStr());
+
+            AZLOG(GoatPlan, "GOAT: backend '%s' found nothing for goal '%s' and agent %u",
+                m_name.GetCStr(), intent.m_goal.GetCStr(), context.m_agent.GetIndex());
             return false;
         }
 
         outPlan = *planned;
+
+        // An authored plan names the option it chose; an imperative one names nothing, which is
+        // how the trace tells the two apart without either having to say which it is.
+        const LuaPlanBuilder& builder = m_dispatch.GetPlanBuilder();
+        if (!builder.GetSourcePlan().empty())
+        {
+            AZLOG(GoatPlan, "GOAT: plan '%s' chose option %d for agent %u (goal '%s', %zu step(s))",
+                builder.GetSourcePlan().c_str(), builder.GetSourceOption(), context.m_agent.GetIndex(),
+                intent.m_goal.GetCStr(), outPlan.Size());
+        }
+        else
+        {
+            AZLOG(GoatPlan, "GOAT: backend '%s' planned goal '%s' for agent %u as %zu step(s)",
+                m_name.GetCStr(), intent.m_goal.GetCStr(), context.m_agent.GetIndex(), outPlan.Size());
+        }
 
         AZ_Assert(!outPlan.IsEmpty(), "A backend that reports success must have produced at least one step");
         return true;
