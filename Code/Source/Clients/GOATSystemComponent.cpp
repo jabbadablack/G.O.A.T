@@ -186,6 +186,47 @@ namespace GOAT
         m_blackboardSystem.reset();
     }
 
+    void GOATSystemComponent::DeclareNodeWord(const NodeTypeDescriptor& descriptor)
+    {
+        AZ_Assert(m_dispatch != nullptr, "Declaring a node word needs the Lua dispatch");
+        if (m_dispatch == nullptr)
+        {
+            return;
+        }
+
+        // A bare string argument fills the first required property, which is the rule the
+        // built-in words already follow: `wait "2"` sets seconds, `move_to "goal"` sets key.
+        AZ::Name mainProperty;
+        for (const NodeParameter& parameter : descriptor.m_parameters)
+        {
+            if (parameter.m_required)
+            {
+                mainProperty = parameter.m_name;
+                break;
+            }
+        }
+
+        m_dispatch->DeclareNode(descriptor.m_name, mainProperty);
+    }
+
+    void GOATSystemComponent::DeclareNodeWords()
+    {
+        AZ_Assert(m_nodeTypes != nullptr, "Declaring node words needs the node type registry");
+        if (m_nodeTypes == nullptr)
+        {
+            return;
+        }
+
+        for (const NodeTypeDescriptor* descriptor : m_nodeTypes->GetAll())
+        {
+            AZ_Assert(descriptor != nullptr, "The node type registry must not hold a null descriptor");
+            if (descriptor != nullptr)
+            {
+                DeclareNodeWord(*descriptor);
+            }
+        }
+    }
+
     bool GOATSystemComponent::LoadVocabulary()
     {
         for (const char* path : VocabularyAssetPaths)
@@ -239,6 +280,11 @@ namespace GOAT
         }
 
         m_vocabularyLoaded = LoadVocabulary();
+        if (m_vocabularyLoaded)
+        {
+            // Covers node types registered by a module before the vocabulary was available.
+            DeclareNodeWords();
+        }
         return m_vocabularyLoaded;
     }
 
@@ -373,6 +419,42 @@ namespace GOAT
         }
     }
 
+    bool GOATSystemComponent::RegisterNodeType(NodeTypeDescriptor descriptor)
+    {
+        AZ_Assert(!descriptor.m_name.IsEmpty(), "A node type must be registered under a name");
+        if (m_nodeTypes == nullptr || descriptor.m_name.IsEmpty())
+        {
+            AZ_Error("GOAT", false, "Cannot register a node type before the node type registry exists");
+            return false;
+        }
+
+        const AZ::Name name = descriptor.m_name;
+        if (!m_nodeTypes->Register(AZStd::move(descriptor)))
+        {
+            AZ_Error("GOAT", false, "Node type '%s' is already registered", name.GetCStr());
+            return false;
+        }
+
+        // A module may register before or after the vocabulary loads, so cover both:
+        // this call handles the late case and DeclareNodeWords handles the early one.
+        const NodeTypeDescriptor* registered = m_nodeTypes->Find(name);
+        AZ_Assert(registered != nullptr, "A node type must be findable immediately after registering");
+        if (registered != nullptr && m_vocabularyLoaded)
+        {
+            DeclareNodeWord(*registered);
+        }
+
+        return true;
+    }
+
+    void GOATSystemComponent::UnregisterNodeType(const AZ::Name& name)
+    {
+        if (m_nodeTypes != nullptr)
+        {
+            m_nodeTypes->Unregister(name);
+        }
+    }
+
     ActionStateId GOATSystemComponent::RegisterAction(AZStd::unique_ptr<IActionState> action)
     {
         return m_actions != nullptr ? m_actions->Register(AZStd::move(action)) : CoreActions::Invalid;
@@ -395,6 +477,25 @@ namespace GOAT
     AZStd::vector<AZ::Name> GOATSystemComponent::GetActionNames() const
     {
         return m_actions != nullptr ? m_actions->GetNames() : AZStd::vector<AZ::Name>{};
+    }
+
+    AZStd::vector<AZ::Name> GOATSystemComponent::GetNodeTypeNames() const
+    {
+        AZStd::vector<AZ::Name> names;
+        if (m_nodeTypes == nullptr)
+        {
+            return names;
+        }
+
+        for (const NodeTypeDescriptor* descriptor : m_nodeTypes->GetAll())
+        {
+            AZ_Assert(descriptor != nullptr, "The node type registry must not hold a null descriptor");
+            if (descriptor != nullptr)
+            {
+                names.push_back(descriptor->m_name);
+            }
+        }
+        return names;
     }
 
     AZStd::vector<AZ::Name> GOATSystemComponent::GetTreeNames() const

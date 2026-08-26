@@ -3,6 +3,7 @@
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Domain/AgentId.h>
+#include <GOAT/Domain/NodeType.h>
 #include <GOAT/GOATTypeIds.h>
 #include <GOAT/Interfaces/IActionState.h>
 #include <GOAT/Interfaces/IBackend.h>
@@ -51,6 +52,11 @@ namespace GOAT
         virtual bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) = 0;
         virtual void UnregisterBackend(const AZ::Name& name) = 0;
 
+        //! Installs a node type, which is how a module contributes a word to authored trees.
+        //! A leaf whose name matches a registered verb runs that verb.
+        virtual bool RegisterNodeType(NodeTypeDescriptor descriptor) = 0;
+        virtual void UnregisterNodeType(const AZ::Name& name) = 0;
+
         //! Installs an action verb, which is how a module contributes vocabulary.
         virtual ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) = 0;
         virtual void UnregisterAction(ActionStateId id) = 0;
@@ -59,6 +65,7 @@ namespace GOAT
         virtual AZStd::vector<AZ::Name> GetBackendNames() const = 0;
         virtual AZStd::vector<AZ::Name> GetActionNames() const = 0;
         virtual AZStd::vector<AZ::Name> GetTreeNames() const = 0;
+        virtual AZStd::vector<AZ::Name> GetNodeTypeNames() const = 0;
 
         //! A one line summary of what an agent is doing, for the console.
         virtual AZStd::string DescribeAgent(AgentId agent) const = 0;

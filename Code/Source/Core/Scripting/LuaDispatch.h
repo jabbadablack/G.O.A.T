@@ -88,6 +88,10 @@ namespace GOAT
         //! Drops the scratch tables an agent owned, so a reused slot starts clean.
         void ForgetAgent(AgentId agent);
 
+        //! Makes a node type name usable as a word in authored trees.
+        //! @param mainProperty the property a single string argument fills; may be empty.
+        bool DeclareNode(const AZ::Name& typeName, const AZ::Name& mainProperty);
+
     private:
         AZ::ScriptContext* m_scriptContext = nullptr;
         //! Stable, because Lua receives raw pointers to these during a call.

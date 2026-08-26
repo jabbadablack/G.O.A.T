@@ -104,6 +104,21 @@ subtree = nodeType("subtree")
 -- Services attach to a composite rather than sitting in its child list.
 service = nodeType("service", true)
 
+--! Declares a node word contributed by a module gem, so `move_to "player_pos"` reads the same
+--! as a built-in. @mainProperty names the property the single string argument fills.
+--! Called from C++ for every node type a module registers; the core never names one itself.
+--! A word this file already defines is left alone, because the built-ins carry forms this
+--! cannot reproduce -- `service` attaches to a composite rather than becoming a child.
+function GOAT_DeclareNode(typeName, mainProperty)
+    if rawget(_G, typeName) ~= nil then
+        return
+    end
+    if mainProperty and mainProperty ~= "" then
+        defaultProperty[typeName] = mainProperty
+    end
+    _G[typeName] = nodeType(typeName)
+end
+
 --! Defines a leaf behaviour: `behavior "Patrol" { start = ..., tick = ..., stop = ... }`.
 function behavior(name)
     return function(body)

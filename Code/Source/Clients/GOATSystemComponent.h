@@ -54,11 +54,14 @@ namespace GOAT
         void JoinSquad(AgentId agent, const AZ::Name& squad) override;
         bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) override;
         void UnregisterBackend(const AZ::Name& name) override;
+        bool RegisterNodeType(NodeTypeDescriptor descriptor) override;
+        void UnregisterNodeType(const AZ::Name& name) override;
         ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) override;
         void UnregisterAction(ActionStateId id) override;
         AZStd::vector<AZ::Name> GetBackendNames() const override;
         AZStd::vector<AZ::Name> GetActionNames() const override;
         AZStd::vector<AZ::Name> GetTreeNames() const override;
+        AZStd::vector<AZ::Name> GetNodeTypeNames() const override;
         AZStd::string DescribeAgent(AgentId agent) const override;
         ////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +117,12 @@ namespace GOAT
 
         //! Loads the Lua authoring vocabulary shipped with the gem.
         bool LoadVocabulary();
+
+        //! Gives every registered node type a word in the authoring vocabulary.
+        void DeclareNodeWords();
+
+        //! Gives one node type a word, filling its first required property from a bare string.
+        void DeclareNodeWord(const NodeTypeDescriptor& descriptor);
 
         //! Loads the vocabulary if it is not loaded yet.
         //! Activation can run before the asset catalog is ready, so this retries on first use

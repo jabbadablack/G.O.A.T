@@ -337,6 +337,30 @@ namespace GOAT
         return ToActionResult(status);
     }
 
+    bool LuaDispatch::DeclareNode(const AZ::Name& typeName, const AZ::Name& mainProperty)
+    {
+        AZ_Assert(!typeName.IsEmpty(), "A declared node word must have a name");
+        if (m_scriptContext == nullptr || typeName.IsEmpty())
+        {
+            AZ_Error("GOAT", false, "Cannot declare node word '%s' before scripting is running", typeName.GetCStr());
+            return false;
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_DeclareNode", call))
+        {
+            AZ_Error("GOAT", false,
+                "GOAT_DeclareNode is missing, so node word '%s' cannot be authored; the vocabulary did not load",
+                typeName.GetCStr());
+            return false;
+        }
+
+        call.PushArg(AZStd::string(typeName.GetStringView()));
+        call.PushArg(AZStd::string(mainProperty.GetStringView()));
+        call.CallExecute();
+        return true;
+    }
+
     void LuaDispatch::ForgetAgent(AgentId agent)
     {
         if (m_scriptContext == nullptr)
