@@ -13,7 +13,9 @@
 #include <AzCore/Memory/SystemAllocator.h>
 #include <AzCore/Name/Name.h>
 #include <AzCore/Time/ITime.h>
+#include <AzCore/std/algorithm.h>
 #include <AzCore/std/containers/fixed_vector.h>
+#include <AzCore/std/containers/vector.h>
 #include <AzCore/std/smart_ptr/shared_ptr.h>
 
 namespace GOAT
@@ -59,6 +61,11 @@ namespace GOAT
         //! The intent currently being satisfied, kept so a re-plan knows what it was for.
         Intent m_intent;
 
+        //! The trees this entity declared it may run, including the one it starts in. A switch
+        //! to anything else is refused, so no order can put an agent somewhere its author did
+        //! not sanction. Set once at registration and read on every switch request.
+        AZStd::vector<AZ::Name> m_repertoire;
+
         //! Which pacing band this agent belongs to, which is its level of detail.
         size_t m_band = 0;
 
@@ -74,5 +81,11 @@ namespace GOAT
 
         //! Scratch reused each tick when collecting due services.
         AZStd::vector<AZ::u32> m_dueServices;
+
+        //! True when a tree is one this entity declared it may run.
+        bool MayRun(const AZ::Name& treeName) const
+        {
+            return AZStd::find(m_repertoire.begin(), m_repertoire.end(), treeName) != m_repertoire.end();
+        }
     };
 } // namespace GOAT

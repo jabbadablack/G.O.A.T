@@ -17,6 +17,7 @@
 #include <AzCore/Outcome/Outcome.h>
 #include <AzCore/RTTI/RTTI.h>
 #include <AzCore/Script/ScriptAsset.h>
+#include <AzCore/std/containers/span.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 #include <AzCore/std/string/string.h>
 
@@ -49,13 +50,17 @@ namespace GOAT
         //! The band selects how often it runs, from most frequent at zero.
         //! @param squad joined as part of registering, because an agent's guards are armed here
         //! and a squad scoped guard can only watch storage that already exists.
+        //! @param repertoire the trees this entity may be moved to. Anything outside it is
+        //! refused, so an order can never put an agent somewhere its author did not sanction.
         virtual AgentId RegisterAgent(
-            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad = AZ::Name{}) = 0;
+            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad = AZ::Name{},
+            AZStd::span<const AZ::Name> repertoire = {}) = 0;
 
         //! Removes an agent and everything held for it.
         virtual void UnregisterAgent(AgentId agent) = 0;
 
         //! Puts an agent onto another of its trees, ending whatever it was running first.
+        //! Refused when the tree is not one the entity declared it may run.
         //! Replaces outright and forgets anything it had interrupted.
         //! @param priority whoever is asking. A higher priority command replaces one still
         //! waiting to be applied; a lower one arriving after it is dropped.

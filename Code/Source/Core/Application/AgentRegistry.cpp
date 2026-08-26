@@ -48,7 +48,8 @@ namespace GOAT
         const AZ::Name& treeName,
         AZStd::shared_ptr<const DecisionProgram> program,
         size_t band,
-        const AZ::Name& squad)
+        const AZ::Name& squad,
+        AZStd::span<const AZ::Name> repertoire)
     {
         AZ_Assert(entity.IsValid(), "An agent must be registered against a valid entity");
         AZ_Assert(program != nullptr, "An agent must be registered with a compiled program");
@@ -75,6 +76,14 @@ namespace GOAT
         raw->m_band = band;
         raw->m_cursor.Reset(*raw->m_program);
 
+        // The tree it starts in is always one it may run, whatever was declared. Without this an
+        // entity that listed nothing could never be returned to where it began.
+        raw->m_repertoire.assign(repertoire.begin(), repertoire.end());
+        if (!raw->MayRun(treeName))
+        {
+            raw->m_repertoire.push_back(treeName);
+        }
+
         m_blackboard.CreateAgentBlackboard(id);
 
         // Squad membership before the observer connects, because the observer subscribes per
@@ -93,6 +102,7 @@ namespace GOAT
         AZ_Assert(Find(id) == raw, "A registered agent must be findable by the id it was given");
         AZ_Assert(FindByEntity(entity) == id, "A registered agent must be findable by its entity");
         AZ_Assert(raw->m_band == band, "A registered agent must sit in the band it asked for");
+        AZ_Assert(raw->MayRun(treeName), "An agent must be allowed to run the tree it starts in");
 
         AZLOG(GoatAgent, "GOAT: entity %s became agent %u in band %zu",
             entity.ToString().c_str(), id.GetIndex(), band);

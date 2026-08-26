@@ -542,7 +542,8 @@ namespace GOAT
     }
 
     AgentId GOATSystemComponent::RegisterAgent(
-        AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad)
+        AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad,
+        AZStd::span<const AZ::Name> repertoire)
     {
         if (m_agents == nullptr)
         {
@@ -556,7 +557,7 @@ namespace GOAT
             return AgentId{};
         }
 
-        return m_agents->Register(entity, treeName, program->second, band, squad);
+        return m_agents->Register(entity, treeName, program->second, band, squad, repertoire);
     }
 
     void GOATSystemComponent::UnregisterAgent(AgentId agent)
@@ -588,6 +589,18 @@ namespace GOAT
             AZLOG(GoatDirector,
                 "GOAT: agent %u refused a priority %u command; a priority %u one is already pending",
                 agent.GetIndex(), static_cast<AZ::u32>(priority), static_cast<AZ::u32>(record->m_pendingPriority));
+            return false;
+        }
+
+        // Asked before the tree is looked up, because "the entity never said it could do that" is
+        // what the author needs to hear. Compilation is global, so without this an order would
+        // succeed or fail on whether some unrelated entity happened to list the same tree.
+        if (kind != TreeSwitchKind::Pop && !record->MayRun(treeName))
+        {
+            AZ_Error("GOAT", false,
+                "Agent %u cannot change to tree '%s': entity %s does not list it. Add it to that "
+                "entity's tree list to allow the change",
+                agent.GetIndex(), treeName.GetCStr(), record->m_entity.ToString().c_str());
             return false;
         }
 
@@ -1439,6 +1452,17 @@ namespace GOAT
             if (record != nullptr && record->m_entity == wanted)
             {
                 AZLOG_INFO("agent %u: %s", agent.GetIndex(), DescribeAgent(agent).c_str());
+
+                // Printed because a refused order is most often a tree the entity never listed,
+                // and this is the only place that list can be seen from.
+                AZStd::string mayRun;
+                for (const AZ::Name& tree : record->m_repertoire)
+                {
+                    mayRun += mayRun.empty() ? "" : ", ";
+                    mayRun += tree.GetCStr();
+                }
+
+                AZLOG_INFO("  may run: %s", mayRun.c_str());
                 return;
             }
         }

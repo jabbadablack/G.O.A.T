@@ -7,6 +7,7 @@
 #include <AzCore/EBus/ScheduledEvent.h>
 #include <AzCore/Time/ITime.h>
 #include <AzCore/std/containers/array.h>
+#include <AzCore/std/containers/span.h>
 #include <AzCore/std/containers/unordered_map.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 
@@ -26,14 +27,16 @@ namespace GOAT
         ~AgentRegistry();
 
         //! Registers an entity as an agent running a compiled tree.
-        //! Registers an entity as an agent running a compiled tree.
         //! @param squad joined before the agent's guards are armed, so squad scoped ones work.
+        //! @param repertoire every tree this entity may be moved to. The starting tree is added
+        //! when it is missing, so an agent can always be left where it began.
         AgentId Register(
             AZ::EntityId entity,
             const AZ::Name& treeName,
             AZStd::shared_ptr<const DecisionProgram> program,
             size_t band,
-            const AZ::Name& squad = AZ::Name{});
+            const AZ::Name& squad = AZ::Name{},
+            AZStd::span<const AZ::Name> repertoire = {});
 
         //! Removes an agent, dropping its blackboard and its Lua scratch.
         void Unregister(AgentId agent);

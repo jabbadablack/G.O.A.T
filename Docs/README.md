@@ -146,6 +146,11 @@ Four variables come declared with the gem, so a director tree compiles without a
 whether and how to react — an order the agent arbitrates, which is how F.E.A.R.'s squad orders
 worked. `order_tree` is the blunt instrument: it stops whatever the agent was doing.
 
+An order is refused unless the target entity **lists that tree** among the ones it may run. The
+list on the agent component is a repertoire rather than a compile hint: an agent can only be sent
+somewhere its author sanctioned, which is what keeps a director's reach from being unbounded
+authority over what an agent is. `DumpAgent <entityId>` prints it as `may run:`.
+
 **Who a write reaches is decided by the variable's declared scope**, which is why the verb needs no
 parameter saying so: a `Global` variable is written once, a `Squad` one once per squad in reach, an
 `Agent` one once per agent. It cannot narrow to a single agent, deliberately — pushing exact truth

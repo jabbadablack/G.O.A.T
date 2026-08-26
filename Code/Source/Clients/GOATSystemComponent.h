@@ -54,7 +54,8 @@ namespace GOAT
         AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) override;
         bool IsTreeCompiled(const AZ::Name& treeName) const override;
         AgentId RegisterAgent(
-            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad) override;
+            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad,
+            AZStd::span<const AZ::Name> repertoire) override;
         void UnregisterAgent(AgentId agent) override;
         bool SetAgentTree(AgentId agent, const AZ::Name& treeName, AZ::u8 priority) override;
         bool PushAgentTree(AgentId agent, const AZ::Name& treeName, AZ::u8 priority) override;
