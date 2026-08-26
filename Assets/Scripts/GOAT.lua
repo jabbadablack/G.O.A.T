@@ -23,6 +23,7 @@ local defaultProperty = {
     conditional_loop = "key",
     compare = "key",
     delegate = "backend",
+    raw = "action",
     subtree = "tree",
     wait = "seconds",
     cooldown = "seconds",
@@ -87,6 +88,7 @@ compare = nodeType("compare")
 
 -- Leaves.
 wait = nodeType("wait")
+raw = nodeType("raw")
 script = nodeType("script")
 delegate = nodeType("delegate")
 subtree = nodeType("subtree")
@@ -227,4 +229,47 @@ function GOAT_TreeNames()
     end
     table.sort(names)
     return names
+end
+
+--! Runs a Lua backend and pushes the plan it returns into a C++ builder.
+--! Each step is a table naming a verb, as in { action = "wait", seconds = 0.5 }.
+function GOAT_Plan(backendName, agentKey, ctx, goal, builder)
+    local body = GOAT._backends[backendName]
+    if body == nil or body.plan == nil then
+        return false
+    end
+
+    local state = GOAT._stateFor(agentKey, "backend:" .. backendName)
+    local steps = body.plan(state, ctx, goal)
+    if type(steps) ~= "table" or #steps == 0 then
+        return false
+    end
+
+    builder:BeginPlan()
+    for _, step in ipairs(steps) do
+        builder:AddStep(step.action or "script")
+        if step.behavior ~= nil then builder:SetTag(step.behavior) end
+        if step.tag ~= nil then builder:SetTag(step.tag) end
+        if step.seconds ~= nil then builder:SetDuration(step.seconds) end
+        if step.tolerance ~= nil then builder:SetTolerance(step.tolerance) end
+        if step.key ~= nil then builder:SetTargetKey(step.key) end
+    end
+    return builder:EndPlan()
+end
+
+--! True when a backend of that name was defined in Lua.
+function GOAT_HasBackend(backendName)
+    return GOAT._backends[backendName] ~= nil
+end
+
+--! Hands every declared backend name to a C++ collector.
+function GOAT_EmitBackendNames(collector)
+    local names = {}
+    for name in pairs(GOAT._backends) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        collector:Add(name)
+    end
 end

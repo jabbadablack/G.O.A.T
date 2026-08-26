@@ -4,6 +4,9 @@
 #include <Core/Actions/WaitAction.h>
 #include <Core/Frontend/DirectBackend.h>
 #include <Core/Frontend/TreeCompiler.h>
+#include <Core/Scripting/LuaBackend.h>
+#include <Core/Scripting/LuaNameCollector.h>
+#include <Core/Scripting/LuaPlanBuilder.h>
 #include <Core/Scripting/LuaTreeBuilder.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
@@ -53,6 +56,8 @@ namespace GOAT
         BlackboardAsset::Reflect(context);
         BehaviorTreeAsset::Reflect(context);
         LuaTreeBuilder::Reflect(context);
+        LuaPlanBuilder::Reflect(context);
+        LuaNameCollector::Reflect(context);
         AgentScriptContext::Reflect(context);
 
         if (auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
@@ -149,6 +154,8 @@ namespace GOAT
             *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
 
+        m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get());
+
         if (m_dispatch->Connect())
         {
             LoadVocabulary();
@@ -205,7 +212,27 @@ namespace GOAT
 
     bool GOATSystemComponent::LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset)
     {
-        return m_dispatch != nullptr && m_dispatch->RunScript(asset);
+        if (m_dispatch == nullptr || !m_dispatch->RunScript(asset))
+        {
+            return false;
+        }
+
+        RegisterLuaBackends();
+        return true;
+    }
+
+    void GOATSystemComponent::RegisterLuaBackends()
+    {
+        // A script may declare backends, so install one front per name that is not already
+        // taken. A C++ backend registered under the same name wins, since it registered first.
+        for (const AZ::Name& name : m_dispatch->GetLuaBackendNames())
+        {
+            if (m_backends->Find(name) != nullptr)
+            {
+                continue;
+            }
+            m_backends->Register(AZStd::make_unique<LuaBackend>(name, *m_dispatch, *m_scriptContext));
+        }
     }
 
     AZ::Outcome<void, AZStd::string> GOATSystemComponent::LoadBlackboard(const BlackboardAsset& asset)

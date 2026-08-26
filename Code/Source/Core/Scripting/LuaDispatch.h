@@ -1,6 +1,8 @@
 #pragma once
 
 #include <Core/Scripting/AgentScriptContext.h>
+#include <Core/Scripting/LuaNameCollector.h>
+#include <Core/Scripting/LuaPlanBuilder.h>
 #include <Core/Scripting/LuaTreeBuilder.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
@@ -44,12 +46,27 @@ namespace GOAT
         ActionResult CallBehavior(
             const AZ::Name& behavior, const char* phase, AgentId agent, AgentScriptContext& context, float deltaTime);
 
+        //! Points the plan builder at the registries a Lua backend's steps resolve against.
+        void ConfigurePlanBuilder(const ActionStateRegistry* actions, const IBlackboardSystem* blackboard);
+
+        //! Runs a Lua backend's plan function. Returns nullptr when it produced nothing.
+        const ActionPlan* CallBackendPlan(
+            const AZ::Name& backend, const AZ::Name& goal, AgentId agent, AgentScriptContext& context);
+
+        //! True when a backend of that name is defined in Lua.
+        bool HasLuaBackend(const AZ::Name& backend);
+
+        //! Every backend name declared in Lua so far.
+        AZStd::vector<AZ::Name> GetLuaBackendNames();
+
         //! Drops the scratch tables an agent owned, so a reused slot starts clean.
         void ForgetAgent(AgentId agent);
 
     private:
         AZ::ScriptContext* m_scriptContext = nullptr;
-        //! Stable, because Lua receives a raw pointer to it during an emission.
+        //! Stable, because Lua receives raw pointers to these during a call.
         LuaTreeBuilder m_builder;
+        LuaPlanBuilder m_planBuilder;
+        LuaNameCollector m_nameCollector;
     };
 } // namespace GOAT

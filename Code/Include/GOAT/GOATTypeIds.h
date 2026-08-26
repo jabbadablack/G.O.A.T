@@ -46,6 +46,8 @@ namespace GOAT
     inline constexpr const char* IAgentSystemTypeId = "{363A84A2-B220-4ECA-BD6E-A606A6B41C90}";
 
     // Scripting TypeIds
+    inline constexpr const char* LuaNameCollectorTypeId = "{886307AC-7BED-42A9-9214-4B2643AF3626}";
+    inline constexpr const char* LuaPlanBuilderTypeId = "{A0DDEC5C-C314-4793-9AB0-6E9847036A95}";
     inline constexpr const char* LuaTreeBuilderTypeId = "{40FEAC94-3458-4DAE-9071-349CB7001E2A}";
     inline constexpr const char* AgentScriptContextTypeId = "{B91A347D-6443-4023-A16E-AC2AAC21A283}";
 

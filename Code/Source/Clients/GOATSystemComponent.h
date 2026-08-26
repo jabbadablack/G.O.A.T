@@ -102,6 +102,9 @@ namespace GOAT
         //! Loads the Lua authoring vocabulary shipped with the gem.
         bool LoadVocabulary();
 
+        //! Installs a backend front for every backend a script declared in Lua.
+        void RegisterLuaBackends();
+
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;

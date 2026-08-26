@@ -58,8 +58,14 @@ set(FILES
     Source/Core/Memory/HandleTable.h
     Source/Core/Scripting/AgentScriptContext.cpp
     Source/Core/Scripting/AgentScriptContext.h
+    Source/Core/Scripting/LuaBackend.cpp
+    Source/Core/Scripting/LuaBackend.h
     Source/Core/Scripting/LuaDispatch.cpp
     Source/Core/Scripting/LuaDispatch.h
+    Source/Core/Scripting/LuaNameCollector.cpp
+    Source/Core/Scripting/LuaNameCollector.h
+    Source/Core/Scripting/LuaPlanBuilder.cpp
+    Source/Core/Scripting/LuaPlanBuilder.h
     Source/Core/Scripting/LuaTreeBuilder.cpp
     Source/Core/Scripting/LuaTreeBuilder.h
 )

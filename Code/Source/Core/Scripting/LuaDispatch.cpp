@@ -145,6 +145,88 @@ namespace GOAT
         return ToActionResult(status);
     }
 
+    void LuaDispatch::ConfigurePlanBuilder(const ActionStateRegistry* actions, const IBlackboardSystem* blackboard)
+    {
+        m_planBuilder.Configure(actions, blackboard);
+    }
+
+    bool LuaDispatch::HasLuaBackend(const AZ::Name& backend)
+    {
+        if (m_scriptContext == nullptr)
+        {
+            return false;
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_HasBackend", call))
+        {
+            return false;
+        }
+
+        call.PushArg(AZStd::string(backend.GetStringView()));
+        if (!call.CallExecute())
+        {
+            return false;
+        }
+
+        bool defined = false;
+        if (call.GetNumResults() >= 1)
+        {
+            call.ReadResult(0, defined);
+        }
+        return defined;
+    }
+
+    AZStd::vector<AZ::Name> LuaDispatch::GetLuaBackendNames()
+    {
+        m_nameCollector.Clear();
+        if (m_scriptContext == nullptr)
+        {
+            return {};
+        }
+
+        AZ::ScriptDataContext call;
+        if (m_scriptContext->Call("GOAT_EmitBackendNames", call))
+        {
+            call.PushArg(m_nameCollector);
+            call.CallExecute();
+        }
+        return m_nameCollector.GetNames();
+    }
+
+    const ActionPlan* LuaDispatch::CallBackendPlan(
+        const AZ::Name& backend, const AZ::Name& goal, AgentId agent, AgentScriptContext& context)
+    {
+        if (m_scriptContext == nullptr)
+        {
+            return nullptr;
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_Plan", call))
+        {
+            return nullptr;
+        }
+
+        call.PushArg(AZStd::string(backend.GetStringView()));
+        call.PushArg(AgentKey(agent));
+        call.PushArg(context);
+        call.PushArg(AZStd::string(goal.GetStringView()));
+        call.PushArg(m_planBuilder);
+
+        if (!call.CallExecute())
+        {
+            return nullptr;
+        }
+
+        bool planned = false;
+        if (call.GetNumResults() >= 1)
+        {
+            call.ReadResult(0, planned);
+        }
+        return planned ? &m_planBuilder.GetPlan() : nullptr;
+    }
+
     void LuaDispatch::ForgetAgent(AgentId agent)
     {
         if (m_scriptContext == nullptr)
