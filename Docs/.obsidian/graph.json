@@ -3,10 +3,39 @@
   "search": "",
   "showTags": true,
   "showAttachments": false,
-  "hideUnresolved": false,
+  "hideUnresolved": true,
   "showOrphans": true,
   "collapse-color-groups": true,
-  "colorGroups": [],
+  "colorGroups": [
+    {
+      "query": "tag:#lua  ",
+      "color": {
+        "a": 1,
+        "rgb": 11483
+      }
+    },
+    {
+      "query": "tag:#cpp  ",
+      "color": {
+        "a": 1,
+        "rgb": 3779070
+      }
+    },
+    {
+      "query": "tag:#guide  ",
+      "color": {
+        "a": 1,
+        "rgb": 5562450
+      }
+    },
+    {
+      "query": "tag:#architecture  ",
+      "color": {
+        "a": 1,
+        "rgb": 10682518
+      }
+    }
+  ],
   "collapse-display": true,
   "showArrow": false,
   "textFadeMultiplier": 0,
@@ -17,6 +46,6 @@
   "repelStrength": 10,
   "linkStrength": 1,
   "linkDistance": 250,
-  "scale": 0.7132754626224432,
+  "scale": 0.5087618855792609,
   "close": false
 }
