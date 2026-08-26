@@ -103,6 +103,11 @@ namespace GOAT
         //! Loads the Lua authoring vocabulary shipped with the gem.
         bool LoadVocabulary();
 
+        //! Loads the vocabulary if it is not loaded yet.
+        //! Activation can run before the asset catalog is ready, so this retries on first use
+        //! rather than leaving the gem permanently unable to compile a tree.
+        bool EnsureVocabulary();
+
         //! Installs a backend front for every backend a script declared in Lua.
         void RegisterLuaBackends();
 
@@ -122,5 +127,7 @@ namespace GOAT
         //! Trees compiled so far, shared by every agent running the same one.
         AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const DecisionProgram>> m_programs;
         AZStd::vector<AZStd::unique_ptr<AZ::Data::AssetHandler>> m_assetHandlers;
+        //! Whether the authoring vocabulary is loaded into the script context.
+        bool m_vocabularyLoaded = false;
     };
 } // namespace GOAT

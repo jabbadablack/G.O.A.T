@@ -157,10 +157,12 @@ namespace GOAT
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
 
         m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get());
+        m_vocabularyLoaded = false;
 
         if (m_dispatch->Connect())
         {
-            LoadVocabulary();
+            // Best effort here; if the asset catalog is not ready yet this retries on first use.
+            EnsureVocabulary();
         }
     }
 
@@ -209,12 +211,35 @@ namespace GOAT
 
         AZ_Warning(
             "GOAT", false,
-            "Could not load the GOAT Lua vocabulary; trees cannot be authored until scripts/goat.lua is processed");
+            "Could not load the GOAT Lua vocabulary; check that the Asset Processor produced goat/scripts/goat.luac");
         return false;
+    }
+
+    bool GOATSystemComponent::EnsureVocabulary()
+    {
+        if (m_vocabularyLoaded)
+        {
+            return true;
+        }
+
+        if (m_dispatch == nullptr || (!m_dispatch->IsReady() && !m_dispatch->Connect()))
+        {
+            return false;
+        }
+
+        m_vocabularyLoaded = LoadVocabulary();
+        return m_vocabularyLoaded;
     }
 
     bool GOATSystemComponent::LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset)
     {
+        // A user script calls tree() and behavior(), which the vocabulary defines.
+        if (!EnsureVocabulary())
+        {
+            AZ_Warning("GOAT", false, "Cannot run a GOAT script before the authoring vocabulary is loaded");
+            return false;
+        }
+
         if (m_dispatch == nullptr || !m_dispatch->RunScript(asset))
         {
             return false;
@@ -262,6 +287,12 @@ namespace GOAT
         if (m_dispatch == nullptr || m_trees == nullptr)
         {
             return AZ::Failure(AZStd::string("The scripting services are not running"));
+        }
+
+        if (!EnsureVocabulary())
+        {
+            return AZ::Failure(AZStd::string(
+                "The GOAT authoring vocabulary is not loaded; check that goat/scripts/goat.lua reached the cache"));
         }
 
         // Ask Lua for the authored tree, then compile it exactly as a graph editor's asset would be.
