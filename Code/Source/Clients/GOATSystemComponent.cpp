@@ -562,6 +562,13 @@ namespace GOAT
 
     void GOATSystemComponent::UnregisterAgent(AgentId agent)
     {
+        // Dropped with the agent, so the next agent to take this slot is told about its own
+        // misconfiguration rather than silently inheriting this one's.
+        for (auto it = m_reportedRefusals.begin(); it != m_reportedRefusals.end();)
+        {
+            it = (*it >> 32) == agent.GetIndex() ? m_reportedRefusals.erase(it) : AZStd::next(it);
+        }
+
         if (m_agents != nullptr)
         {
             m_agents->Unregister(agent);
@@ -597,10 +604,23 @@ namespace GOAT
         // succeed or fail on whether some unrelated entity happened to list the same tree.
         if (kind != TreeSwitchKind::Pop && !record->MayRun(treeName))
         {
-            AZ_Error("GOAT", false,
+            // Said once per agent and tree. A repertoire is fixed when the agent registers, so
+            // the answer can never change, and a director asking every tick would bury every
+            // other message in the log. The count still reaches a tree through director_refused.
+            const AZ::u64 seen = (static_cast<AZ::u64>(agent.GetIndex()) << 32) | treeName.GetHash();
+            const bool first = m_reportedRefusals.insert(seen).second;
+
+            AZ_Error("GOAT", !first,
                 "Agent %u cannot change to tree '%s': entity %s does not list it. Add it to that "
                 "entity's tree list to allow the change",
                 agent.GetIndex(), treeName.GetCStr(), record->m_entity.ToString().c_str());
+
+            if (!first)
+            {
+                AZLOG(GoatDirector, "GOAT: agent %u was refused tree '%s' again",
+                    agent.GetIndex(), treeName.GetCStr());
+            }
+
             return false;
         }
 

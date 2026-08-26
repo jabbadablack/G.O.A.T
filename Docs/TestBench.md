@@ -68,6 +68,11 @@ instead of `<=`, the winner would follow tick order instead of priority.
 That is refused for a tree the Betas never listed, and the point is what happens **after**: the
 Betas must still be commandable in mode 4. A refusal must leave nothing behind.
 
+Expect **one** error per Beta, not one per director tick. A repertoire cannot change once the
+agent has registered, so the answer cannot either; repeats go to `GoatDirector` as `refused ...
+again`. The "which is not compiled" refusal beside it is *not* deduplicated, and should not be --
+`RebindSubtree` can make a tree compile, so that answer can still change.
+
 Note this refusal happens in `RequestTreeSwitch`, so the order never becomes pending and never
 reaches `ApplyTreeSwitch`. The priority floor is therefore untouched here rather than cleared --
 `ApplyTreeSwitch` clears it first thing, before any early return, so no failure path can leave one

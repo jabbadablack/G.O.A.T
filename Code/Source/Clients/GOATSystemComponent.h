@@ -22,6 +22,7 @@
 #include <AzCore/Component/Component.h>
 #include <AzCore/Console/IConsole.h>
 #include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/std/containers/unordered_set.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 
 namespace GOAT
@@ -180,6 +181,11 @@ namespace GOAT
         //! Asks for a tree change, deferred to the agent's next tick because a request can
         //! arrive from Lua running inside that agent's current one.
         bool RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind, AZ::u8 priority);
+
+        //! Refusals already reported, as the agent's slot paired with the tree it was refused.
+        //! Diagnostics only: nothing reads it back, and an agent's entries go when it unregisters
+        //! so a reused slot does not inherit another agent's silence.
+        AZStd::unordered_set<AZ::u64> m_reportedRefusals;
 
         //! Carries out a deferred request. Installed on the runtime, which calls it first thing.
         void ApplyTreeSwitch(AgentRecord& agent);
