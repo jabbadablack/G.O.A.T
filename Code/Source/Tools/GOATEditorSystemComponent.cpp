@@ -2,7 +2,10 @@
 #include <AzCore/Serialization/SerializeContext.h>
 #include "GOATEditorSystemComponent.h"
 
+#include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/GOATTypeIds.h>
+
+#include <AzCore/std/string/wildcard.h>
 
 namespace GOAT
 {
@@ -48,12 +51,24 @@ namespace GOAT
     {
         GOATSystemComponent::Activate();
         AzToolsFramework::EditorEvents::Bus::Handler::BusConnect();
+        AzToolsFramework::AssetBrowser::AssetBrowserInteractionNotificationBus::Handler::BusConnect();
     }
 
     void GOATEditorSystemComponent::Deactivate()
     {
+        AzToolsFramework::AssetBrowser::AssetBrowserInteractionNotificationBus::Handler::BusDisconnect();
         AzToolsFramework::EditorEvents::Bus::Handler::BusDisconnect();
         GOATSystemComponent::Deactivate();
     }
 
+    AzToolsFramework::AssetBrowser::SourceFileDetails GOATEditorSystemComponent::GetSourceFileDetails(
+        const char* fullSourceFileName)
+    {
+        if (AZStd::wildcard_match("*.bbx", fullSourceFileName))
+        {
+            return AzToolsFramework::AssetBrowser::SourceFileDetails(
+                "Editor/Icons/GOAT/AssetBrowser/Blackboard.svg");
+        }
+        return {};
+    }
 } // namespace GOAT

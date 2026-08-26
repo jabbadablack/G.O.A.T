@@ -12,6 +12,6 @@ namespace GOAT
 
     const char* BlackboardAssetHandler::GetBrowserIcon() const
     {
-        return "Editor/Icons/GOAT/AssetBrowser/Blackboard_16.svg";
+        return "Editor/Icons/GOAT/AssetBrowser/Blackboard.svg";
     }
 } // namespace GOAT
