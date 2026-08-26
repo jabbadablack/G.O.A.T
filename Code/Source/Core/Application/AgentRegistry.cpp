@@ -43,7 +43,8 @@ namespace GOAT
         }
     }
 
-    AgentId AgentRegistry::Register(AZ::EntityId entity, AZStd::shared_ptr<const DecisionProgram> program, size_t band)
+    AgentId AgentRegistry::Register(
+        AZ::EntityId entity, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, size_t band)
     {
         AZ_Assert(entity.IsValid(), "An agent must be registered against a valid entity");
         AZ_Assert(program != nullptr, "An agent must be registered with a compiled program");
@@ -66,6 +67,7 @@ namespace GOAT
         raw->m_id = id;
         raw->m_entity = entity;
         raw->m_program = AZStd::move(program);
+        raw->m_treeName = treeName;
         raw->m_band = band;
         raw->m_cursor.Reset(*raw->m_program);
 
@@ -151,6 +153,74 @@ namespace GOAT
         m_bands[band].m_members.push_back(agent);
 
         AZ_Assert(record->m_band == band, "Changing band must record the band the agent moved to");
+    }
+
+    bool AgentRegistry::ApplyTree(
+        AgentId agent, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, bool remember)
+    {
+        AZ_Assert(!treeName.IsEmpty(), "An agent is only ever switched to a named tree");
+        AZ_Assert(program != nullptr, "Switching a tree needs the compiled program to switch to");
+
+        AgentRecord* record = Find(agent);
+        AZ_Assert(record != nullptr, "Switching the tree of an agent that is not registered");
+        if (record == nullptr || program == nullptr || program->IsEmpty())
+        {
+            return false;
+        }
+
+        if (remember)
+        {
+            if (record->m_treeStack.size() >= MaxTreeStackDepth)
+            {
+                AZ_Error("GOAT", false,
+                    "Agent %u has interrupted itself %zu times without returning; that is a loop, "
+                    "not a stack of behaviours",
+                    agent.GetIndex(), record->m_treeStack.size());
+                return false;
+            }
+            record->m_treeStack.push_back(record->m_treeName);
+        }
+
+        // Every step below is needed. Ending the running action is what gives back a pooled path
+        // slot or a smart object claim; the cursor arrays are sized to the program; the observed
+        // keys differ between programs; and the old intent names a node that no longer exists.
+        m_runtime.AbortAgent(*record);
+
+        record->m_program = AZStd::move(program);
+        record->m_treeName = treeName;
+        record->m_cursor.Reset(*record->m_program);
+
+        record->m_observer.Disconnect();
+        record->m_observer.Connect(*record->m_program, m_blackboard, agent);
+
+        AZLOG(GoatAgent, "GOAT: agent %u is now running tree '%s' (%zu interrupted)",
+            agent.GetIndex(), treeName.GetCStr(), record->m_treeStack.size());
+
+        AZ_Assert(record->m_treeName == treeName, "Switching must leave the agent on the tree it asked for");
+        AZ_Assert(!record->m_machine.HasPlan(), "Switching must leave the agent with no plan from the old tree");
+        return true;
+    }
+
+    AZ::Name AgentRegistry::PeekInterruptedTree(AgentId agent) const
+    {
+        const auto* found = m_agents.Find(agent);
+        const AgentRecord* record = found != nullptr ? found->get() : nullptr;
+        if (record == nullptr || record->m_treeStack.empty())
+        {
+            return AZ::Name{};
+        }
+        return record->m_treeStack.back();
+    }
+
+    void AgentRegistry::ForgetInterruptedTree(AgentId agent)
+    {
+        AgentRecord* record = Find(agent);
+        if (record == nullptr || record->m_treeStack.empty())
+        {
+            return;
+        }
+
+        record->m_treeStack.pop_back();
     }
 
     void AgentRegistry::SetBandIntervals(const AZStd::array<AZ::TimeMs, BandCount>& intervals)

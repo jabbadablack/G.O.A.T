@@ -52,6 +52,10 @@ namespace GOAT
         bool IsTreeCompiled(const AZ::Name& treeName) const override;
         AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) override;
         void UnregisterAgent(AgentId agent) override;
+        bool SetAgentTree(AgentId agent, const AZ::Name& treeName) override;
+        bool PushAgentTree(AgentId agent, const AZ::Name& treeName) override;
+        bool PopAgentTree(AgentId agent) override;
+        AZ::Name GetAgentTree(AgentId agent) const override;
         void JoinSquad(AgentId agent, const AZ::Name& squad) override;
         bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) override;
         void UnregisterBackend(const AZ::Name& name) override;
@@ -93,6 +97,7 @@ namespace GOAT
         void ListPlans(const AZ::ConsoleCommandContainer& arguments);
         void DumpPlan(const AZ::ConsoleCommandContainer& arguments);
         void ValidatePlans(const AZ::ConsoleCommandContainer& arguments);
+        void SetAgentTreeCommand(const AZ::ConsoleCommandContainer& arguments);
 
         AZ_CONSOLEFUNC(GOATSystemComponent, ListBackends, AZ::ConsoleFunctorFlags::Null,
             "Lists the decision backends currently installed");
@@ -114,6 +119,8 @@ namespace GOAT
             "Prints one plan's options, their guards and their steps, by name");
         AZ_CONSOLEFUNC(GOATSystemComponent, ValidatePlans, AZ::ConsoleFunctorFlags::Null,
             "Re-checks every declared plan against the registries and reports what is wrong");
+        AZ_CONSOLEFUNC(GOATSystemComponent, SetAgentTreeCommand, AZ::ConsoleFunctorFlags::Null,
+            "Puts one agent onto another of its trees, by entity id and tree name");
         ////////////////////////////////////////////////////////////////////////
 
     private:
@@ -127,6 +134,13 @@ namespace GOAT
 
         //! Loads the Lua authoring vocabulary shipped with the gem.
         bool LoadVocabulary();
+
+        //! Asks for a tree change, deferred to the agent's next tick because a request can
+        //! arrive from Lua running inside that agent's current one.
+        bool RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind);
+
+        //! Carries out a deferred request. Installed on the runtime, which calls it first thing.
+        void ApplyTreeSwitch(AgentRecord& agent);
 
         //! Runs the first of a list of alternative asset paths that loads.
         bool RunFirstAvailable(const char* const* paths, size_t count, const char* what);

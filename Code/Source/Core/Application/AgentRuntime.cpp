@@ -171,6 +171,14 @@ namespace GOAT
 
     void AgentRuntime::Tick(AgentRecord& agent, float deltaTime)
     {
+        // Applied here, at the very top, because ctx:SetTree is reachable from a behaviour
+        // running inside the Step below, and everything past this point holds references into
+        // the program and cursor a switch would replace.
+        if (agent.m_pendingSwitch != TreeSwitchKind::None && m_applySwitch)
+        {
+            m_applySwitch(agent);
+        }
+
         AZ_Assert(agent.m_program != nullptr, "A registered agent always holds a compiled program");
         if (agent.m_program == nullptr || agent.m_program->IsEmpty())
         {

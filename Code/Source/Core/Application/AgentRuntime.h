@@ -33,6 +33,14 @@ namespace GOAT
         //! Advances one agent by a delta time.
         void Tick(AgentRecord& agent, float deltaTime);
 
+        //! Installs what applies a deferred tree switch. Resolving a tree name to a program
+        //! needs the system component, which owns the compiled programs, so the runtime is
+        //! handed the step rather than reaching upward for it.
+        void SetTreeSwitchHandler(AZStd::function<void(AgentRecord&)> handler)
+        {
+            m_applySwitch = AZStd::move(handler);
+        }
+
         //! Ends whatever an agent is running and gives back what that action held.
         //! Switching an agent's tree goes through here, because dropping a running verb without
         //! ending it would strand a pooled path slot or a smart object claim.
@@ -64,6 +72,7 @@ namespace GOAT
         AgentScriptContext& m_scriptContext;
         INodeScripting& m_scripting;
         PlanStore& m_planStore;
+        AZStd::function<void(AgentRecord&)> m_applySwitch;
         TreeWalker m_walker;
         GuardEvaluator m_guards;
         ServiceTracker m_services;

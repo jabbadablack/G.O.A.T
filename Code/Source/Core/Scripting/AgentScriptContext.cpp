@@ -1,5 +1,6 @@
 #include <Core/Scripting/AgentScriptContext.h>
 
+#include <GOAT/Interfaces/IAgentSystem.h>
 #include <GOAT/Interfaces/IBlackboardSystem.h>
 
 #include <AzCore/Console/ILogger.h>
@@ -202,6 +203,38 @@ namespace GOAT
             name.c_str(), m_agent.GetIndex());
     }
 
+    bool AgentScriptContext::SetTree(const AZStd::string& treeName)
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        AZ_Warning("GOAT", agents != nullptr, "A script asked for tree '%s' with no agent system running",
+            treeName.c_str());
+        return agents != nullptr && agents->SetAgentTree(m_agent, AZ::Name(treeName));
+    }
+
+    bool AgentScriptContext::PushTree(const AZStd::string& treeName)
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        AZ_Warning("GOAT", agents != nullptr, "A script asked to push tree '%s' with no agent system running",
+            treeName.c_str());
+        return agents != nullptr && agents->PushAgentTree(m_agent, AZ::Name(treeName));
+    }
+
+    bool AgentScriptContext::PopTree()
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        return agents != nullptr && agents->PopAgentTree(m_agent);
+    }
+
+    AZStd::string AgentScriptContext::GetTree() const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        if (agents == nullptr)
+        {
+            return {};
+        }
+        return AZStd::string(agents->GetAgentTree(m_agent).GetStringView());
+    }
+
     void AgentScriptContext::Reflect(AZ::ReflectContext* context)
     {
         auto* behaviorContext = azrtti_cast<AZ::BehaviorContext*>(context);
@@ -229,6 +262,10 @@ namespace GOAT
             ->Method("GetEntity", &AgentScriptContext::GetEntity)
             ->Method("SetEntity", &AgentScriptContext::SetEntity)
             ->Method("GetName", &AgentScriptContext::GetName)
-            ->Method("SetName", &AgentScriptContext::SetName);
+            ->Method("SetName", &AgentScriptContext::SetName)
+            ->Method("SetTree", &AgentScriptContext::SetTree)
+            ->Method("PushTree", &AgentScriptContext::PushTree)
+            ->Method("PopTree", &AgentScriptContext::PopTree)
+            ->Method("GetTree", &AgentScriptContext::GetTree);
     }
 } // namespace GOAT

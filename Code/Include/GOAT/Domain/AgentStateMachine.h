@@ -47,6 +47,9 @@ namespace GOAT
         //! Index of the step being run, for console output.
         size_t GetStepIndex() const { return m_step; }
 
+        //! How many steps the running plan holds, for console output.
+        size_t GetPlanSize() const { return m_plan.Size(); }
+
     private:
         //! Ends the running action if one has begun, leaving the plan alone.
         void EndCurrent(const ActionStateRegistry& registry, ActionContext& context);

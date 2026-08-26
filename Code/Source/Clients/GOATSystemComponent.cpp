@@ -170,6 +170,14 @@ namespace GOAT
             *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
 
+        // Resolving a tree name needs the compiled programs, which live here, so the runtime is
+        // handed the step rather than reaching back up for it.
+        m_runtime->SetTreeSwitchHandler(
+            [this](AgentRecord& agent)
+            {
+                ApplyTreeSwitch(agent);
+            });
+
         m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get(), m_planStore.get());
         m_vocabularyLoaded = false;
         m_dispatch->Connect();
@@ -463,7 +471,7 @@ namespace GOAT
             return AgentId{};
         }
 
-        return m_agents->Register(entity, program->second, band);
+        return m_agents->Register(entity, treeName, program->second, band);
     }
 
     void GOATSystemComponent::UnregisterAgent(AgentId agent)
@@ -472,6 +480,108 @@ namespace GOAT
         {
             m_agents->Unregister(agent);
         }
+    }
+
+    bool GOATSystemComponent::RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind)
+    {
+        AZ_Assert(kind != TreeSwitchKind::None, "A switch request always says what it wants done");
+
+        AgentRecord* record = m_agents != nullptr ? m_agents->Find(agent) : nullptr;
+        if (record == nullptr)
+        {
+            AZ_Warning("GOAT", false, "Agent %u cannot change tree because it is not registered", agent.GetIndex());
+            return false;
+        }
+
+        if (kind != TreeSwitchKind::Pop && !IsTreeCompiled(treeName))
+        {
+            AZ_Error("GOAT", false, "Agent %u cannot change to tree '%s', which is not compiled",
+                agent.GetIndex(), treeName.GetCStr());
+            return false;
+        }
+
+        if (kind == TreeSwitchKind::Pop && m_agents->PeekInterruptedTree(agent).IsEmpty())
+        {
+            AZ_Warning("GOAT", false, "Agent %u has nothing to return to", agent.GetIndex());
+            return false;
+        }
+
+        // Recorded rather than done: the caller may be Lua running inside this agent's own tick.
+        record->m_pendingTree = treeName;
+        record->m_pendingSwitch = kind;
+        return true;
+    }
+
+    void GOATSystemComponent::ApplyTreeSwitch(AgentRecord& agent)
+    {
+        const TreeSwitchKind kind = agent.m_pendingSwitch;
+        AZ::Name wanted = agent.m_pendingTree;
+
+        // Cleared first, so a switch that cannot be carried out is not retried every tick.
+        agent.m_pendingSwitch = TreeSwitchKind::None;
+        agent.m_pendingTree = AZ::Name{};
+
+        if (kind == TreeSwitchKind::None || m_agents == nullptr)
+        {
+            return;
+        }
+
+        if (kind == TreeSwitchKind::Pop)
+        {
+            wanted = m_agents->PeekInterruptedTree(agent.m_id);
+            if (wanted.IsEmpty())
+            {
+                return;
+            }
+        }
+
+        const auto program = m_programs.find(wanted);
+        if (program == m_programs.end())
+        {
+            AZ_Error("GOAT", false, "Tree '%s' is no longer compiled, so agent %u stays where it is",
+                wanted.GetCStr(), agent.m_id.GetIndex());
+            return;
+        }
+
+        if (!m_agents->ApplyTree(agent.m_id, wanted, program->second, kind == TreeSwitchKind::Push))
+        {
+            return;
+        }
+
+        if (kind == TreeSwitchKind::Set)
+        {
+            // Replacing outright abandons whatever was interrupted; there is no going back to a
+            // tree the agent was told to stop running.
+            while (!m_agents->PeekInterruptedTree(agent.m_id).IsEmpty())
+            {
+                m_agents->ForgetInterruptedTree(agent.m_id);
+            }
+        }
+        else if (kind == TreeSwitchKind::Pop)
+        {
+            m_agents->ForgetInterruptedTree(agent.m_id);
+        }
+    }
+
+    bool GOATSystemComponent::SetAgentTree(AgentId agent, const AZ::Name& treeName)
+    {
+        return RequestTreeSwitch(agent, treeName, TreeSwitchKind::Set);
+    }
+
+    bool GOATSystemComponent::PushAgentTree(AgentId agent, const AZ::Name& treeName)
+    {
+        return RequestTreeSwitch(agent, treeName, TreeSwitchKind::Push);
+    }
+
+    bool GOATSystemComponent::PopAgentTree(AgentId agent)
+    {
+        return RequestTreeSwitch(agent, AZ::Name{}, TreeSwitchKind::Pop);
+    }
+
+    AZ::Name GOATSystemComponent::GetAgentTree(AgentId agent) const
+    {
+        const AgentRecord* record = m_agents != nullptr ? m_agents->Find(agent) : nullptr;
+        return record != nullptr ? record->m_treeName : AZ::Name{};
     }
 
     void GOATSystemComponent::JoinSquad(AgentId agent, const AZ::Name& squad)
@@ -611,10 +721,48 @@ namespace GOAT
             : AZ::Name("idle");
 
         return AZStd::string::format(
-            "tree '%s' band %zu node %u action '%s' step %zu elapsed %.2fs",
-            record->m_program != nullptr ? record->m_program->m_name.GetCStr() : "<none>", record->m_band,
-            record->m_cursor.GetActiveLeaf(), verb.GetCStr(), record->m_machine.GetStepIndex(),
-            record->m_machine.GetElapsed());
+            "tree '%s' (%zu interrupted) band %zu node %u action '%s' step %zu of %zu elapsed %.2fs",
+            record->m_program != nullptr ? record->m_program->m_name.GetCStr() : "<none>",
+            record->m_treeStack.size(), record->m_band, record->m_cursor.GetActiveLeaf(), verb.GetCStr(),
+            record->m_machine.GetStepIndex(), record->m_machine.GetPlanSize(), record->m_machine.GetElapsed());
+    }
+
+    void GOATSystemComponent::SetAgentTreeCommand(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.size() < 2 || m_agents == nullptr)
+        {
+            AZLOG_INFO("usage: GOATSystemComponent.SetAgentTreeCommand <entityId> <tree>");
+            return;
+        }
+
+        AZ::u64 rawEntityId = 0;
+        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
+        {
+            AZLOG_INFO("could not read '%.*s' as an entity id",
+                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
+            return;
+        }
+
+        const AZ::EntityId wantedEntity(rawEntityId);
+
+        // Named on its own line: AZ::Name treeName(AZStd::string(...)) parses as a declaration.
+        const AZStd::string wantedTree(arguments[1]);
+        const AZ::Name treeName(wantedTree);
+
+        for (const AgentId agent : m_agents->GetAgents())
+        {
+            const AgentRecord* record = m_agents->Find(agent);
+            if (record == nullptr || record->m_entity != wantedEntity)
+            {
+                continue;
+            }
+
+            AZLOG_INFO("%s agent %u to tree '%s'", SetAgentTree(agent, treeName) ? "moving" : "could not move",
+                agent.GetIndex(), treeName.GetCStr());
+            return;
+        }
+
+        AZLOG_INFO("no agent is running on entity %s", wantedEntity.ToString().c_str());
     }
 
     void GOATSystemComponent::ListBackends([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)

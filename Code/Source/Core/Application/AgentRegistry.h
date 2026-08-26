@@ -25,7 +25,8 @@ namespace GOAT
         ~AgentRegistry();
 
         //! Registers an entity as an agent running a compiled tree.
-        AgentId Register(AZ::EntityId entity, AZStd::shared_ptr<const DecisionProgram> program, size_t band);
+        AgentId Register(
+            AZ::EntityId entity, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, size_t band);
 
         //! Removes an agent, dropping its blackboard and its Lua scratch.
         void Unregister(AgentId agent);
@@ -35,6 +36,18 @@ namespace GOAT
 
         //! Moves an agent to a different pacing band.
         void SetBand(AgentId agent, size_t band);
+
+        //! Puts an agent onto another compiled tree, ending whatever it was running first.
+        //! @param remember pushes the outgoing tree so a later pop returns to it.
+        //! @return false when the agent is gone, or when its stack is already at its limit.
+        bool ApplyTree(
+            AgentId agent, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, bool remember);
+
+        //! Names the tree an agent should return to, or an empty name when it has none.
+        AZ::Name PeekInterruptedTree(AgentId agent) const;
+
+        //! Drops the innermost remembered tree, which a pop does once it has switched.
+        void ForgetInterruptedTree(AgentId agent);
 
         //! How often each band runs.
         void SetBandIntervals(const AZStd::array<AZ::TimeMs, BandCount>& intervals);

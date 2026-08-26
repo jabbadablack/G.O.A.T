@@ -51,6 +51,20 @@ namespace GOAT
         AZStd::string GetName(const AZStd::string& name) const;
         void SetName(const AZStd::string& name, const AZStd::string& value);
 
+        //! Puts this agent onto another of its trees, ending what it is running first.
+        //! The change lands on the agent's next tick, because this is reachable from a behaviour
+        //! running inside the current one.
+        bool SetTree(const AZStd::string& treeName);
+
+        //! Interrupts this agent with another tree, remembering what to come back to.
+        bool PushTree(const AZStd::string& treeName);
+
+        //! Returns this agent to the tree it last interrupted.
+        bool PopTree();
+
+        //! Which tree this agent is running.
+        AZStd::string GetTree() const;
+
     private:
         //! Resolves a name a script supplied, reporting an undeclared one rather than letting
         //! the read return a silent default. @param access what the script was trying to do.

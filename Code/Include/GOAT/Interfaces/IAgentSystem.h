@@ -50,6 +50,19 @@ namespace GOAT
         //! Removes an agent and everything held for it.
         virtual void UnregisterAgent(AgentId agent) = 0;
 
+        //! Puts an agent onto another of its trees, ending whatever it was running first.
+        //! Replaces outright and forgets anything it had interrupted.
+        virtual bool SetAgentTree(AgentId agent, const AZ::Name& treeName) = 0;
+
+        //! Interrupts an agent with another tree, remembering what to come back to.
+        virtual bool PushAgentTree(AgentId agent, const AZ::Name& treeName) = 0;
+
+        //! Returns an agent to the tree it last interrupted. False when it interrupted nothing.
+        virtual bool PopAgentTree(AgentId agent) = 0;
+
+        //! Which tree an agent is running, or an empty name when it is not registered.
+        virtual AZ::Name GetAgentTree(AgentId agent) const = 0;
+
         //! Puts an agent in a named squad, creating that squad on the first join.
         virtual void JoinSquad(AgentId agent, const AZ::Name& squad) = 0;
 
