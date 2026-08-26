@@ -1,5 +1,6 @@
 #include "GOATSystemComponent.h"
 
+#include <Core/Assets/BlackboardAssetHandler.h>
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
 #include <Core/Frontend/DirectBackend.h>
@@ -553,10 +554,7 @@ namespace GOAT
             return;
         }
 
-        auto handler = AZStd::make_unique<AzFramework::GenericAssetHandler<BlackboardAsset>>(
-            BlackboardAsset::DisplayName, BlackboardAsset::AssetGroup, BlackboardAsset::FileExtension);
-        // Lets the Asset Processor build the source into the cache without a custom builder.
-        handler->SetAutoBuildAssetToCache(true);
+        auto handler = AZStd::make_unique<BlackboardAssetHandler>();
         handler->Register();
         m_assetHandlers.emplace_back(AZStd::move(handler));
     }

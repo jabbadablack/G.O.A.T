@@ -28,6 +28,8 @@ set(FILES
     Source/Core/Application/SquadRegistry.h
     Source/Core/Assets/BehaviorTreeAsset.cpp
     Source/Core/Assets/BlackboardAsset.cpp
+    Source/Core/Assets/BlackboardAssetHandler.cpp
+    Source/Core/Assets/BlackboardAssetHandler.h
     Source/Core/Domain/ActionPlan.cpp
     Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/AgentStateMachine.cpp

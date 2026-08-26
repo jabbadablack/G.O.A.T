@@ -1,5 +1,6 @@
 #include <Tools/GOATBuilderComponent.h>
 
+#include <Core/Assets/BlackboardAssetHandler.h>
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/GOATTypeIds.h>
 
@@ -44,9 +45,7 @@ namespace GOAT
             return;
         }
 
-        auto handler = AZStd::make_unique<AzFramework::GenericAssetHandler<BlackboardAsset>>(
-            BlackboardAsset::DisplayName, BlackboardAsset::AssetGroup, BlackboardAsset::FileExtension);
-        handler->SetAutoBuildAssetToCache(true);
+        auto handler = AZStd::make_unique<BlackboardAssetHandler>();
         handler->Register();
         m_assetHandlers.emplace_back(AZStd::move(handler));
     }
