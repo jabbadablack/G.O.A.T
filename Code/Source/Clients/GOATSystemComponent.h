@@ -15,6 +15,7 @@
 #include <GOAT/Interfaces/IAgentSystem.h>
 
 #include <AzCore/Asset/AssetCommon.h>
+#include <AzFramework/Asset/AssetCatalogBus.h>
 #include <AzCore/Component/Component.h>
 #include <AzCore/Console/IConsole.h>
 #include <AzCore/std/containers/unordered_map.h>
@@ -28,6 +29,7 @@ namespace GOAT
         : public AZ::Component
         , public IAgentSystem
         , protected GOATRequestBus::Handler
+        , protected AzFramework::AssetCatalogEventBus::Handler
     {
     public:
         AZ_COMPONENT_DECL(GOATSystemComponent);
@@ -62,6 +64,13 @@ namespace GOAT
 
     protected:
         ////////////////////////////////////////////////////////////////////////
+        // AzFramework::AssetCatalogEventBus
+        //! System components activate before the asset catalog loads, so the vocabulary is
+        //! picked up here rather than at activation.
+        void OnCatalogLoaded(const char* catalogFile) override;
+        ////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////
         // AZ::Component
         void Init() override;
         void Activate() override;
@@ -76,6 +85,7 @@ namespace GOAT
         void ListTrees(const AZ::ConsoleCommandContainer& arguments);
         void ListAgents(const AZ::ConsoleCommandContainer& arguments);
         void DumpAgent(const AZ::ConsoleCommandContainer& arguments);
+        void ReloadVocabulary(const AZ::ConsoleCommandContainer& arguments);
 
         AZ_CONSOLEFUNC(GOATSystemComponent, ListBackends, AZ::ConsoleFunctorFlags::Null,
             "Lists the decision backends currently installed");
@@ -89,6 +99,8 @@ namespace GOAT
             "Lists every running agent");
         AZ_CONSOLEFUNC(GOATSystemComponent, DumpAgent, AZ::ConsoleFunctorFlags::Null,
             "Prints what one agent is doing, by entity id");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ReloadVocabulary, AZ::ConsoleFunctorFlags::Null,
+            "Reloads the GOAT Lua vocabulary and reports where it was found");
         ////////////////////////////////////////////////////////////////////////
 
     private:

@@ -113,6 +113,7 @@ namespace GOAT
         StartServices();
         RegisterAssetHandlers();
         GOATRequestBus::Handler::BusConnect();
+        AzFramework::AssetCatalogEventBus::Handler::BusConnect();
 
         if (AgentSystemInterface::Get() == nullptr)
         {
@@ -127,6 +128,7 @@ namespace GOAT
             AgentSystemInterface::Unregister(this);
         }
 
+        AzFramework::AssetCatalogEventBus::Handler::BusDisconnect();
         GOATRequestBus::Handler::BusDisconnect();
         UnregisterAssetHandlers();
         StopServices();
@@ -158,12 +160,7 @@ namespace GOAT
 
         m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get());
         m_vocabularyLoaded = false;
-
-        if (m_dispatch->Connect())
-        {
-            // Best effort here; if the asset catalog is not ready yet this retries on first use.
-            EnsureVocabulary();
-        }
+        m_dispatch->Connect();
     }
 
     void GOATSystemComponent::StopServices()
@@ -196,17 +193,28 @@ namespace GOAT
 
             if (!assetId.IsValid())
             {
+                AZLOG_INFO("GOAT: no asset registered at '%s'", path);
                 continue;
             }
+
+            AZLOG_INFO("GOAT: loading the authoring vocabulary from '%s'", path);
 
             auto asset = AZ::Data::AssetManager::Instance().GetAsset<AZ::ScriptAsset>(
                 assetId, AZ::Data::AssetLoadBehavior::PreLoad);
             asset.BlockUntilLoadComplete();
 
-            if (asset.IsReady() && m_dispatch->RunScript(asset))
+            if (!asset.IsReady())
+            {
+                AZLOG_INFO("GOAT: '%s' is registered but did not load", path);
+                continue;
+            }
+
+            if (m_dispatch->RunScript(asset))
             {
                 return true;
             }
+
+            AZLOG_INFO("GOAT: '%s' loaded but failed to run", path);
         }
 
         AZ_Warning(
@@ -514,6 +522,27 @@ namespace GOAT
         }
 
         AZLOG_INFO("no agent is running on entity %s", wanted.ToString().c_str());
+    }
+
+    void GOATSystemComponent::OnCatalogLoaded([[maybe_unused]] const char* catalogFile)
+    {
+        // The catalog is up now, so the vocabulary can finally be found.
+        EnsureVocabulary();
+    }
+
+    void GOATSystemComponent::ReloadVocabulary([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        // Forces a fresh attempt, so a failure at activation can be diagnosed once the
+        // asset catalog is up rather than only being reported as a warning at startup.
+        m_vocabularyLoaded = false;
+        if (EnsureVocabulary())
+        {
+            AZLOG_INFO("GOAT: vocabulary loaded; %zu node types available", m_nodeTypes->GetAll().size());
+        }
+        else
+        {
+            AZLOG_INFO("GOAT: vocabulary still unavailable");
+        }
     }
 
     void GOATSystemComponent::RegisterAssetHandlers()
