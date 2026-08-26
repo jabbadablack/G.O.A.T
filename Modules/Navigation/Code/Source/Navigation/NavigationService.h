@@ -57,6 +57,11 @@ namespace GOAT_Navigation
         //! True once a mesh is bound and its worker queries are usable.
         bool IsReady() const;
 
+        //! True when a navigation mesh entity is bound, built or not.
+        //! Told apart from IsReady on purpose: not built yet is normal at level start and
+        //! resolves itself, while nothing bound at all never will.
+        bool HasNavigationMesh() const;
+
         //! Queues a path query. Returns InvalidPathRequestId when no mesh is bound.
         PathRequestId RequestPath(const AZ::Vector3& from, const AZ::Vector3& to);
 

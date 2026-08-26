@@ -2,6 +2,7 @@
 
 #include <Navigation/NavigationTarget.h>
 
+#include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
 
 namespace GOAT_Navigation
@@ -73,8 +74,16 @@ namespace GOAT_Navigation
 
         const AZ::Vector3 from = ReadActionPosition(context);
         outstanding = m_service.RequestPath(from, target);
-        AZ_Warning("GOAT", outstanding != InvalidPathRequestId,
-            "does_path_exist could not queue a path query; no navigation mesh is bound");
+        if (outstanding == InvalidPathRequestId)
+        {
+            // See MoveToAction: still building is transient, nothing bound is a setup mistake.
+            AZ_Warning("GOAT", m_service.HasNavigationMesh(),
+                "does_path_exist cannot query because no navigation mesh is bound to GOAT; "
+                "add a GOAT Nav Mesh component beside the Recast navigation mesh");
+
+            AZLOG(GoatNav, "does_path_exist for agent %u waits: the navigation mesh is not built yet",
+                context.m_agent.GetIndex());
+        }
     }
 
     GOAT::ActionResult DoesPathExistAction::Step(const GOAT::ActionContext& context, [[maybe_unused]] float deltaTime)

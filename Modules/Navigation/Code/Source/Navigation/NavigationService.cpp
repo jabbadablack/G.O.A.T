@@ -137,6 +137,12 @@ namespace GOAT_Navigation
         return m_navMesh != nullptr;
     }
 
+    bool NavigationService::HasNavigationMesh() const
+    {
+        AZStd::shared_lock<AZStd::shared_mutex> readLock(m_meshLock);
+        return m_navMeshEntity.IsValid();
+    }
+
     void NavigationService::RebindWorkers()
     {
         AZStd::shared_ptr<RecastNavigation::NavMeshQuery> navObject;

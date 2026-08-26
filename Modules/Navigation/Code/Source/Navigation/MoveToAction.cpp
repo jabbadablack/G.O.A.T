@@ -76,8 +76,18 @@ namespace GOAT_Navigation
 
         const AZ::Vector3 from = ReadActionPosition(context);
         state.m_request = m_service.RequestPath(from, target);
-        AZ_Warning("GOAT", state.m_request != InvalidPathRequestId,
-            "move_to could not queue a path query; no navigation mesh is bound");
+        if (state.m_request == InvalidPathRequestId)
+        {
+            // A mesh that is merely still building is the normal case for the first tick or two
+            // of a level, and the leaf simply fails and is retried. Nothing bound at all is a
+            // setup mistake that will never fix itself, so only that one is worth a warning.
+            AZ_Warning("GOAT", m_service.HasNavigationMesh(),
+                "move_to cannot path because no navigation mesh is bound to GOAT; "
+                "add a GOAT Nav Mesh component beside the Recast navigation mesh");
+
+            AZLOG(GoatNav, "move_to for agent %u waits: the navigation mesh is not built yet",
+                context.m_agent.GetIndex());
+        }
     }
 
     GOAT::ActionResult MoveToAction::CollectPath(const GOAT::ActionContext& context)
