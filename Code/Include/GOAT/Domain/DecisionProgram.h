@@ -59,8 +59,10 @@ namespace GOAT
         AZ::Name m_goal;
         //! Inline action emitted by an Action leaf.
         ActionRequest m_action;
-        //! Numeric property: cooldown seconds, loop count, or time limit.
+        //! Primary numeric property: cooldown seconds, loop count, time limit, or duration.
         float m_amount = 0.0f;
+        //! How close counts as arrived, kept apart from m_amount so a node may carry both.
+        float m_tolerance = 0.0f;
         //! First service attached to this node, indexing the program's service table.
         AZ::u32 m_firstService = 0;
         //! How many services are attached to this node.

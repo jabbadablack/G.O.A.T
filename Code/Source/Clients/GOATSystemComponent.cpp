@@ -270,7 +270,7 @@ namespace GOAT
 
         m_trees->Add(treeName, emitted.GetValue());
 
-        const TreeCompiler compiler(*m_nodeTypes, *m_blackboardSystem, *m_trees);
+        const TreeCompiler compiler(*m_nodeTypes, *m_blackboardSystem, *m_trees, *m_actions);
         auto compiled = compiler.Compile(treeName, *emitted.GetValue());
         if (!compiled.IsSuccess())
         {

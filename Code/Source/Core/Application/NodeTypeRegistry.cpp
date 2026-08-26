@@ -79,6 +79,15 @@ namespace GOAT
         wait.m_parameters.push_back(Param("seconds", BlackboardType::Float, false, true));
         Register(AZStd::move(wait));
 
+        auto raw = Simple("raw", NodeKind::Leaf, NodeOp::Action, "Leaf",
+            "Runs any registered verb directly, including one a module contributed");
+        raw.m_parameters.push_back(Param("action", BlackboardType::Name, false, true));
+        raw.m_parameters.push_back(Param("payload", BlackboardType::Name));
+        raw.m_parameters.push_back(Param("seconds", BlackboardType::Float));
+        raw.m_parameters.push_back(Param("tolerance", BlackboardType::Float));
+        raw.m_parameters.push_back(Param("key", BlackboardType::Vector3, true));
+        Register(AZStd::move(raw));
+
         auto script = Simple("script", NodeKind::Leaf, NodeOp::Script, "Leaf", "Runs a Lua behavior");
         script.m_parameters.push_back(Param("behavior", BlackboardType::Name, false, true));
         Register(AZStd::move(script));

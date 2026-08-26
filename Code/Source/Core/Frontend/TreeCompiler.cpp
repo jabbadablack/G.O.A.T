@@ -100,10 +100,14 @@ namespace GOAT
     } // namespace
 
     TreeCompiler::TreeCompiler(
-        const NodeTypeRegistry& types, const IBlackboardSystem& blackboard, const TreeLibrary& library)
+        const NodeTypeRegistry& types,
+        const IBlackboardSystem& blackboard,
+        const TreeLibrary& library,
+        const ActionStateRegistry& actions)
         : m_types(types)
         , m_blackboard(blackboard)
         , m_library(library)
+        , m_actions(actions)
     {
     }
 
@@ -294,7 +298,7 @@ namespace GOAT
                         "'%s' property '%s' must be a name", authored.m_type.c_str(), parameter.m_name.GetCStr()));
                 }
 
-                if (parameter.m_name == AZ_NAME_LITERAL("goal"))
+                if (parameter.m_name == AZ_NAME_LITERAL("goal") || parameter.m_name == AZ_NAME_LITERAL("payload"))
                 {
                     node.m_goal = text;
                 }
@@ -311,15 +315,38 @@ namespace GOAT
                 return AZ::Failure(AZStd::string::format(
                     "'%s' property '%s' must be a number", authored.m_type.c_str(), parameter.m_name.GetCStr()));
             }
-            node.m_amount = static_cast<float>(number);
+
+            if (parameter.m_name == AZ_NAME_LITERAL("tolerance"))
+            {
+                node.m_tolerance = static_cast<float>(number);
+            }
+            else
+            {
+                node.m_amount = static_cast<float>(number);
+            }
         }
 
-        // A wait leaf is the one built-in that maps straight onto a core verb.
-        if (typeName == AZ_NAME_LITERAL("wait"))
+        // An action leaf runs a registered verb. Most name the verb by their own type;
+        // a raw leaf names it in a property, which is what lets a tree reach any verb a
+        // module registered without the core knowing about it.
+        if (descriptor->m_op == NodeOp::Action)
         {
             DecisionNode& node = program.m_nodes[index];
-            node.m_action.m_action = CoreActions::Wait;
+            const AZ::Name verbName = typeName == AZ_NAME_LITERAL("raw") ? node.m_tag : typeName;
+
+            const ActionStateId verb = m_actions.FindId(verbName);
+            if (verb == CoreActions::Invalid)
+            {
+                return AZ::Failure(AZStd::string::format(
+                    "'%s' runs verb '%s', which no module has registered", authored.m_type.c_str(),
+                    verbName.GetCStr()));
+            }
+
+            node.m_action.m_action = verb;
             node.m_action.m_duration = node.m_amount;
+            node.m_action.m_tolerance = node.m_tolerance;
+            node.m_action.m_targetKey = node.m_key;
+            node.m_action.m_tag = node.m_goal;
         }
 
         // Guards are the only thing that needs observing, so collect just those keys.
