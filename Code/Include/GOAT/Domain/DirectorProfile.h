@@ -18,11 +18,12 @@ namespace GOAT
     //! with none governs every agent. Narrowing rather than widening is what an author expects
     //! from a field labelled "Squad", and it is what makes "squad Alpha, within 30 m, running
     //! Patrol" expressible at all. Two directors give you the OR, and priority settles the overlap.
+    //! Held as interned names rather than strings because a reach is compared against every
+    //! agent on every director tick, and a name compares as a four byte hash. The component
+    //! authors them as strings, which is what the property editor can show, and converts once.
     struct DirectorReach final
     {
         AZ_TYPE_INFO(DirectorReach, DirectorReachTypeId);
-
-        static void Reflect(AZ::ReflectContext* context);
 
         //! Governs only this squad. Empty for any.
         AZ::Name m_squad;
@@ -40,8 +41,6 @@ namespace GOAT
     struct DirectorProfile final
     {
         AZ_TYPE_INFO(DirectorProfile, DirectorProfileTypeId);
-
-        static void Reflect(AZ::ReflectContext* context);
 
         DirectorReach m_reach;
 

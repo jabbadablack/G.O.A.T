@@ -9,6 +9,7 @@
 #include <AzCore/Name/Name.h>
 #include <AzCore/Serialization/EditContext.h>
 #include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/std/algorithm.h>
 
 namespace GOAT
 {
@@ -16,9 +17,6 @@ namespace GOAT
 
     void GOATDirectorComponent::Reflect(AZ::ReflectContext* context)
     {
-        DirectorReach::Reflect(context);
-        DirectorProfile::Reflect(context);
-
         auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context);
         if (serializeContext == nullptr)
         {
@@ -30,7 +28,12 @@ namespace GOAT
             ->Field("Blackboards", &GOATDirectorComponent::m_blackboards)
             ->Field("Scripts", &GOATDirectorComponent::m_scripts)
             ->Field("Trees", &GOATDirectorComponent::m_trees)
-            ->Field("Profile", &GOATDirectorComponent::m_profile)
+            ->Field("Squad", &GOATDirectorComponent::m_squad)
+            ->Field("Tree", &GOATDirectorComponent::m_tree)
+            ->Field("Radius", &GOATDirectorComponent::m_radius)
+            ->Field("Filter", &GOATDirectorComponent::m_filter)
+            ->Field("Priority", &GOATDirectorComponent::m_priority)
+            ->Field("Cooldown", &GOATDirectorComponent::m_cooldownSeconds)
             ->Field("Band", &GOATDirectorComponent::m_band);
 
         AZ::EditContext* editContext = serializeContext->GetEditContext();
@@ -55,9 +58,33 @@ namespace GOAT
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_trees, "Trees",
                 "Trees this director may run. The first is the one it starts in.")
+            ->ClassElement(AZ::Edit::ClassElements::Group, "Governs")
             ->DataElement(
-                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_profile, "Governs",
-                "Which agents it commands, and how forcefully")
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_squad, "Squad",
+                "Governs only this squad. Leave empty for any.")
+            ->DataElement(
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_tree, "Tree",
+                "Governs only agents currently running this tree. Leave empty for any.")
+            ->DataElement(
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_radius, "Radius",
+                "Governs only agents this close. Zero for any distance.")
+                ->Attribute(AZ::Edit::Attributes::Min, 0.0f)
+            ->DataElement(
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_filter, "Filter",
+                "A reach filter a module contributed, such as path_distance from the navigation "
+                "gem. Leave empty for plain straight line distance.")
+            ->DataElement(
+                AZ::Edit::UIHandlers::SpinBox, &GOATDirectorComponent::m_priority, "Priority",
+                "Higher outranks lower when two directors command the same agent. Zero is what an "
+                "agent switching its own tree carries, so leave this above zero.")
+                ->Attribute(AZ::Edit::Attributes::Min, 0)
+                ->Attribute(AZ::Edit::Attributes::Max, 255)
+            ->DataElement(
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_cooldownSeconds, "Cooldown",
+                "How long before this director may command the same agent the same way again. "
+                "Switching a tree stops whatever the agent was doing, so ordering one every tick "
+                "would leave it permanently restarting.")
+                ->Attribute(AZ::Edit::Attributes::Min, 0.0f)
             ->DataElement(
                 AZ::Edit::UIHandlers::Slider, &GOATDirectorComponent::m_band, "Detail",
                 "How often this director runs. Three, once a second, suits a director: it decides "
@@ -82,6 +109,18 @@ namespace GOAT
         incompatible.push_back(AZ_CRC_CE("GOATAgentService"));
     }
 
+    DirectorProfile GOATDirectorComponent::BuildProfile() const
+    {
+        DirectorProfile profile;
+        profile.m_reach.m_squad = AZ::Name(m_squad);
+        profile.m_reach.m_tree = AZ::Name(m_tree);
+        profile.m_reach.m_radius = m_radius;
+        profile.m_reach.m_filter = AZ::Name(m_filter);
+        profile.m_priority = static_cast<AZ::u8>(AZStd::clamp(m_priority, 0, 255));
+        profile.m_cooldownSeconds = m_cooldownSeconds;
+        return profile;
+    }
+
     void GOATDirectorComponent::Activate()
     {
         AgentBootstrapRequest request;
@@ -99,13 +138,12 @@ namespace GOAT
 
         IAgentSystem* agents = AgentSystemInterface::Get();
         AZ_Assert(agents != nullptr, "Bootstrapping succeeded, so the agent system is running");
-        if (agents == nullptr || !agents->RegisterDirector(m_agent, m_profile))
+        if (agents == nullptr || !agents->RegisterDirector(m_agent, BuildProfile()))
         {
             return;
         }
 
-        AZLOG_INFO("GOAT: entity %s is directing at priority %u", GetEntityId().ToString().c_str(),
-            static_cast<AZ::u32>(m_profile.m_priority));
+        AZLOG_INFO("GOAT: entity %s is directing at priority %d", GetEntityId().ToString().c_str(), m_priority);
     }
 
     void GOATDirectorComponent::Deactivate()

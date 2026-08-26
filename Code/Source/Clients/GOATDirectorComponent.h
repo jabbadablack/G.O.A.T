@@ -40,6 +40,9 @@ namespace GOAT
         void Deactivate() override;
 
     private:
+        //! Turns the authored fields into the form the registry compares against.
+        DirectorProfile BuildProfile() const;
+
         //! Blackboard assets declaring the variables this director's tree refers to.
         AZStd::vector<AZ::Data::Asset<BlackboardAsset>> m_blackboards;
         //! Lua scripts declaring the behaviours and trees it runs.
@@ -47,8 +50,17 @@ namespace GOAT
         //! Trees it may run. The first is the one it starts in.
         AZStd::vector<AZStd::string> m_trees;
 
-        //! Which agents it governs, and how forcefully.
-        DirectorProfile m_profile;
+        //! Which agents it governs, authored as strings because that is what the property editor
+        //! can show; converted to the interned form once, when this component activates.
+        AZStd::string m_squad;
+        AZStd::string m_tree;
+        float m_radius = 0.0f;
+        AZStd::string m_filter;
+
+        //! Higher outranks lower when two directors command the same agent.
+        int m_priority = 1;
+        //! How long before it may command the same agent the same way again.
+        float m_cooldownSeconds = 5.0f;
 
         //! How often it runs. Three by default, which is once a second: a director is strategic,
         //! and every shipped one in the literature runs at a fraction of the rate its agents do.

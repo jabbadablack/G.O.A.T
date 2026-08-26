@@ -134,8 +134,11 @@ unset, it commands them all. `limit` caps how many, which is what lets a directo
 than flip a whole population in one tick.
 
 A verb **succeeds when it changed at least one agent and fails when it changed none**, so a
-`selector` branches on being refused with no new machinery. It also reports in three variables the
-gem declares for you: `director_reach`, `director_changed`, `director_refused`.
+`selector` branches on being refused with no new machinery.
+
+Four variables come declared with the gem, so a director tree compiles without a `.bbx` of its own:
+`director_reach`, `director_changed` and `director_refused` are what the last verb did, and
+`director_target` is where a director's sensing names the one agent a verb should narrow to.
 
 ### Publish, do not command
 

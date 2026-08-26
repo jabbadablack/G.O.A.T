@@ -28,5 +28,10 @@ namespace GOAT
         BlackboardKey m_changed;
         //! How many it skipped, whether for being already there, outranked, or on cooldown.
         BlackboardKey m_refused;
+
+        //! The agent a verb should narrow to, written by the director's own sensing.
+        //! Declared here rather than left to a project because every verb's `key` property
+        //! documents this name, so a tree using the documented form must compile out of the box.
+        BlackboardKey m_target;
     };
 } // namespace GOAT
