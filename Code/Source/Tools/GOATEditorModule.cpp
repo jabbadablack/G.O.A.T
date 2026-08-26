@@ -3,6 +3,8 @@
 #include <GOATModuleInterface.h>
 #include "GOATEditorSystemComponent.h"
 
+#include <Tools/GOATBuilderComponent.h>
+
 namespace GOAT
 {
     class GOATEditorModule
@@ -20,6 +22,7 @@ namespace GOAT
             // This happens through the [MyComponent]::Reflect() function.
             m_descriptors.insert(m_descriptors.end(), {
                 GOATEditorSystemComponent::CreateDescriptor(),
+                GOATBuilderComponent::CreateDescriptor(),
             });
         }
 

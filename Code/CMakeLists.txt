@@ -172,6 +172,7 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
         BUILD_DEPENDENCIES
             PUBLIC
                 AZ::AzToolsFramework
+                AZ::AssetBuilderSDK
                 ${gem_name}.Private.Object
     )
 

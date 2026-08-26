@@ -52,5 +52,6 @@ namespace GOAT
     inline constexpr const char* AgentScriptContextTypeId = "{B91A347D-6443-4023-A16E-AC2AAC21A283}";
 
     // Component TypeIds
+    inline constexpr const char* GOATBuilderComponentTypeId = "{C6851C07-CFCE-4C3F-8393-C38F36D796C5}";
     inline constexpr const char* GOATAgentComponentTypeId = "{60C89039-4265-4A0D-B3ED-75F7C272F371}";
 } // namespace GOAT
