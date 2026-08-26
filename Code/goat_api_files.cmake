@@ -15,5 +15,6 @@ set(FILES
     Include/GOAT/Domain/Handle.h
     Include/GOAT/Domain/Intent.h
     Include/GOAT/Interfaces/IActionState.h
+    Include/GOAT/Interfaces/IBackend.h
     Include/GOAT/Interfaces/IBlackboardSystem.h
 )

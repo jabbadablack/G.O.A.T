@@ -7,6 +7,8 @@ set(FILES
     Source/Core/Actions/WaitAction.h
     Source/Core/Application/ActionStateRegistry.cpp
     Source/Core/Application/ActionStateRegistry.h
+    Source/Core/Application/BackendRegistry.cpp
+    Source/Core/Application/BackendRegistry.h
     Source/Core/Application/BlackboardSystem.cpp
     Source/Core/Application/BlackboardSystem.h
     Source/Core/Application/SquadRegistry.cpp
@@ -22,5 +24,7 @@ set(FILES
     Source/Core/Domain/BlackboardTypes.cpp
     Source/Core/Domain/Guard.cpp
     Source/Core/Domain/Intent.cpp
+    Source/Core/Frontend/DirectBackend.cpp
+    Source/Core/Frontend/DirectBackend.h
     Source/Core/Memory/HandleTable.h
 )

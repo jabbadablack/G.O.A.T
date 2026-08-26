@@ -1,5 +1,7 @@
 #include <Core/Actions/WaitAction.h>
 
+#include <AzCore/Name/NameDictionary.h>
+
 namespace GOAT
 {
     namespace
