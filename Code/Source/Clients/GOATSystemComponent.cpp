@@ -457,7 +457,8 @@ namespace GOAT
         return m_programs.find(treeName) != m_programs.end();
     }
 
-    AgentId GOATSystemComponent::RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band)
+    AgentId GOATSystemComponent::RegisterAgent(
+        AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad)
     {
         if (m_agents == nullptr)
         {
@@ -471,7 +472,7 @@ namespace GOAT
             return AgentId{};
         }
 
-        return m_agents->Register(entity, treeName, program->second, band);
+        return m_agents->Register(entity, treeName, program->second, band, squad);
     }
 
     void GOATSystemComponent::UnregisterAgent(AgentId agent)
@@ -586,9 +587,11 @@ namespace GOAT
 
     void GOATSystemComponent::JoinSquad(AgentId agent, const AZ::Name& squad)
     {
-        if (m_blackboardSystem != nullptr)
+        // Through the registry, not straight to the blackboard system: joining has to re-arm the
+        // agent's squad scoped guards, which were skipped when it registered.
+        if (m_agents != nullptr)
         {
-            m_blackboardSystem->JoinSquad(agent, squad);
+            m_agents->JoinSquad(agent, squad);
         }
     }
 

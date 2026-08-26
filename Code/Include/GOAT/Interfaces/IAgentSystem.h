@@ -45,7 +45,10 @@ namespace GOAT
 
         //! Registers an entity as an agent running a compiled tree.
         //! The band selects how often it runs, from most frequent at zero.
-        virtual AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) = 0;
+        //! @param squad joined as part of registering, because an agent's guards are armed here
+        //! and a squad scoped guard can only watch storage that already exists.
+        virtual AgentId RegisterAgent(
+            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad = AZ::Name{}) = 0;
 
         //! Removes an agent and everything held for it.
         virtual void UnregisterAgent(AgentId agent) = 0;

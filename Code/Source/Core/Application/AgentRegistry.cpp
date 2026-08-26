@@ -44,7 +44,11 @@ namespace GOAT
     }
 
     AgentId AgentRegistry::Register(
-        AZ::EntityId entity, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, size_t band)
+        AZ::EntityId entity,
+        const AZ::Name& treeName,
+        AZStd::shared_ptr<const DecisionProgram> program,
+        size_t band,
+        const AZ::Name& squad)
     {
         AZ_Assert(entity.IsValid(), "An agent must be registered against a valid entity");
         AZ_Assert(program != nullptr, "An agent must be registered with a compiled program");
@@ -72,6 +76,15 @@ namespace GOAT
         raw->m_cursor.Reset(*raw->m_program);
 
         m_blackboard.CreateAgentBlackboard(id);
+
+        // Squad membership before the observer connects, because the observer subscribes per
+        // scope and skips one whose storage does not exist yet. Joining afterwards would leave
+        // every squad scoped guard on this agent watching nothing.
+        if (!squad.IsEmpty())
+        {
+            m_blackboard.JoinSquad(id, squad);
+        }
+
         raw->m_observer.Connect(*raw->m_program, m_blackboard, id);
 
         m_bands[band].m_members.push_back(id);
@@ -221,6 +234,49 @@ namespace GOAT
         }
 
         record->m_treeStack.pop_back();
+    }
+
+    void AgentRegistry::JoinSquad(AgentId agent, const AZ::Name& squad)
+    {
+        AgentRecord* record = Find(agent);
+        AZ_Assert(record != nullptr, "Only a registered agent can join a squad");
+        if (record == nullptr)
+        {
+            return;
+        }
+
+        m_blackboard.JoinSquad(agent, squad);
+        ReconnectObserver(*record);
+
+        AZ_Assert(m_blackboard.GetSquad(agent) == squad, "Joining must leave the agent in that squad");
+    }
+
+    void AgentRegistry::LeaveSquad(AgentId agent)
+    {
+        AgentRecord* record = Find(agent);
+        if (record == nullptr)
+        {
+            return;
+        }
+
+        m_blackboard.LeaveSquad(agent);
+        ReconnectObserver(*record);
+
+        AZ_Assert(m_blackboard.GetSquad(agent).IsEmpty(), "Leaving must leave the agent in no squad");
+    }
+
+    void AgentRegistry::ReconnectObserver(AgentRecord& record)
+    {
+        AZ_Assert(record.m_program != nullptr, "A registered agent always holds a compiled program");
+        if (record.m_program == nullptr)
+        {
+            return;
+        }
+
+        // The observer subscribes per scope, so a scope whose storage did not exist at connect
+        // time was skipped. Re-arming is the only way those guards ever start firing.
+        record.m_observer.Disconnect();
+        record.m_observer.Connect(*record.m_program, m_blackboard, record.m_id);
     }
 
     void AgentRegistry::SetBandIntervals(const AZStd::array<AZ::TimeMs, BandCount>& intervals)

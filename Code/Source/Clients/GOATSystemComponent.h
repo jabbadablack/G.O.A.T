@@ -50,7 +50,8 @@ namespace GOAT
         AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) override;
         AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) override;
         bool IsTreeCompiled(const AZ::Name& treeName) const override;
-        AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) override;
+        AgentId RegisterAgent(
+            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad) override;
         void UnregisterAgent(AgentId agent) override;
         bool SetAgentTree(AgentId agent, const AZ::Name& treeName) override;
         bool PushAgentTree(AgentId agent, const AZ::Name& treeName) override;

@@ -167,12 +167,10 @@ namespace GOAT
             return;
         }
 
-        m_agent = agents->RegisterAgent(GetEntityId(), treeName, static_cast<size_t>(m_band));
-
-        if (!m_squad.empty() && !m_agent.IsNull())
-        {
-            agents->JoinSquad(m_agent, AZ::Name(m_squad));
-        }
+        // The squad goes in with the registration rather than after it, so this agent's squad
+        // scoped guards are armed against storage that already exists.
+        m_agent = agents->RegisterAgent(
+            GetEntityId(), treeName, static_cast<size_t>(m_band), AZ::Name(m_squad));
     }
 
     void GOATAgentComponent::Deactivate()

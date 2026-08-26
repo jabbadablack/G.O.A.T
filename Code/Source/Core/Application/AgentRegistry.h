@@ -25,8 +25,14 @@ namespace GOAT
         ~AgentRegistry();
 
         //! Registers an entity as an agent running a compiled tree.
+        //! Registers an entity as an agent running a compiled tree.
+        //! @param squad joined before the agent's guards are armed, so squad scoped ones work.
         AgentId Register(
-            AZ::EntityId entity, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, size_t band);
+            AZ::EntityId entity,
+            const AZ::Name& treeName,
+            AZStd::shared_ptr<const DecisionProgram> program,
+            size_t band,
+            const AZ::Name& squad = AZ::Name{});
 
         //! Removes an agent, dropping its blackboard and its Lua scratch.
         void Unregister(AgentId agent);
@@ -36,6 +42,15 @@ namespace GOAT
 
         //! Moves an agent to a different pacing band.
         void SetBand(AgentId agent, size_t band);
+
+        //! Puts an agent in a named squad and re-arms its squad scoped guards.
+        //! Membership has to run through here rather than straight to the blackboard system:
+        //! an agent's observer is connected when it registers, which is before it has any squad
+        //! storage to watch, so joining without reconnecting leaves those guards watching nothing.
+        void JoinSquad(AgentId agent, const AZ::Name& squad);
+
+        //! Takes an agent out of its squad and re-arms its guards for the same reason.
+        void LeaveSquad(AgentId agent);
 
         //! Puts an agent onto another compiled tree, ending whatever it was running first.
         //! @param remember pushes the outgoing tree so a later pop returns to it.
@@ -63,6 +78,9 @@ namespace GOAT
 
         //! Takes an agent out of whichever band currently lists it.
         void RemoveFromBand(AgentId agent, size_t band);
+
+        //! Re-arms an agent's guards against the storages that exist now.
+        void ReconnectObserver(AgentRecord& record);
 
         //! One pacing band: an interval, the agents on it, and its scheduler entry.
         struct Band final
