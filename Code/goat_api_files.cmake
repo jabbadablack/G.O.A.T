@@ -6,5 +6,6 @@ set(FILES
     Include/GOAT/Domain/BlackboardKey.h
     Include/GOAT/Domain/BlackboardTypes.h
     Include/GOAT/Domain/Guard.h
+    Include/GOAT/Domain/Handle.h
     Include/GOAT/Domain/Intent.h
 )

@@ -9,4 +9,5 @@ set(FILES
     Source/Core/Domain/BlackboardTypes.cpp
     Source/Core/Domain/Guard.cpp
     Source/Core/Domain/Intent.cpp
+    Source/Core/Memory/HandleTable.h
 )
