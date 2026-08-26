@@ -9,6 +9,7 @@
 #include <Core/Frontend/TreeLibrary.h>
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
+#include <Core/Scripting/LuaNodeScripting.h>
 
 #include <GOAT/GOATBus.h>
 #include <GOAT/Interfaces/IAgentSystem.h>
@@ -113,6 +114,7 @@ namespace GOAT
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
         //! Stable for the gem's lifetime, because Lua receives a raw pointer to it.
         AZStd::unique_ptr<AgentScriptContext> m_scriptContext;
+        AZStd::unique_ptr<LuaNodeScripting> m_scripting;
         AZStd::unique_ptr<IBackend> m_directBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
         AZStd::unique_ptr<AgentRegistry> m_agents;

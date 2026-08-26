@@ -9,6 +9,8 @@
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
 
+#include <GOAT/Interfaces/INodeScripting.h>
+
 #include <GOAT/Interfaces/IBlackboardSystem.h>
 
 namespace GOAT
@@ -24,7 +26,8 @@ namespace GOAT
             const BackendRegistry& backends,
             IBackend& directBackend,
             LuaDispatch& dispatch,
-            AgentScriptContext& scriptContext);
+            AgentScriptContext& scriptContext,
+            INodeScripting& scripting);
 
         //! Advances one agent by a delta time.
         void Tick(AgentRecord& agent, float deltaTime);
@@ -53,6 +56,7 @@ namespace GOAT
         IBackend& m_directBackend;
         LuaDispatch& m_dispatch;
         AgentScriptContext& m_scriptContext;
+        INodeScripting& m_scripting;
         TreeWalker m_walker;
         GuardEvaluator m_guards;
         ServiceTracker m_services;

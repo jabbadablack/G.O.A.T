@@ -21,4 +21,5 @@ set(FILES
     Include/GOAT/Interfaces/IBackend.h
     Include/GOAT/Interfaces/IAgentSystem.h
     Include/GOAT/Interfaces/IBlackboardSystem.h
+    Include/GOAT/Interfaces/INodeScripting.h
 )

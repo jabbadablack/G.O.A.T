@@ -15,13 +15,15 @@ namespace GOAT
         const BackendRegistry& backends,
         IBackend& directBackend,
         LuaDispatch& dispatch,
-        AgentScriptContext& scriptContext)
+        AgentScriptContext& scriptContext,
+        INodeScripting& scripting)
         : m_blackboard(blackboard)
         , m_actions(actions)
         , m_backends(backends)
         , m_directBackend(directBackend)
         , m_dispatch(dispatch)
         , m_scriptContext(scriptContext)
+        , m_scripting(scripting)
     {
     }
 
@@ -31,6 +33,7 @@ namespace GOAT
         context.m_agent = agent.m_id;
         context.m_entity = agent.m_entity;
         context.m_blackboard = &m_blackboard;
+        context.m_scripting = &m_scripting;
         return context;
     }
 

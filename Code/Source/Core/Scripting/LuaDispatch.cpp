@@ -227,6 +227,116 @@ namespace GOAT
         return planned ? &m_planBuilder.GetPlan() : nullptr;
     }
 
+    int LuaDispatch::CallFlowBegin(
+        const AZ::Name& flow,
+        AgentId agent,
+        AgentScriptContext& context,
+        NodeIndex node,
+        int childCount,
+        ActionResult& outResult)
+    {
+        outResult = ActionResult::Failure;
+        if (m_scriptContext == nullptr)
+        {
+            return NoChild;
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_FlowBegin", call))
+        {
+            return NoChild;
+        }
+
+        call.PushArg(AZStd::string(flow.GetStringView()));
+        call.PushArg(AgentKey(agent));
+        call.PushArg(context);
+        call.PushArg(static_cast<double>(node));
+        call.PushArg(static_cast<double>(childCount));
+
+        if (!call.CallExecute() || call.GetNumResults() < 2)
+        {
+            return NoChild;
+        }
+
+        int child = NoChild;
+        int status = 0;
+        call.ReadResult(0, child);
+        call.ReadResult(1, status);
+        outResult = ToActionResult(status);
+        return child;
+    }
+
+    int LuaDispatch::CallFlowAdvance(
+        const AZ::Name& flow,
+        AgentId agent,
+        AgentScriptContext& context,
+        NodeIndex node,
+        int childIndex,
+        ActionResult childResult,
+        ActionResult& outResult)
+    {
+        outResult = childResult;
+        if (m_scriptContext == nullptr)
+        {
+            return NoChild;
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_FlowAdvance", call))
+        {
+            return NoChild;
+        }
+
+        call.PushArg(AZStd::string(flow.GetStringView()));
+        call.PushArg(AgentKey(agent));
+        call.PushArg(context);
+        call.PushArg(static_cast<double>(node));
+        call.PushArg(static_cast<double>(childIndex));
+        call.PushArg(static_cast<double>(static_cast<int>(childResult)));
+
+        if (!call.CallExecute() || call.GetNumResults() < 2)
+        {
+            return NoChild;
+        }
+
+        int child = NoChild;
+        int status = 0;
+        call.ReadResult(0, child);
+        call.ReadResult(1, status);
+        outResult = ToActionResult(status);
+        return child;
+    }
+
+    ActionResult LuaDispatch::CallFlowFilter(
+        const AZ::Name& flow, AgentId agent, AgentScriptContext& context, NodeIndex node, ActionResult childResult)
+    {
+        if (m_scriptContext == nullptr)
+        {
+            return childResult;
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_FlowFilter", call))
+        {
+            return childResult;
+        }
+
+        call.PushArg(AZStd::string(flow.GetStringView()));
+        call.PushArg(AgentKey(agent));
+        call.PushArg(context);
+        call.PushArg(static_cast<double>(node));
+        call.PushArg(static_cast<double>(static_cast<int>(childResult)));
+
+        if (!call.CallExecute() || call.GetNumResults() < 1)
+        {
+            return childResult;
+        }
+
+        int status = static_cast<int>(childResult);
+        call.ReadResult(0, status);
+        return ToActionResult(status);
+    }
+
     void LuaDispatch::ForgetAgent(AgentId agent)
     {
         if (m_scriptContext == nullptr)

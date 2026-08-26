@@ -13,6 +13,7 @@
 namespace GOAT
 {
     class IBlackboardSystem;
+    class INodeScripting;
 
     //! Everything a backend may reach while planning for one agent.
     struct PlanContext final
@@ -23,6 +24,8 @@ namespace GOAT
         AZ::EntityId m_entity;
         //! Shared data, the only thing a backend and the tree have in common.
         IBlackboardSystem* m_blackboard = nullptr;
+        //! User defined control flow, when any is installed. Backends do not use this.
+        INodeScripting* m_scripting = nullptr;
     };
 
     //! Turns an intent from the tree into a sequence of action states the agent can run.

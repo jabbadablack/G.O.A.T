@@ -3,6 +3,8 @@
 #include <Core/Frontend/DirectBackend.h>
 #include <Core/Frontend/NodePredicate.h>
 
+#include <GOAT/Interfaces/INodeScripting.h>
+
 
 namespace GOAT
 {
@@ -204,6 +206,35 @@ namespace GOAT
                     node = current.m_firstChild;
                     continue;
 
+                case NodeOp::LuaComposite:
+                {
+                    // The user's own control flow chooses which child runs first.
+                    if (context.m_scripting == nullptr)
+                    {
+                        result = ActionResult::Failure;
+                        bubbling = true;
+                        continue;
+                    }
+
+                    ActionResult finished = ActionResult::Failure;
+                    const int child = context.m_scripting->BeginComposite(
+                        current.m_tag, context, node, current.m_childCount, finished);
+                    if (child < 0 || child >= current.m_childCount)
+                    {
+                        result = finished;
+                        bubbling = true;
+                        continue;
+                    }
+
+                    cursor.ChildIndex(node) = static_cast<AZ::u16>(child);
+                    node = NthChild(program, node, static_cast<AZ::u16>(child));
+                    continue;
+                }
+
+                case NodeOp::LuaDecorator:
+                    node = current.m_firstChild;
+                    continue;
+
                 case NodeOp::Action:
                 case NodeOp::Script:
                 case NodeOp::Delegate:
@@ -316,6 +347,39 @@ namespace GOAT
                 if (cursor.GetNow() > cursor.Deadline(parentIndex))
                 {
                     result = ActionResult::Failure;
+                }
+                node = parentIndex;
+                continue;
+
+            case NodeOp::LuaComposite:
+            {
+                if (context.m_scripting == nullptr)
+                {
+                    node = parentIndex;
+                    continue;
+                }
+
+                ActionResult finished = result;
+                const int child = context.m_scripting->AdvanceComposite(
+                    parent.m_tag, context, parentIndex, cursor.ChildIndex(parentIndex), result, finished);
+
+                if (child < 0 || child >= parent.m_childCount)
+                {
+                    result = finished;
+                    node = parentIndex;
+                    continue;
+                }
+
+                cursor.ChildIndex(parentIndex) = static_cast<AZ::u16>(child);
+                node = NthChild(program, parentIndex, static_cast<AZ::u16>(child));
+                bubbling = false;
+                continue;
+            }
+
+            case NodeOp::LuaDecorator:
+                if (context.m_scripting != nullptr)
+                {
+                    result = context.m_scripting->FilterDecorator(parent.m_tag, context, parentIndex, result);
                 }
                 node = parentIndex;
                 continue;

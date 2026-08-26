@@ -9,6 +9,8 @@ RUNNING, SUCCESS, FAILURE = 0, 1, 2
 -- Behaviours, services and backends the user has defined, keyed by name.
 GOAT._behaviors = GOAT._behaviors or {}
 GOAT._backends = GOAT._backends or {}
+-- Control flow the user wrote, keyed by name.
+GOAT._flow = GOAT._flow or {}
 -- Trees the user has declared, keyed by name, so C++ can ask for one after loading a file.
 GOAT._trees = GOAT._trees or {}
 -- Per agent, per behaviour scratch tables, so one behaviour can serve many agents.
@@ -20,6 +22,8 @@ local defaultProperty = {
     behavior = "behavior",
     service = "behavior",
     condition = "key",
+    composite = "behavior",
+    decorator = "behavior",
     conditional_loop = "key",
     compare = "key",
     delegate = "backend",
@@ -75,6 +79,7 @@ end
 -- Composites.
 selector = nodeType("selector")
 sequence = nodeType("sequence")
+composite = nodeType("composite")
 
 -- Decorators.
 invert = nodeType("invert")
@@ -85,6 +90,7 @@ conditional_loop = nodeType("conditional_loop")
 time_limit = nodeType("time_limit")
 condition = nodeType("condition")
 compare = nodeType("compare")
+decorator = nodeType("decorator")
 
 -- Leaves.
 wait = nodeType("wait")
@@ -100,6 +106,18 @@ service = nodeType("service", true)
 function behavior(name)
     return function(body)
         GOAT._behaviors[name] = body
+        return body
+    end
+end
+
+--! Defines control flow in Lua, used by a `composite` or `decorator` node.
+--!
+--! A composite's start(me, ctx, childCount) and result(me, ctx, childIndex, childStatus)
+--! each return either a child index to run next, or nil plus the status to finish with.
+--! A decorator's result(me, ctx, childStatus) returns the status it reports upward.
+function flow(name)
+    return function(body)
+        GOAT._flow[name] = body
         return body
     end
 end
@@ -272,4 +290,50 @@ function GOAT_EmitBackendNames(collector)
     for _, name in ipairs(names) do
         collector:Add(name)
     end
+end
+
+--! Chooses the first child a user defined composite runs.
+--! Returns the child index, or -1 and a status when the node is already finished.
+function GOAT_FlowBegin(flowName, agentKey, ctx, nodeKey, childCount)
+    local body = GOAT._flow[flowName]
+    if body == nil or body.start == nil then
+        return -1, FAILURE
+    end
+
+    local state = GOAT._stateFor(agentKey, "flow:" .. flowName .. ":" .. nodeKey)
+    local child, status = body.start(state, ctx, childCount)
+    if type(child) ~= "number" then
+        return -1, status or SUCCESS
+    end
+    return child - 1, SUCCESS
+end
+
+--! Chooses what a user defined composite does after a child finished.
+function GOAT_FlowAdvance(flowName, agentKey, ctx, nodeKey, childIndex, childStatus)
+    local body = GOAT._flow[flowName]
+    if body == nil or body.result == nil then
+        return -1, childStatus
+    end
+
+    local state = GOAT._stateFor(agentKey, "flow:" .. flowName .. ":" .. nodeKey)
+    local child, status = body.result(state, ctx, childIndex + 1, childStatus)
+    if type(child) ~= "number" then
+        return -1, status or childStatus
+    end
+    return child - 1, SUCCESS
+end
+
+--! Filters the status a user defined decorator reports for its child.
+function GOAT_FlowFilter(flowName, agentKey, ctx, nodeKey, childStatus)
+    local body = GOAT._flow[flowName]
+    if body == nil or body.result == nil then
+        return childStatus
+    end
+
+    local state = GOAT._stateFor(agentKey, "flow:" .. flowName .. ":" .. nodeKey)
+    local status = body.result(state, ctx, childStatus)
+    if type(status) ~= "number" then
+        return childStatus
+    end
+    return status
 end

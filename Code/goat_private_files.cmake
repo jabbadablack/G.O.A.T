@@ -64,6 +64,8 @@ set(FILES
     Source/Core/Scripting/LuaDispatch.h
     Source/Core/Scripting/LuaNameCollector.cpp
     Source/Core/Scripting/LuaNameCollector.h
+    Source/Core/Scripting/LuaNodeScripting.cpp
+    Source/Core/Scripting/LuaNodeScripting.h
     Source/Core/Scripting/LuaPlanBuilder.cpp
     Source/Core/Scripting/LuaPlanBuilder.h
     Source/Core/Scripting/LuaTreeBuilder.cpp

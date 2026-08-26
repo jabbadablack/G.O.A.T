@@ -8,6 +8,8 @@
 #include <GOAT/Assets/BehaviorTreeAsset.h>
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Domain/AgentId.h>
+#include <GOAT/Domain/Intent.h>
+#include <GOAT/Interfaces/INodeScripting.h>
 
 #include <AzCore/Asset/AssetCommon.h>
 #include <AzCore/Name/Name.h>
@@ -58,6 +60,30 @@ namespace GOAT
 
         //! Every backend name declared in Lua so far.
         AZStd::vector<AZ::Name> GetLuaBackendNames();
+
+        //! Asks Lua which child a user defined composite runs first.
+        //! Returns NoChild when the node is already finished, reporting through outResult.
+        int CallFlowBegin(
+            const AZ::Name& flow,
+            AgentId agent,
+            AgentScriptContext& context,
+            NodeIndex node,
+            int childCount,
+            ActionResult& outResult);
+
+        //! Asks Lua which child a user defined composite runs after one finished.
+        int CallFlowAdvance(
+            const AZ::Name& flow,
+            AgentId agent,
+            AgentScriptContext& context,
+            NodeIndex node,
+            int childIndex,
+            ActionResult childResult,
+            ActionResult& outResult);
+
+        //! Asks Lua what a user defined decorator reports for its child's result.
+        ActionResult CallFlowFilter(
+            const AZ::Name& flow, AgentId agent, AgentScriptContext& context, NodeIndex node, ActionResult childResult);
 
         //! Drops the scratch tables an agent owned, so a reused slot starts clean.
         void ForgetAgent(AgentId agent);

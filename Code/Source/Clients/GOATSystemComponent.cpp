@@ -150,8 +150,10 @@ namespace GOAT
         m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitAction>());
         m_actions->RegisterAt(CoreActions::RunScript, AZStd::make_unique<RunScriptAction>(*m_dispatch, *m_scriptContext));
 
+        m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
         m_runtime = AZStd::make_unique<AgentRuntime>(
-            *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext);
+            *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
+            *m_scripting);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
 
         m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get());
@@ -168,6 +170,7 @@ namespace GOAT
         m_agents.reset();
         m_runtime.reset();
         m_directBackend.reset();
+        m_scripting.reset();
         m_scriptContext.reset();
         if (m_dispatch != nullptr)
         {

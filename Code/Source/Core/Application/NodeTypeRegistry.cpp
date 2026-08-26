@@ -97,6 +97,16 @@ namespace GOAT
         delegate.m_parameters.push_back(Param("goal", BlackboardType::Name));
         Register(AZStd::move(delegate));
 
+        auto luaComposite = Simple("composite", NodeKind::Composite, NodeOp::LuaComposite, "Composite",
+            "Control flow written in Lua, choosing which child runs and when to stop");
+        luaComposite.m_parameters.push_back(Param("behavior", BlackboardType::Name, false, true));
+        Register(AZStd::move(luaComposite));
+
+        auto luaDecorator = Simple("decorator", NodeKind::Decorator, NodeOp::LuaDecorator, "Decorator",
+            "Result filtering written in Lua");
+        luaDecorator.m_parameters.push_back(Param("behavior", BlackboardType::Name, false, true));
+        Register(AZStd::move(luaDecorator));
+
         auto subtree = Simple("subtree", NodeKind::Leaf, NodeOp::Subtree, "Leaf",
             "Runs another behavior tree in place, by name or through a rebindable slot");
         subtree.m_parameters.push_back(Param("tree", BlackboardType::Name));
