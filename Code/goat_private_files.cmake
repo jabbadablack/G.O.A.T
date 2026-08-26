@@ -1,7 +1,11 @@
 set(FILES
     Source/GOATModuleInterface.cpp
     Source/GOATModuleInterface.h
+    Source/Clients/AgentBootstrap.cpp
+    Source/Clients/AgentBootstrap.h
     Source/Clients/GOATAgentComponent.cpp
+    Source/Clients/GOATDirectorComponent.cpp
+    Source/Clients/GOATDirectorComponent.h
     Source/Clients/GOATAgentComponent.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
@@ -24,6 +28,10 @@ set(FILES
     Source/Core/Application/NodeTypeRegistry.h
     Source/Core/Application/ReachFilterRegistry.cpp
     Source/Core/Application/ReachFilterRegistry.h
+    Source/Core/Director/DirectorActions.cpp
+    Source/Core/Director/DirectorActions.h
+    Source/Core/Director/DirectorKeys.cpp
+    Source/Core/Director/DirectorKeys.h
     Source/Core/Director/DirectorRegistry.cpp
     Source/Core/Director/DirectorRegistry.h
     Source/Core/Application/BlackboardSystem.cpp
@@ -34,6 +42,7 @@ set(FILES
     Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Assets/BlackboardAssetHandler.cpp
     Source/Core/Assets/BlackboardAssetHandler.h
+    Source/Core/Domain/DirectorProfile.cpp
     Source/Core/Domain/PlanStore.cpp
     Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/AgentStateMachine.cpp

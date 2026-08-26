@@ -3,6 +3,7 @@
 #include <Core/Assets/BlackboardAssetHandler.h>
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
+#include <Core/Director/DirectorActions.h>
 #include <Core/Frontend/DirectBackend.h>
 #include <Core/Frontend/TreeCompiler.h>
 #include <Core/Scripting/LuaBackend.h>
@@ -180,6 +181,8 @@ namespace GOAT
                 ApplyTreeSwitch(agent);
             });
 
+        InstallDirectorVocabulary();
+
         m_dispatch->ConfigurePlanBuilder(m_actions.get(), m_blackboardSystem.get(), m_planStore.get());
         m_vocabularyLoaded = false;
         m_dispatch->Connect();
@@ -209,6 +212,82 @@ namespace GOAT
 
         // Last, because every agent's plan was a span into it.
         m_planStore.reset();
+    }
+
+    void GOATSystemComponent::InstallDirectorVocabulary()
+    {
+        AZ_Assert(m_directors != nullptr, "The director vocabulary needs the director registry");
+        AZ_Assert(m_blackboardSystem != nullptr, "The director vocabulary needs the blackboard system");
+
+        // Declared from C++ so a project never has to remember a .bbx for them; a missing one
+        // would make every director tree fail to compile.
+        m_directorKeys.Declare(*m_blackboardSystem);
+
+        //! A leaf word whose name matches a verb runs that verb. The first required property is
+        //! the one a bare string argument fills, so it goes first.
+        const auto leaf = [](const char* name, const char* description)
+        {
+            NodeTypeDescriptor descriptor;
+            descriptor.m_name = AZ::Name(name);
+            descriptor.m_kind = NodeKind::Leaf;
+            descriptor.m_op = NodeOp::Action;
+            descriptor.m_category = "Director";
+            descriptor.m_description = description;
+            return descriptor;
+        };
+
+        const auto param = [](const char* name, BlackboardType type, bool isKey = false, bool required = false)
+        {
+            NodeParameter parameter;
+            parameter.m_name = AZ::Name(name);
+            parameter.m_type = type;
+            parameter.m_isBlackboardKey = isKey;
+            parameter.m_required = required;
+            return parameter;
+        };
+
+        auto orderTree = leaf("order_tree", "Puts the agents in reach onto another tree");
+        orderTree.m_parameters.push_back(param("tree", BlackboardType::Name, false, true));
+        orderTree.m_parameters.push_back(param("key", BlackboardType::EntityId, true));
+        orderTree.m_parameters.push_back(param("limit", BlackboardType::Float));
+
+        auto orderInterrupt = leaf("order_interrupt", "Interrupts the agents in reach with another tree");
+        orderInterrupt.m_parameters.push_back(param("tree", BlackboardType::Name, false, true));
+        orderInterrupt.m_parameters.push_back(param("key", BlackboardType::EntityId, true));
+        orderInterrupt.m_parameters.push_back(param("limit", BlackboardType::Float));
+
+        auto orderBand = leaf("order_band", "Moves the agents in reach between pacing bands");
+        orderBand.m_parameters.push_back(param("band", BlackboardType::Float, false, true));
+        orderBand.m_parameters.push_back(param("key", BlackboardType::EntityId, true));
+
+        auto orderValue = leaf("order_value", "Writes a variable, reaching whoever its scope says");
+        orderValue.m_parameters.push_back(param("key", BlackboardType::Float, true, true));
+        orderValue.m_parameters.push_back(param("value", BlackboardType::Float));
+        orderValue.m_parameters.push_back(param("text", BlackboardType::Name));
+
+        auto rebind = leaf("rebind_subtree", "Points a subtree slot at another tree");
+        rebind.m_parameters.push_back(param("slot", BlackboardType::Name, false, true));
+        rebind.m_parameters.push_back(param("key", BlackboardType::Name, true));
+
+        const auto install = [this](AZStd::unique_ptr<IActionState> action, NodeTypeDescriptor descriptor)
+        {
+            const AZ::Name name = action->GetName();
+            AZ_Assert(descriptor.m_name == name, "A leaf word and the verb it runs must share a name");
+
+            if (m_actions->Register(AZStd::move(action)) == CoreActions::Invalid)
+            {
+                AZ_Error("GOAT", false, "Director verb '%s' could not be registered", name.GetCStr());
+                return;
+            }
+
+            RegisterNodeType(AZStd::move(descriptor));
+        };
+
+        install(AZStd::make_unique<OrderTreeAction>(*m_directors, m_directorKeys), AZStd::move(orderTree));
+        install(AZStd::make_unique<OrderInterruptAction>(*m_directors, m_directorKeys), AZStd::move(orderInterrupt));
+        install(AZStd::make_unique<OrderBandAction>(*m_directors, m_directorKeys), AZStd::move(orderBand));
+        install(AZStd::make_unique<OrderValueAction>(*m_directors, m_directorKeys), AZStd::move(orderValue));
+        install(AZStd::make_unique<RebindSubtreeAction>(m_directorKeys), AZStd::move(rebind));
     }
 
     void GOATSystemComponent::DeclareNodeWord(const NodeTypeDescriptor& descriptor)
@@ -950,6 +1029,106 @@ namespace GOAT
         }
 
         AZLOG_INFO("no agent is running on entity %s", wantedEntity.ToString().c_str());
+    }
+
+    void GOATSystemComponent::ListDirectors([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (m_directors == nullptr)
+        {
+            return;
+        }
+
+        for (const AgentId director : m_directors->GetDirectors())
+        {
+            const DirectorProfile* profile = m_directors->FindProfile(director);
+            if (profile == nullptr)
+            {
+                continue;
+            }
+
+            const DirectorReach& reach = profile->m_reach;
+            AZLOG_INFO(
+                "director %u: entity %s | priority %u | squad '%s' tree '%s' radius %.1f filter '%s' | governs %zu",
+                director.GetIndex(), GetAgentEntity(director).ToString().c_str(),
+                static_cast<AZ::u32>(profile->m_priority),
+                reach.m_squad.IsEmpty() ? "any" : reach.m_squad.GetCStr(),
+                reach.m_tree.IsEmpty() ? "any" : reach.m_tree.GetCStr(),
+                reach.m_radius, reach.m_filter.IsEmpty() ? "none" : reach.m_filter.GetCStr(),
+                m_directors->Resolve(director).size());
+        }
+    }
+
+    void GOATSystemComponent::DumpDirector(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.empty() || m_directors == nullptr)
+        {
+            AZLOG_INFO("usage: GOATSystemComponent.DumpDirector <entityId>");
+            return;
+        }
+
+        AZ::u64 rawEntityId = 0;
+        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
+        {
+            AZLOG_INFO("could not read '%.*s' as an entity id",
+                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
+            return;
+        }
+
+        const AgentId director = FindAgent(AZ::EntityId(rawEntityId));
+        if (director.IsNull() || m_directors->FindProfile(director) == nullptr)
+        {
+            AZLOG_INFO("no director is running on entity %s", AZ::EntityId(rawEntityId).ToString().c_str());
+            return;
+        }
+
+        for (const AgentId agent : m_directors->Resolve(director))
+        {
+            AZLOG_INFO("  agent %u: entity %s | %s", agent.GetIndex(),
+                GetAgentEntity(agent).ToString().c_str(), DescribeAgent(agent).c_str());
+        }
+    }
+
+    void GOATSystemComponent::ListReachFilters([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        for (const AZ::Name& name : GetReachFilterNames())
+        {
+            AZLOG_INFO("reach filter: %s", name.GetCStr());
+        }
+    }
+
+    void GOATSystemComponent::ListSquads([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (m_blackboardSystem == nullptr)
+        {
+            return;
+        }
+
+        for (const AZ::Name& name : m_blackboardSystem->GetSquadNames())
+        {
+            AZLOG_INFO("squad: %s", name.GetCStr());
+        }
+    }
+
+    void GOATSystemComponent::RebindSubtreeCommand(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.size() < 2)
+        {
+            AZLOG_INFO("usage: GOATSystemComponent.RebindSubtreeCommand <slot> <tree>");
+            return;
+        }
+
+        const AZStd::string slot(arguments[0]);
+        const AZStd::string tree(arguments[1]);
+
+        auto rebound = RebindSubtree(AZ::Name(slot), AZ::Name(tree));
+        if (!rebound.IsSuccess())
+        {
+            AZLOG_INFO("%s", rebound.GetError().c_str());
+            return;
+        }
+
+        AZLOG_INFO("slot '%s' now runs '%s'; %zu tree(s) recompiled",
+            slot.c_str(), tree.c_str(), rebound.GetValue());
     }
 
     void GOATSystemComponent::ListBackends([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)

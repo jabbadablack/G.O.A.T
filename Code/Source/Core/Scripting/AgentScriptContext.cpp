@@ -235,6 +235,118 @@ namespace GOAT
         return AZStd::string(agents->GetAgentTree(m_agent).GetStringView());
     }
 
+    int AgentScriptContext::CountInReach() const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        return agents != nullptr ? static_cast<int>(agents->GetReachSize(m_agent)) : 0;
+    }
+
+    int AgentScriptContext::CountRunning(const AZStd::string& treeName) const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        if (agents == nullptr)
+        {
+            return 0;
+        }
+
+        const AZ::Name wanted(treeName);
+        const size_t reach = agents->GetReachSize(m_agent);
+
+        int running = 0;
+        for (size_t i = 0; i < reach; ++i)
+        {
+            if (agents->GetAgentTree(agents->GetInReach(m_agent, i)) == wanted)
+            {
+                ++running;
+            }
+        }
+        return running;
+    }
+
+    AZ::EntityId AgentScriptContext::GetInReach(int index) const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        AZ_Warning("GOAT", index >= 1, "A reach position is one based, to match Lua");
+        if (agents == nullptr || index < 1)
+        {
+            return AZ::EntityId{};
+        }
+
+        const AgentId found = agents->GetInReach(m_agent, static_cast<size_t>(index - 1));
+        return found.IsNull() ? AZ::EntityId{} : agents->GetAgentEntity(found);
+    }
+
+    AZStd::string AgentScriptContext::GetTreeOf(AZ::EntityId entity) const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        if (agents == nullptr)
+        {
+            return {};
+        }
+        return AZStd::string(agents->GetAgentTree(agents->FindAgent(entity)).GetStringView());
+    }
+
+    AZStd::string AgentScriptContext::GetSquadOf(AZ::EntityId entity) const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        if (agents == nullptr)
+        {
+            return {};
+        }
+        return AZStd::string(agents->GetAgentSquad(agents->FindAgent(entity)).GetStringView());
+    }
+
+    int AgentScriptContext::GetBandOf(AZ::EntityId entity) const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        if (agents == nullptr)
+        {
+            return -1;
+        }
+
+        const AgentId found = agents->FindAgent(entity);
+        return found.IsNull() ? -1 : static_cast<int>(agents->GetAgentBand(found));
+    }
+
+    double AgentScriptContext::GetNumberOf(AZ::EntityId entity, const AZStd::string& name) const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        const AgentId found = agents != nullptr ? agents->FindAgent(entity) : AgentId{};
+        if (found.IsNull() || m_blackboard == nullptr)
+        {
+            return 0.0;
+        }
+
+        const BlackboardKey key = m_blackboard->FindKey(AZ::Name(name));
+        if (!key.IsValid())
+        {
+            return 0.0;
+        }
+
+        if (key.GetType() == BlackboardType::Int)
+        {
+            const AZ::s64* value = m_blackboard->Find<AZ::s64>(key, found);
+            return value != nullptr ? static_cast<double>(*value) : 0.0;
+        }
+
+        const float* value = m_blackboard->Find<float>(key, found);
+        return value != nullptr ? static_cast<double>(*value) : 0.0;
+    }
+
+    bool AgentScriptContext::GetBoolOf(AZ::EntityId entity, const AZStd::string& name) const
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        const AgentId found = agents != nullptr ? agents->FindAgent(entity) : AgentId{};
+        if (found.IsNull() || m_blackboard == nullptr)
+        {
+            return false;
+        }
+
+        const BlackboardKey key = m_blackboard->FindKey(AZ::Name(name));
+        const bool* value = key.IsValid() ? m_blackboard->Find<bool>(key, found) : nullptr;
+        return value != nullptr && *value;
+    }
+
     void AgentScriptContext::Reflect(AZ::ReflectContext* context)
     {
         auto* behaviorContext = azrtti_cast<AZ::BehaviorContext*>(context);
@@ -266,6 +378,14 @@ namespace GOAT
             ->Method("SetTree", &AgentScriptContext::SetTree)
             ->Method("PushTree", &AgentScriptContext::PushTree)
             ->Method("PopTree", &AgentScriptContext::PopTree)
-            ->Method("GetTree", &AgentScriptContext::GetTree);
+            ->Method("GetTree", &AgentScriptContext::GetTree)
+            ->Method("CountInReach", &AgentScriptContext::CountInReach)
+            ->Method("CountRunning", &AgentScriptContext::CountRunning)
+            ->Method("GetInReach", &AgentScriptContext::GetInReach)
+            ->Method("GetTreeOf", &AgentScriptContext::GetTreeOf)
+            ->Method("GetSquadOf", &AgentScriptContext::GetSquadOf)
+            ->Method("GetBandOf", &AgentScriptContext::GetBandOf)
+            ->Method("GetNumberOf", &AgentScriptContext::GetNumberOf)
+            ->Method("GetBoolOf", &AgentScriptContext::GetBoolOf);
     }
 } // namespace GOAT

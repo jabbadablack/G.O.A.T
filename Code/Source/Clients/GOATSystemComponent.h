@@ -7,6 +7,7 @@
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
 #include <Core/Application/ReachFilterRegistry.h>
+#include <Core/Director/DirectorKeys.h>
 #include <Core/Director/DirectorRegistry.h>
 #include <Core/Frontend/TreeLibrary.h>
 #include <Core/Scripting/AgentScriptContext.h>
@@ -116,6 +117,11 @@ namespace GOAT
         void DumpPlan(const AZ::ConsoleCommandContainer& arguments);
         void ValidatePlans(const AZ::ConsoleCommandContainer& arguments);
         void SetAgentTreeCommand(const AZ::ConsoleCommandContainer& arguments);
+        void ListDirectors(const AZ::ConsoleCommandContainer& arguments);
+        void DumpDirector(const AZ::ConsoleCommandContainer& arguments);
+        void ListReachFilters(const AZ::ConsoleCommandContainer& arguments);
+        void ListSquads(const AZ::ConsoleCommandContainer& arguments);
+        void RebindSubtreeCommand(const AZ::ConsoleCommandContainer& arguments);
 
         AZ_CONSOLEFUNC(GOATSystemComponent, ListBackends, AZ::ConsoleFunctorFlags::Null,
             "Lists the decision backends currently installed");
@@ -139,6 +145,16 @@ namespace GOAT
             "Re-checks every declared plan against the registries and reports what is wrong");
         AZ_CONSOLEFUNC(GOATSystemComponent, SetAgentTreeCommand, AZ::ConsoleFunctorFlags::Null,
             "Puts one agent onto another of its trees, by entity id and tree name");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListDirectors, AZ::ConsoleFunctorFlags::Null,
+            "Lists every director, its reach and how many agents it governs");
+        AZ_CONSOLEFUNC(GOATSystemComponent, DumpDirector, AZ::ConsoleFunctorFlags::Null,
+            "Lists exactly the agents one director governs, by entity id");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListReachFilters, AZ::ConsoleFunctorFlags::Null,
+            "Lists the reach filters modules have contributed");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListSquads, AZ::ConsoleFunctorFlags::Null,
+            "Lists every squad that currently has a member");
+        AZ_CONSOLEFUNC(GOATSystemComponent, RebindSubtreeCommand, AZ::ConsoleFunctorFlags::Null,
+            "Points a subtree slot at another tree, by slot name and tree name");
         ////////////////////////////////////////////////////////////////////////
 
     private:
@@ -163,6 +179,9 @@ namespace GOAT
         //! Runs the first of a list of alternative asset paths that loads.
         bool RunFirstAvailable(const char* const* paths, size_t count, const char* what);
 
+        //! Installs the director vocabulary: the five verbs and the words that run them.
+        void InstallDirectorVocabulary();
+
         //! Checks every declared plan and reports what is wrong with it.
         void ValidateLuaPlans();
 
@@ -185,6 +204,7 @@ namespace GOAT
         AZStd::unique_ptr<PlanStore> m_planStore;
         AZStd::unique_ptr<ReachFilterRegistry> m_reachFilters;
         AZStd::unique_ptr<DirectorRegistry> m_directors;
+        DirectorKeys m_directorKeys;
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
