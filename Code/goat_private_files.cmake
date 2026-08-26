@@ -11,6 +11,11 @@ set(FILES
     Source/Core/Application/ActionStateRegistry.h
     Source/Core/Application/AgentObserver.cpp
     Source/Core/Application/AgentObserver.h
+    Source/Core/Application/AgentRecord.h
+    Source/Core/Application/AgentRegistry.cpp
+    Source/Core/Application/AgentRegistry.h
+    Source/Core/Application/AgentRuntime.cpp
+    Source/Core/Application/AgentRuntime.h
     Source/Core/Application/BackendRegistry.cpp
     Source/Core/Application/BackendRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
