@@ -15,6 +15,7 @@
 
 #include <AzCore/Asset/AssetCommon.h>
 #include <AzCore/Component/Component.h>
+#include <AzCore/Console/IConsole.h>
 #include <AzCore/std/containers/unordered_map.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 
@@ -64,6 +65,29 @@ namespace GOAT
         void Init() override;
         void Activate() override;
         void Deactivate() override;
+        ////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////
+        // Console commands. AZ::IConsole is the engine's only command registry.
+        void ListBackends(const AZ::ConsoleCommandContainer& arguments);
+        void ListActions(const AZ::ConsoleCommandContainer& arguments);
+        void ListNodes(const AZ::ConsoleCommandContainer& arguments);
+        void ListTrees(const AZ::ConsoleCommandContainer& arguments);
+        void ListAgents(const AZ::ConsoleCommandContainer& arguments);
+        void DumpAgent(const AZ::ConsoleCommandContainer& arguments);
+
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListBackends, AZ::ConsoleFunctorFlags::Null,
+            "Lists the decision backends currently installed");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListActions, AZ::ConsoleFunctorFlags::Null,
+            "Lists the action verbs currently registered");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListNodes, AZ::ConsoleFunctorFlags::Null,
+            "Lists the node types trees may use");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListTrees, AZ::ConsoleFunctorFlags::Null,
+            "Lists the trees compiled so far");
+        AZ_CONSOLEFUNC(GOATSystemComponent, ListAgents, AZ::ConsoleFunctorFlags::Null,
+            "Lists every running agent");
+        AZ_CONSOLEFUNC(GOATSystemComponent, DumpAgent, AZ::ConsoleFunctorFlags::Null,
+            "Prints what one agent is doing, by entity id");
         ////////////////////////////////////////////////////////////////////////
 
     private:

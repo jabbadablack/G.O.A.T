@@ -19,6 +19,8 @@
 
 #include <AzCore/Asset/AssetManager.h>
 #include <AzCore/Asset/AssetManagerBus.h>
+#include <AzCore/Console/ConsoleTypeHelpers.h>
+#include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/Serialization/SerializeContext.h>
 #include <AzFramework/Asset/GenericAssetHandler.h>
@@ -357,6 +359,94 @@ namespace GOAT
             record->m_program != nullptr ? record->m_program->m_name.GetCStr() : "<none>", record->m_band,
             record->m_cursor.GetActiveLeaf(), verb.GetCStr(), record->m_machine.GetStepIndex(),
             record->m_machine.GetElapsed());
+    }
+
+    void GOATSystemComponent::ListBackends([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        for (const AZ::Name& name : GetBackendNames())
+        {
+            AZLOG_INFO("backend: %s", name.GetCStr());
+        }
+    }
+
+    void GOATSystemComponent::ListActions([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        for (const AZ::Name& name : GetActionNames())
+        {
+            AZLOG_INFO("action: %s", name.GetCStr());
+        }
+    }
+
+    void GOATSystemComponent::ListNodes([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (m_nodeTypes == nullptr)
+        {
+            return;
+        }
+
+        for (const NodeTypeDescriptor* descriptor : m_nodeTypes->GetAll())
+        {
+            AZLOG_INFO(
+                "node: %-18s %-10s %s", descriptor->m_name.GetCStr(), descriptor->m_category.c_str(),
+                descriptor->m_description.c_str());
+        }
+    }
+
+    void GOATSystemComponent::ListTrees([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        for (const AZ::Name& name : GetTreeNames())
+        {
+            const auto program = m_programs.find(name);
+            AZLOG_INFO(
+                "tree: %s (%zu nodes, %zu guards, %zu services)", name.GetCStr(), program->second->m_nodes.size(),
+                program->second->m_guardNodes.size(), program->second->m_services.size());
+        }
+    }
+
+    void GOATSystemComponent::ListAgents([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (m_agents == nullptr)
+        {
+            return;
+        }
+
+        for (const AgentId agent : m_agents->GetAgents())
+        {
+            AgentRecord* record = m_agents->Find(agent);
+            AZLOG_INFO(
+                "agent %u: entity %s | %s", agent.GetIndex(),
+                record != nullptr ? record->m_entity.ToString().c_str() : "<none>", DescribeAgent(agent).c_str());
+        }
+    }
+
+    void GOATSystemComponent::DumpAgent(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.empty() || m_agents == nullptr)
+        {
+            AZLOG_INFO("usage: goat_dumpAgent <entityId>");
+            return;
+        }
+
+        AZ::u64 rawEntityId = 0;
+        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
+        {
+            AZLOG_INFO("could not read '%.*s' as an entity id",
+                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
+            return;
+        }
+
+        const AZ::EntityId wanted(rawEntityId);
+        for (const AgentId agent : m_agents->GetAgents())
+        {
+            const AgentRecord* record = m_agents->Find(agent);
+            if (record != nullptr && record->m_entity == wanted)
+            {
+                AZLOG_INFO("agent %u: %s", agent.GetIndex(), DescribeAgent(agent).c_str());
+                return;
+            }
+        }
+
+        AZLOG_INFO("no agent is running on entity %s", wanted.ToString().c_str());
     }
 
     void GOATSystemComponent::RegisterAssetHandlers()
