@@ -107,7 +107,7 @@ flowchart TD
     F --> G[Plan returns list of steps]
     G --> H[LuaPlanBuilder validates steps]
     H --> I[ActionPlan]
-    I --> J[AgentRuntime executes plan]
+    I --> J[AgentStateMachine executes plan]
     D -->|No| K[DirectBackend or other C++ backend handles it]
     K --> I
 ```
@@ -126,7 +126,7 @@ When a `delegate` node is executed:
 4. The user's `plan` function returns a table of steps.
 5. `GOAT_Plan` pushes those steps into a `LuaPlanBuilder` (a C++ object passed via reflection).
 6. The `LuaPlanBuilder` validates the verbs and blackboard keys.
-7. The resulting `ActionPlan` is returned to the `AgentRuntime`.
+7. The resulting `ActionPlan` is returned to the `AgentStateMachine`.
 
 ---
 
@@ -184,6 +184,7 @@ backend "Director" {
 - [[Flows]]
 - [[LuaDispatch]]
 - [[LuaPlanBuilder]]
+- [[LuaBackend]]
 - [[IBackend]]
 
 ---

@@ -175,7 +175,8 @@ flowchart TD
     I --> J[LuaDispatch calls GOAT_FlowAdvance]
     J --> K[Lua flow result function]
     K --> L[Returns next child or nil + final status]
-    L --> G or M[TreeWalker finishes]
+    L --> G
+    L --> M[TreeWalker finishes]
 ```
 
 ---
