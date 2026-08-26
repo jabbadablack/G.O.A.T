@@ -1,20 +1,20 @@
 {
-    "gem_name": "GOAT",
+    "gem_name": "GOAT_Navigation",
     "version": "1.0.0",
-    "display_name": "GOAT",
+    "display_name": "GOAT Navigation",
     "license": "Apache-2.0 or MIT",
     "license_url": "https://github.com/o3de/o3de/blob/development/LICENSE.txt",
     "origin": "JabbaDaBlack",
     "origin_url": "https://github.com/jabbadablack",
     "type": "Code",
-    "summary": "G.O.A.T is a pluggable NPC AI framework: Lua-authored behavior trees drive a small action-state machine, with decoupled decision backends unified by blackboard variables.",
+    "summary": "Navigation verbs for the GOAT AI gem: pathfinding and movement over a Recast navigation mesh.",
     "canonical_tags": [
         "Gem"
     ],
     "user_tags": [
-        "Simulation",
-        "Scripting",
-        "Gameplay"
+        "AI",
+        "Gameplay",
+        "Simulation"
     ],
     "platforms": [
         "Windows",
@@ -23,15 +23,13 @@
         "Linux"
     ],
     "icon_path": "",
-    "requirements": "",
+    "requirements": "Requires the GOAT gem and the RecastNavigation gem.",
     "documentation_url": "",
     "dependencies": [
-        "LmbrCentral"
+        "GOAT",
+        "RecastNavigation"
     ],
-    "repo_uri": "https://github.com/jabbadablack/G.O.A.T",
+    "repo_uri": "",
     "compatible_engines": [],
-    "engine_api_dependencies": [],
-    "external_subdirectories": [
-        "Modules/Navigation"
-    ]
+    "engine_api_dependencies": []
 }
