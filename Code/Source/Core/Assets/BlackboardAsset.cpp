@@ -47,6 +47,8 @@ namespace GOAT
 
     AZStd::any BlackboardVariable::GetDefault() const
     {
+        AZ_Assert(m_type < BlackboardType::Count, "A blackboard variable's type is out of range");
+
         switch (m_type)
         {
         case BlackboardType::Bool:

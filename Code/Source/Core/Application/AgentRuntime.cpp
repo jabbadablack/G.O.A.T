@@ -7,11 +7,6 @@ namespace GOAT
 {
     namespace
     {
-        //! Traces what each agent decides, for diagnosing a tree that is not behaving.
-        //! Off by default because it logs on every plan boundary for every agent.
-        AZ_CVAR(bool, goat_traceAgents, false, nullptr, AZ::ConsoleFunctorFlags::Null,
-            "Logs each agent's intents and plans as they are produced");
-
         //! Most intents one tick will satisfy before deferring the rest.
         //! Bounds the work a tree of instantly completing leaves can do in a single frame.
         constexpr int MaxIntentsPerTick = 8;
@@ -37,16 +32,22 @@ namespace GOAT
 
     PlanContext AgentRuntime::MakePlanContext(AgentRecord& agent) const
     {
+        AZ_Assert(!agent.m_id.IsNull(), "A plan context is only made for a registered agent");
+
         PlanContext context;
         context.m_agent = agent.m_id;
         context.m_entity = agent.m_entity;
         context.m_blackboard = &m_blackboard;
         context.m_scripting = &m_scripting;
+
+        AZ_Assert(context.m_blackboard != nullptr, "Every plan context reaches the blackboard");
         return context;
     }
 
     ActionContext AgentRuntime::MakeActionContext(AgentRecord& agent) const
     {
+        AZ_Assert(!agent.m_id.IsNull(), "An action context is only made for a registered agent");
+
         ActionContext context;
         context.m_agent = agent.m_id;
         context.m_entity = agent.m_entity;
@@ -58,12 +59,14 @@ namespace GOAT
         AgentRecord& agent, const PlanContext& planContext, WalkStep& outStep, bool& outHaveStep)
     {
         outHaveStep = false;
+        AZ_Assert(agent.m_program != nullptr, "Guards are only applied to an agent that has a program");
 
         if (!agent.m_observer.IsDirty())
         {
             return false;
         }
         agent.m_observer.Clear();
+        AZ_Assert(!agent.m_observer.IsDirty(), "Clearing the observer must mark the agent clean");
 
         const AbortDecision decision = m_guards.Evaluate(*agent.m_program, agent.m_cursor, planContext);
         if (decision.m_action == AbortAction::None)
@@ -86,12 +89,18 @@ namespace GOAT
             outStep = m_walker.Advance(*agent.m_program, agent.m_cursor, planContext, ActionResult::Failure);
         }
 
+        AZLOG(GoatAgent, "GOAT: agent %u aborted at node %u (%s)", agent.m_id.GetIndex(), decision.m_node,
+            decision.m_action == AbortAction::Restart ? "restart" : "fail");
+
         outHaveStep = true;
         return true;
     }
 
     void AgentRuntime::TickServices(AgentRecord& agent, float deltaTime)
     {
+        AZ_Assert(agent.m_program != nullptr, "Services are only ticked for an agent that has a program");
+        AZ_Assert(deltaTime >= 0.0f, "Services cannot be ticked backwards in time");
+
         m_services.CollectDue(*agent.m_program, agent.m_cursor, agent.m_dueServices);
         if (agent.m_dueServices.empty())
         {
@@ -101,6 +110,9 @@ namespace GOAT
         m_scriptContext.Bind(agent.m_id, agent.m_entity, &m_blackboard);
         for (const AZ::u32 service : agent.m_dueServices)
         {
+            AZ_Assert(service < agent.m_program->m_services.size(),
+                "A due service index must address a compiled service");
+
             const DecisionService& declared = agent.m_program->m_services[service];
             if (!declared.m_behavior.IsEmpty())
             {
@@ -124,28 +136,33 @@ namespace GOAT
         ActionPlan plan;
         if (!backend->Plan(planContext, intent, plan) || plan.IsEmpty())
         {
+            AZLOG(GoatAgent, "GOAT: backend '%s' refused node %u for agent %u",
+                backend->GetName().GetCStr(), intent.m_node, agent.m_id.GetIndex());
             return false;
         }
 
-        if (goat_traceAgents)
-        {
-            AZLOG_INFO(
-                "GOAT: agent %u node %u -> backend '%s' produced %zu step(s)", agent.m_id.GetIndex(), intent.m_node,
-                backend->GetName().GetCStr(), plan.m_steps.size());
-        }
+        // Per agent tracing is a tag channel rather than a cvar of ours, so it is toggled the
+        // way every other engine channel is: LoggerSystemComponent.EnableLog GoatAgent.
+        AZLOG(GoatAgent, "GOAT: agent %u node %u -> backend '%s' produced %zu step(s)",
+            agent.m_id.GetIndex(), intent.m_node, backend->GetName().GetCStr(), plan.m_steps.size());
 
         agent.m_intent = intent;
         agent.m_machine.SetPlan(plan);
+
+        AZ_Assert(agent.m_machine.HasPlan(), "Starting a plan must leave the state machine holding one");
         return true;
     }
 
     void AgentRuntime::Tick(AgentRecord& agent, float deltaTime)
     {
+        AZ_Assert(agent.m_program != nullptr, "A registered agent always holds a compiled program");
         if (agent.m_program == nullptr || agent.m_program->IsEmpty())
         {
+            AZ_Error("GOAT", false, "Agent %u is registered without a runnable program", agent.m_id.GetIndex());
             return;
         }
 
+        AZ_Assert(deltaTime >= 0.0f, "An agent cannot be ticked backwards in time");
         agent.m_cursor.AdvanceClock(deltaTime);
         const PlanContext planContext = MakePlanContext(agent);
 
@@ -187,6 +204,8 @@ namespace GOAT
                     return;
                 }
             }
+
+            AZ_Assert(step.m_outcome == WalkOutcome::Intent, "A walk that is not finished must carry an intent");
 
             if (StartPlan(agent, planContext, step.m_intent))
             {
