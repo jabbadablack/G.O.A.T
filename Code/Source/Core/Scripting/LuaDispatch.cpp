@@ -270,6 +270,29 @@ namespace GOAT
         return m_nameCollector.GetNames();
     }
 
+    AZStd::vector<AZ::Name> LuaDispatch::GetDeclaredTreeNames()
+    {
+        m_nameCollector.Clear();
+        if (m_scriptContext == nullptr)
+        {
+            return {};
+        }
+
+        AZ::ScriptDataContext call;
+        if (!m_scriptContext->Call("GOAT_EmitTreeNames", call))
+        {
+            AZ_Error("GOAT", false, "GOAT_EmitTreeNames is missing, so declared trees cannot be listed");
+            return {};
+        }
+
+        call.PushArg(m_nameCollector);
+
+        // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
+        const bool executed = call.CallExecute();
+        AZ_Warning("GOAT", executed, "Listing declared trees raised a Lua error");
+        return m_nameCollector.GetNames();
+    }
+
     const ActionPlan* LuaDispatch::CallBackendPlan(
         const AZ::Name& backend, const AZ::Name& goal, AgentId agent, AgentScriptContext& context)
     {

@@ -187,6 +187,12 @@ next, not what they are running now** — an agent mid-action finishes on the pr
 takes the new one the next time it enters that tree. A director that wants it immediately rebinds
 and then orders the same tree name.
 
+## Testing it
+
+`Scry`'s `GoatTest` level carries a bench of agents and idle directors for the behaviour that only
+fails at runtime — priority, cooldowns, reach, blackboard scopes, bands, subtree rebinding.
+See [TestBench.md](TestBench.md) for what to type and what should happen.
+
 ## Looking at what is happening
 
 | Command | Prints |
@@ -200,6 +206,8 @@ and then orders the same tree name.
 | `GOATSystemComponent.DumpDirector <entityId>` | Exactly the agents one director governs |
 | `GOATSystemComponent.ListReachFilters` / `ListSquads` | What modules contributed, and who is grouped |
 | `GOATSystemComponent.RebindSubtreeCommand <slot> <tree>` | Point a subtree slot somewhere else |
+| `GOATSystemComponent.SetVariable <name> <value> [entityId]` | Write a blackboard variable |
+| `GOATSystemComponent.DumpVariable <name> [entityId]` | Read one back |
 | `GOATSystemComponent.ValidatePlans` | Re-check every plan now |
 
 Log channels, each toggled with `LoggerSystemComponent.EnableLog <tag>`:

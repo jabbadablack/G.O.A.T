@@ -122,6 +122,8 @@ namespace GOAT
         void ListReachFilters(const AZ::ConsoleCommandContainer& arguments);
         void ListSquads(const AZ::ConsoleCommandContainer& arguments);
         void RebindSubtreeCommand(const AZ::ConsoleCommandContainer& arguments);
+        void SetVariable(const AZ::ConsoleCommandContainer& arguments);
+        void DumpVariable(const AZ::ConsoleCommandContainer& arguments);
 
         AZ_CONSOLEFUNC(GOATSystemComponent, ListBackends, AZ::ConsoleFunctorFlags::Null,
             "Lists the decision backends currently installed");
@@ -155,6 +157,11 @@ namespace GOAT
             "Lists every squad that currently has a member");
         AZ_CONSOLEFUNC(GOATSystemComponent, RebindSubtreeCommand, AZ::ConsoleFunctorFlags::Null,
             "Points a subtree slot at another tree, by slot name and tree name");
+        AZ_CONSOLEFUNC(GOATSystemComponent, SetVariable, AZ::ConsoleFunctorFlags::Null,
+            "Writes a blackboard variable: <name> <value> [entityId]. The entity is needed only "
+            "for an agent or squad scoped one, and names whose storage to write through");
+        AZ_CONSOLEFUNC(GOATSystemComponent, DumpVariable, AZ::ConsoleFunctorFlags::Null,
+            "Reads a blackboard variable back: <name> [entityId]");
         ////////////////////////////////////////////////////////////////////////
 
     private:

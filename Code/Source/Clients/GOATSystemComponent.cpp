@@ -769,12 +769,35 @@ namespace GOAT
             }
         }
 
+        // A tree whose slot was unbound failed to compile, so it is not in m_programs at all and
+        // the scan above cannot see it. Retrying every declared but uncompiled tree is what lets
+        // a slot be bound after the agents using it have already activated -- without this,
+        // a tree with an unbound slot could never compile at any point.
+        if (m_dispatch != nullptr)
+        {
+            for (const AZ::Name& declared : m_dispatch->GetDeclaredTreeNames())
+            {
+                if (!IsTreeCompiled(declared) &&
+                    AZStd::find(affected.begin(), affected.end(), declared) == affected.end())
+                {
+                    affected.push_back(declared);
+                }
+            }
+        }
+
         // A failed recompile leaves the old program in place, because CompileTree fails before it
         // touches m_programs. A bad rebind therefore leaves the world running.
+        size_t recompiled = 0;
         for (const AZ::Name& name : affected)
         {
-            if (auto compiled = CompileTree(name); !compiled.IsSuccess())
+            if (auto compiled = CompileTree(name); compiled.IsSuccess())
             {
+                ++recompiled;
+            }
+            else if (IsTreeCompiled(name))
+            {
+                // A tree that was running and now will not compile is a real failure; one that
+                // was never compiled and still is not simply does not use this slot.
                 return AZ::Failure(compiled.TakeError());
             }
         }
@@ -793,9 +816,9 @@ namespace GOAT
         }
 
         AZLOG(GoatDirector, "GOAT: slot '%s' now runs '%s'; %zu tree(s) recompiled, %zu agent(s) still on the old one",
-            slot.GetCStr(), treeName.GetCStr(), affected.size(), stale);
+            slot.GetCStr(), treeName.GetCStr(), recompiled, stale);
 
-        return AZ::Success(affected.size());
+        return AZ::Success(recompiled);
     }
 
     bool GOATSystemComponent::RegisterDirector(AgentId director, const DirectorProfile& profile)
@@ -1129,6 +1152,141 @@ namespace GOAT
 
         AZLOG_INFO("slot '%s' now runs '%s'; %zu tree(s) recompiled",
             slot.c_str(), tree.c_str(), rebound.GetValue());
+    }
+
+    namespace
+    {
+        //! Reads the optional trailing entity argument shared by the variable commands.
+        //! An agent or squad scoped variable is reached *through* an agent, so a command that
+        //! names none can only address a global.
+        AgentId ReadOptionalAgent(
+            const IAgentSystem& agents, const AZ::ConsoleCommandContainer& arguments, size_t index)
+        {
+            if (arguments.size() <= index)
+            {
+                return AgentId{};
+            }
+
+            AZ::u64 rawEntityId = 0;
+            if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments[index]))
+            {
+                return AgentId{};
+            }
+
+            return agents.FindAgent(AZ::EntityId(rawEntityId));
+        }
+    } // namespace
+
+    void GOATSystemComponent::SetVariable(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.size() < 2 || m_blackboardSystem == nullptr)
+        {
+            AZLOG_INFO("usage: GOATSystemComponent.SetVariable <name> <value> [entityId]");
+            return;
+        }
+
+        const AZStd::string name(arguments[0]);
+        const AZStd::string value(arguments[1]);
+        const BlackboardKey key = m_blackboardSystem->FindKey(AZ::Name(name));
+
+        if (!key.IsValid())
+        {
+            AZLOG_INFO("no variable named '%s' is declared", name.c_str());
+            return;
+        }
+
+        const AgentId through = ReadOptionalAgent(*this, arguments, 2);
+        if (key.GetScope() != BlackboardScope::Global && through.IsNull())
+        {
+            AZLOG_INFO("'%s' is %s scoped, so it needs an entity id to reach it through",
+                name.c_str(), ToString(key.GetScope()));
+            return;
+        }
+
+        double number = 0.0;
+        const bool numeric = AZ::ConsoleTypeHelpers::ToValue(number, arguments[1]);
+
+        bool written = false;
+        switch (key.GetType())
+        {
+        case BlackboardType::Bool:
+            written = m_blackboardSystem->Set<bool>(key, numeric && number != 0.0, through);
+            break;
+        case BlackboardType::Int:
+            written = m_blackboardSystem->Set<AZ::s64>(key, static_cast<AZ::s64>(number), through);
+            break;
+        case BlackboardType::Float:
+            written = m_blackboardSystem->Set<float>(key, static_cast<float>(number), through);
+            break;
+        case BlackboardType::Name:
+            written = m_blackboardSystem->Set<AZ::Name>(key, AZ::Name(value), through);
+            break;
+        default:
+            AZLOG_INFO("'%s' is a %s, which this command cannot write", name.c_str(), ToString(key.GetType()));
+            return;
+        }
+
+        AZLOG_INFO("%s '%s' (%s %s) to %s", written ? "wrote" : "could not write", name.c_str(),
+            ToString(key.GetScope()), ToString(key.GetType()), value.c_str());
+    }
+
+    void GOATSystemComponent::DumpVariable(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.empty() || m_blackboardSystem == nullptr)
+        {
+            AZLOG_INFO("usage: GOATSystemComponent.DumpVariable <name> [entityId]");
+            return;
+        }
+
+        const AZStd::string name(arguments[0]);
+        const BlackboardKey key = m_blackboardSystem->FindKey(AZ::Name(name));
+        if (!key.IsValid())
+        {
+            AZLOG_INFO("no variable named '%s' is declared", name.c_str());
+            return;
+        }
+
+        const AgentId through = ReadOptionalAgent(*this, arguments, 1);
+
+        switch (key.GetType())
+        {
+        case BlackboardType::Bool:
+        {
+            const bool* value = m_blackboardSystem->Find<bool>(key, through);
+            AZLOG_INFO("%s = %s", name.c_str(), value == nullptr ? "<no storage>" : (*value ? "true" : "false"));
+            break;
+        }
+        case BlackboardType::Int:
+        {
+            const AZ::s64* value = m_blackboardSystem->Find<AZ::s64>(key, through);
+            if (value == nullptr) { AZLOG_INFO("%s = <no storage>", name.c_str()); }
+            else { AZLOG_INFO("%s = %lld", name.c_str(), static_cast<long long>(*value)); }
+            break;
+        }
+        case BlackboardType::Float:
+        {
+            const float* value = m_blackboardSystem->Find<float>(key, through);
+            if (value == nullptr) { AZLOG_INFO("%s = <no storage>", name.c_str()); }
+            else { AZLOG_INFO("%s = %.3f", name.c_str(), *value); }
+            break;
+        }
+        case BlackboardType::Name:
+        {
+            const AZ::Name* value = m_blackboardSystem->Find<AZ::Name>(key, through);
+            AZLOG_INFO("%s = '%s'", name.c_str(), value == nullptr ? "<no storage>" : value->GetCStr());
+            break;
+        }
+        case BlackboardType::EntityId:
+        {
+            const AZ::EntityId* value = m_blackboardSystem->Find<AZ::EntityId>(key, through);
+            AZLOG_INFO("%s = %s", name.c_str(),
+                value == nullptr ? "<no storage>" : value->ToString().c_str());
+            break;
+        }
+        default:
+            AZLOG_INFO("%s is a %s, which this command cannot show", name.c_str(), ToString(key.GetType()));
+            break;
+        }
     }
 
     void GOATSystemComponent::ListBackends([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)

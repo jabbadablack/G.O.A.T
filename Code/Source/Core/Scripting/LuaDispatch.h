@@ -78,6 +78,10 @@ namespace GOAT
         //! Every backend name declared in Lua so far.
         AZStd::vector<AZ::Name> GetLuaBackendNames();
 
+        //! Every tree a script declared, compiled or not. A tree whose subtree slot was unbound
+        //! never compiled, so rebinding that slot has to be able to find it by name.
+        AZStd::vector<AZ::Name> GetDeclaredTreeNames();
+
         //! Asks Lua which child a user defined composite runs first.
         //! Returns NoChild when the node is already finished, reporting through outResult.
         int CallFlowBegin(

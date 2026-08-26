@@ -321,6 +321,20 @@ function GOAT_TreeNames()
     return names
 end
 
+--! Hands every declared tree name to a C++ collector, whether or not it has compiled.
+--! Told apart from what the agent system lists, which is only the trees that compiled: a tree
+--! whose subtree slot was unbound failed, and rebinding that slot has to be able to find it again.
+function GOAT_EmitTreeNames(collector)
+    local names = {}
+    for name in pairs(GOAT._trees) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        collector:Add(name)
+    end
+end
+
 --! Pushes one step into a C++ builder. Both the declarative and the imperative shape go
 --! through here, so a step means exactly the same thing whichever wrote it.
 local function pushStep(builder, step)
