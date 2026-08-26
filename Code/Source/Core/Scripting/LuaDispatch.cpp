@@ -345,7 +345,7 @@ namespace GOAT
         }
 
         AZ::ScriptDataContext call;
-        if (m_scriptContext->Call("GOAT._forgetAgent", call))
+        if (m_scriptContext->Call("GOAT_ForgetAgent", call))
         {
             call.PushArg(AgentKey(agent));
             call.CallExecute();

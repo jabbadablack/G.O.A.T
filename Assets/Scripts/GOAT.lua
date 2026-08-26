@@ -188,9 +188,14 @@ function GOAT._stateFor(agentKey, behaviorName)
 end
 
 --! Drops every scratch table an agent owned, called when the agent goes away.
-function GOAT._forgetAgent(agentKey)
+--! Exposed as a plain global because C++ looks functions up with lua_getglobal, which
+--! does not resolve a dotted name.
+function GOAT_ForgetAgent(agentKey)
     GOAT._state[agentKey] = nil
 end
+
+--! Kept for scripts that reach for it by its namespaced name.
+GOAT._forgetAgent = GOAT_ForgetAgent
 
 --! The single entry point C++ calls to run a behaviour phase.
 --! Returning a status here avoids C++ holding any Lua reference of its own.
