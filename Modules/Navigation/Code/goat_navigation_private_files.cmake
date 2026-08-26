@@ -4,6 +4,18 @@ set(FILES
     Source/GOAT_NavigationModuleInterface.h
     Source/Clients/GOAT_NavigationSystemComponent.cpp
     Source/Clients/GOAT_NavigationSystemComponent.h
+    Source/Components/GOATNavMeshComponent.cpp
+    Source/Components/GOATNavMeshComponent.h
+    Source/Navigation/MoveToAction.cpp
+    Source/Navigation/MoveToAction.h
+    Source/Navigation/NavigationKeys.cpp
+    Source/Navigation/NavigationKeys.h
+    Source/Navigation/NavigationTarget.cpp
+    Source/Navigation/NavigationTarget.h
     Source/Navigation/NavigationService.cpp
     Source/Navigation/NavigationService.h
+    Source/Navigation/PathPool.cpp
+    Source/Navigation/PathPool.h
+    Source/Navigation/SpatialChecks.cpp
+    Source/Navigation/SpatialChecks.h
 )

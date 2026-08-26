@@ -5,6 +5,7 @@
 #include <GOAT_Navigation/GOAT_NavigationTypeIds.h>
 
 #include <Clients/GOAT_NavigationSystemComponent.h>
+#include <Components/GOATNavMeshComponent.h>
 
 namespace GOAT_Navigation
 {
@@ -21,6 +22,7 @@ namespace GOAT_Navigation
         // This happens through the [MyComponent]::Reflect() function.
         m_descriptors.insert(m_descriptors.end(), {
             GOAT_NavigationSystemComponent::CreateDescriptor(),
+            GOATNavMeshComponent::CreateDescriptor(),
             });
     }
 

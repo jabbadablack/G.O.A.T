@@ -29,7 +29,7 @@ namespace GOAT
     {
         float& elapsed = Elapsed(context);
         elapsed += deltaTime;
-        return elapsed >= context.m_request->m_duration ? ActionResult::Success : ActionResult::Running;
+        return elapsed >= context.m_request->m_amount ? ActionResult::Success : ActionResult::Running;
     }
 
     void WaitAction::End([[maybe_unused]] const ActionContext& context)

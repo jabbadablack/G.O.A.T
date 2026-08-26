@@ -343,7 +343,7 @@ namespace GOAT
             }
 
             node.m_action.m_action = verb;
-            node.m_action.m_duration = node.m_amount;
+            node.m_action.m_amount = node.m_amount;
             node.m_action.m_tolerance = node.m_tolerance;
             node.m_action.m_targetKey = node.m_key;
             node.m_action.m_tag = node.m_goal;

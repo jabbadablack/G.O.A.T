@@ -15,7 +15,7 @@ namespace GOAT
                 ->Field("Position", &ActionRequest::m_position)
                 ->Field("TargetEntity", &ActionRequest::m_targetEntity)
                 ->Field("Tag", &ActionRequest::m_tag)
-                ->Field("Duration", &ActionRequest::m_duration)
+                ->Field("Amount", &ActionRequest::m_amount)
                 ->Field("Tolerance", &ActionRequest::m_tolerance);
         }
     }

@@ -3,6 +3,7 @@
 #include <GOAT/Domain/BlackboardTypes.h>
 #include <GOAT/GOATTypeIds.h>
 
+#include <AzCore/Debug/Trace.h>
 #include <AzCore/RTTI/TypeInfo.h>
 #include <AzCore/std/hash.h>
 
@@ -27,14 +28,25 @@ namespace GOAT
         static constexpr AZ::u32 MaxIndex = (1u << IndexBitCount) - 1;
 
         BlackboardKey() = default;
-        BlackboardKey(BlackboardScope scope, BlackboardType type, AZ::u32 index);
+
+        // Defined here rather than in a .cpp because the gem's API target is headers only:
+        // a module gem in this tree links no GOAT object, so anything it calls must be inline.
+        BlackboardKey(BlackboardScope scope, BlackboardType type, AZ::u32 index)
+        {
+            AZ_Assert(index <= MaxIndex, "Blackboard slot index %u exceeds the packed limit of %u", index, MaxIndex);
+            AZ_Assert(scope < BlackboardScope::Count, "Invalid blackboard scope");
+            AZ_Assert(type < BlackboardType::Count, "Invalid blackboard type");
+
+            m_packed = (static_cast<AZ::u32>(scope) << ScopeShift) | (static_cast<AZ::u32>(type) << TypeShift) |
+                (index & IndexMask);
+        }
 
         //! True when this key refers to a real slot.
-        bool IsValid() const;
+        bool IsValid() const { return m_packed != InvalidPacked; }
 
-        BlackboardScope GetScope() const;
-        BlackboardType GetType() const;
-        AZ::u32 GetIndex() const;
+        BlackboardScope GetScope() const { return static_cast<BlackboardScope>((m_packed >> ScopeShift) & ScopeMask); }
+        BlackboardType GetType() const { return static_cast<BlackboardType>((m_packed >> TypeShift) & TypeMask); }
+        AZ::u32 GetIndex() const { return m_packed & IndexMask; }
 
         //! The raw packed value, for hashing and serialization.
         AZ::u32 GetPacked() const { return m_packed; }
@@ -46,6 +58,12 @@ namespace GOAT
     private:
         //! Reserved value meaning "no slot".
         static constexpr AZ::u32 InvalidPacked = 0xFFFFFFFFu;
+
+        static constexpr AZ::u32 IndexMask = (1u << IndexBitCount) - 1;
+        static constexpr AZ::u32 TypeMask = (1u << TypeBitCount) - 1;
+        static constexpr AZ::u32 ScopeMask = (1u << ScopeBitCount) - 1;
+        static constexpr AZ::u32 TypeShift = IndexBitCount;
+        static constexpr AZ::u32 ScopeShift = IndexBitCount + TypeBitCount;
 
         AZ::u32 m_packed = InvalidPacked;
     };

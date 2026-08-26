@@ -59,7 +59,7 @@ namespace GOAT
     {
         if (!m_failed && !m_plan.m_steps.empty())
         {
-            m_plan.m_steps.back().m_duration = static_cast<float>(seconds);
+            m_plan.m_steps.back().m_amount = static_cast<float>(seconds);
         }
     }
 
