@@ -1,9 +1,11 @@
+#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
 #include <Core/Application/ActionStateRegistry.h>
 #include <Core/Application/AgentArchetype.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
+#include <Core/Application/NodeTypeRegistry.h>
 #include <Core/Frontend/DirectBackend.h>
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
@@ -108,10 +110,13 @@ namespace GOAT
             m_scriptContext = AZStd::make_unique<AgentScriptContext>();
             m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
             m_planStore = AZStd::make_unique<PlanStore>();
+            m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
+            m_trees = AZStd::make_unique<TreeLibrary>();
+            m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
+                *m_nodeTypes, *m_blackboard, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_scriptContext);
 
             m_runtime = AZStd::make_unique<AgentRuntime>(
-                *m_blackboard, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
-                *m_scripting, *m_planStore);
+                *m_blackboard, *m_actions, *m_backends, *m_scripting, *m_planStore);
 
             auto holding = AZStd::make_unique<HoldingAction>();
             m_holding = holding.get();
@@ -125,6 +130,9 @@ namespace GOAT
         void TearDown() override
         {
             m_runtime.reset();
+            m_treeBackend.reset();
+            m_trees.reset();
+            m_nodeTypes.reset();
             m_planStore.reset();
             m_scripting.reset();
             m_scriptContext.reset();
@@ -186,14 +194,23 @@ namespace GOAT
         //! does, so the record under test is shaped exactly like a real one.
         void Install(DecisionProgram* program)
         {
+            program->m_backend = m_treeBackend.get();
+            for (const BlackboardKey key : program->m_observedKeys)
+            {
+                program->m_watchedScopes[static_cast<size_t>(key.GetScope())] = true;
+            }
+
             auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
-            archetype->Add(program->m_name, AZStd::shared_ptr<const DecisionProgram>(program));
+            archetype->Add(program->m_name, AZStd::shared_ptr<const AgentProgram>(program));
 
             m_agent.m_archetype = archetype;
             m_agent.m_tree = 0;
             m_agent.m_program = archetype->GetProgram(0);
-            m_agent.m_cursor.Reset(*m_agent.m_program);
+            m_treeBackend->Attach(m_runtime->MakePlanContext(m_agent), *m_agent.m_program, m_agent.GetState());
         }
+
+        //! The cursor the tree backend keeps in the agent's brain state.
+        DecisionCursor& Cursor() { return *reinterpret_cast<DecisionCursor*>(m_agent.m_brainState.data()); }
 
         BlackboardKey m_gate;
         ActionStateId m_holdId = CoreActions::Invalid;
@@ -208,6 +225,9 @@ namespace GOAT
         AZStd::unique_ptr<AgentScriptContext> m_scriptContext;
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;
         AZStd::unique_ptr<PlanStore> m_planStore;
+        AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
+        AZStd::unique_ptr<TreeLibrary> m_trees;
+        AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
     };
 
@@ -335,7 +355,7 @@ namespace GOAT
 
         // Already cooling, with half a second left to run. Slot zero is the cooldown's, since
         // it is the only node in this tree that keeps anything between ticks.
-        m_agent.m_cursor.Slot(0) = 0.5f;
+        Cursor().Slot(0) = 0.5f;
 
         m_runtime->Tick(m_agent, 0.1f);
         EXPECT_FALSE(m_agent.m_machine.HasPlan());

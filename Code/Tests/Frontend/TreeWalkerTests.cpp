@@ -1,6 +1,6 @@
 #include <Core/Application/BlackboardSystem.h>
-#include <Core/Frontend/DecisionCursor.h>
-#include <Core/Frontend/TreeWalker.h>
+#include <Backends/BehaviorTree/DecisionCursor.h>
+#include <Backends/BehaviorTree/TreeWalker.h>
 
 #include <GOAT/Domain/DecisionProgram.h>
 

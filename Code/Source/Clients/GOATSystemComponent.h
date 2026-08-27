@@ -5,6 +5,7 @@
 #include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
+#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
 #include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
@@ -241,6 +242,8 @@ namespace GOAT
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
         AZStd::unique_ptr<DecisionBackendRegistry> m_decisionBackends;
+        //! Owned by m_decisionBackends; what a tree agent is compiled and run by.
+        IDecisionBackend* m_treeBackend = nullptr;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TreeLibrary> m_trees;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
@@ -253,7 +256,7 @@ namespace GOAT
         AZStd::unique_ptr<AgentRegistry> m_agents;
 
         //! Trees compiled so far, shared by every agent running the same one.
-        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const DecisionProgram>> m_programs;
+        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const AgentProgram>> m_programs;
         AZStd::vector<AZStd::unique_ptr<AZ::Data::AssetHandler>> m_assetHandlers;
         //! Whether the authoring vocabulary is loaded into the script context.
         bool m_vocabularyLoaded = false;

@@ -4,7 +4,7 @@
 
 namespace GOAT
 {
-    void AgentArchetype::Add(const AZ::Name& name, AZStd::shared_ptr<const DecisionProgram> program)
+    void AgentArchetype::Add(const AZ::Name& name, AZStd::shared_ptr<const AgentProgram> program)
     {
         AZ_Assert(m_names.size() < MaxArchetypeTrees, "An entity cannot declare more trees than a slot can address");
         if (m_names.size() >= MaxArchetypeTrees)
@@ -31,7 +31,7 @@ namespace GOAT
         return InvalidTreeSlot;
     }
 
-    bool AgentArchetype::Resolve(const AZ::Name& name, AZStd::shared_ptr<const DecisionProgram> program)
+    bool AgentArchetype::Resolve(const AZ::Name& name, AZStd::shared_ptr<const AgentProgram> program)
     {
         const TreeSlot slot = FindTree(name);
         if (slot == InvalidTreeSlot || m_programs[slot] != nullptr)
@@ -43,7 +43,7 @@ namespace GOAT
         return true;
     }
 
-    const DecisionProgram* AgentArchetype::GetProgram(TreeSlot slot) const
+    const AgentProgram* AgentArchetype::GetProgram(TreeSlot slot) const
     {
         return slot < m_programs.size() ? m_programs[slot].get() : nullptr;
     }

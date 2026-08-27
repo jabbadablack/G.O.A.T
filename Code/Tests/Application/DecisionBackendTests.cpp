@@ -24,17 +24,17 @@ namespace GOAT
         AZStd::vector<AZ::Name> GetNodeTypes() const override { return m_nodeTypes; }
         size_t GetStateSize() const override { return 0; }
 
-        CompileOutcome Compile(const AZ::Name& name, const AuthoredNode&) const override
+        CompileOutcome Compile(const AZ::Name& name, const AuthoredNode&) override
         {
             auto program = AZStd::shared_ptr<AgentProgram>(aznew AgentProgram());
             program->m_name = name;
             return AZ::Success(AZStd::shared_ptr<const AgentProgram>(AZStd::move(program)));
         }
 
-        bool Decide(const PlanContext&, const AgentProgram&, BrainState, ActionPlan&) override
+        Decision Decide(const PlanContext&, const AgentProgram&, BrainState, ActionResult, float, ActionPlan&) override
         {
             ++m_decisions;
-            return false;
+            return Decision{};
         }
 
         void Release(const PlanContext&) override { ++m_releases; }
@@ -123,7 +123,7 @@ namespace GOAT
 
     TEST_F(DecisionBackendFixture, Compile_AnswersAProgramNamedAfterTheTree)
     {
-        CountingBackend backend("bt");
+        CountingBackend backend("tree");
         AuthoredNode root;
         root.m_type = "selector";
 

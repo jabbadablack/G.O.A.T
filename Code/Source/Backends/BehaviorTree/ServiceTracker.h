@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Core/Frontend/DecisionCursor.h>
+#include <Backends/BehaviorTree/DecisionCursor.h>
 
 #include <GOAT/Domain/DecisionProgram.h>
 

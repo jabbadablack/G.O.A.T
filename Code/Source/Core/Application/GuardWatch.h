@@ -1,7 +1,7 @@
 #pragma once
 
 #include <GOAT/Domain/BlackboardStorage.h>
-#include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Interfaces/IBlackboardSystem.h>
 
 #include <AzCore/std/containers/array.h>
@@ -22,9 +22,9 @@ namespace GOAT
     class GuardWatch final
     {
     public:
-        //! Points at the storage of each scope this tree guards on. A tree with no guards
-        //! watches nothing and is never woken by a write.
-        void Connect(const DecisionProgram& program, IBlackboardSystem& blackboard, AgentId agent);
+        //! Points at the storage of each scope this program guards on. A program with no
+        //! guards watches nothing and is never woken by a write.
+        void Connect(const AgentProgram& program, IBlackboardSystem& blackboard, AgentId agent);
 
         //! Stops watching, for example when an agent changes squad or tree.
         void Disconnect();

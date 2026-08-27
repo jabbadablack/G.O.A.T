@@ -7,12 +7,14 @@
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
+#include <Core/Application/NodeTypeRegistry.h>
 #include <Core/Frontend/DirectBackend.h>
 #include <Core/Scripting/LuaNodeScripting.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/GuardWatch.h>
-#include <Core/Frontend/DecisionCursor.h>
-#include <Core/Frontend/TreeWalker.h>
+#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
+#include <Backends/BehaviorTree/DecisionCursor.h>
+#include <Backends/BehaviorTree/TreeWalker.h>
 
 #include <GOAT/Domain/DecisionProgram.h>
 #include <GOAT/Domain/PlanStore.h>
@@ -382,9 +384,12 @@ namespace GOAT::Benchmark
             m_dispatch = AZStd::make_unique<LuaDispatch>();
             m_luaContext = AZStd::make_unique<AgentScriptContext>();
             m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_luaContext);
+            m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
+            m_trees = AZStd::make_unique<TreeLibrary>();
+            m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
+                *m_nodeTypes, *m_blackboard, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_luaContext);
             m_runtime = AZStd::make_unique<AgentRuntime>(
-                *m_blackboard, *m_actions, *m_backends, *m_direct, *m_dispatch, *m_luaContext, *m_scripting,
-                m_planStore);
+                *m_blackboard, *m_actions, *m_backends, *m_scripting, m_planStore);
             m_registry = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboard, *m_dispatch);
         }
 
@@ -392,6 +397,9 @@ namespace GOAT::Benchmark
         {
             m_registry.reset();
             m_runtime.reset();
+            m_treeBackend.reset();
+            m_trees.reset();
+            m_nodeTypes.reset();
             m_scripting.reset();
             m_luaContext.reset();
             m_dispatch.reset();
@@ -430,6 +438,8 @@ namespace GOAT::Benchmark
             }
 
             auto shared = AZStd::shared_ptr<DecisionProgram>(aznew DecisionProgram(*m_program));
+            shared->m_backend = m_treeBackend.get();
+            shared->m_watchedScopes[static_cast<size_t>(BlackboardScope::Agent)] = true;
             auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
             archetype->Add(AZ::Name("Bench"), AZStd::move(shared));
             m_archetype = archetype;
@@ -445,6 +455,9 @@ namespace GOAT::Benchmark
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
         AZStd::unique_ptr<AgentScriptContext> m_luaContext;
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;
+        AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
+        AZStd::unique_ptr<TreeLibrary> m_trees;
+        AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
         AZStd::unique_ptr<AgentRegistry> m_registry;
     };
@@ -499,6 +512,20 @@ namespace GOAT::Benchmark
         // Two ticks to get everybody past starting a plan and into running one.
         m_registry->TickBand(0);
         m_registry->TickBand(0);
+
+        // A tick that decides nothing is nearly free, so measuring one would report a speed
+        // that means nothing. Fail loudly instead.
+        size_t running = 0;
+        for (const AgentId agent : registered)
+        {
+            const AgentRecord* record = m_registry->Find(agent);
+            running += record != nullptr && record->m_machine.HasPlan() ? 1 : 0;
+        }
+        if (running != static_cast<size_t>(agents))
+        {
+            state.SkipWithError("agents are not running anything, so this measures an idle tick");
+            return;
+        }
 
         for ([[maybe_unused]] auto _ : state)
         {

@@ -2,7 +2,7 @@
 
 #include <AzCore/std/limits.h>
 
-#include <Core/Frontend/DecisionCursor.h>
+#include <Backends/BehaviorTree/DecisionCursor.h>
 
 #include <GOAT/Domain/DecisionProgram.h>
 #include <GOAT/Domain/Intent.h>
@@ -46,10 +46,6 @@ namespace GOAT
             DecisionCursor& cursor,
             const PlanContext& context,
             ActionResult lastResult) const;
-
-        //! Re-enters the tree at a node a lower priority guard just started allowing.
-        WalkStep Restart(
-            const DecisionProgram& program, DecisionCursor& cursor, const PlanContext& context, NodeIndex node) const;
 
     private:
         //! Runs the walk from a node, either descending into it or bubbling a result out of it.

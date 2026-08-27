@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Domain/ActionState.h>
+#include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Domain/BlackboardKey.h>
 #include <GOAT/Domain/Guard.h>
 #include <GOAT/Domain/Intent.h>
@@ -85,16 +86,15 @@ namespace GOAT
 
     //! A behavior tree compiled for execution: flat, immutable, and shared by every agent using it.
     class DecisionProgram final
+        : public AgentProgram
     {
     public:
-        AZ_TYPE_INFO(DecisionProgram, DecisionProgramTypeId);
+        AZ_RTTI(DecisionProgram, DecisionProgramTypeId, AgentProgram);
         AZ_CLASS_ALLOCATOR(DecisionProgram, AZ::SystemAllocator);
 
         //! True when the program has no nodes to run.
         bool IsEmpty() const { return m_nodes.empty(); }
 
-        //! Name agents refer to this tree by.
-        AZ::Name m_name;
         //! Nodes in pre-order, root first.
         AZStd::vector<DecisionNode> m_nodes;
         //! Services referenced by node service ranges.
@@ -115,11 +115,6 @@ namespace GOAT
         //! Cursor slots this tree needs, and where the run of one slot per service starts.
         AZ::u16 m_cursorSlotCount = 0;
         AZ::u16 m_serviceSlotBase = 0;
-        //! True when this tree contains a composite or decorator whose control flow is written in
-        //! Lua. Such a node can read anything a script can reach, so a walk of this tree cannot be
-        //! predicted from the blackboard and the clock alone and the agent is never left dormant.
-        //! Recorded by the compiler, which is the only thing that knows what it emitted.
-        bool m_pollEveryTick = false;
         //! Deepest path in this tree, checked against MaxTreeDepth at compile time.
         AZ::u32 m_depth = 0;
     };

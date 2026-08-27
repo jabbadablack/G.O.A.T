@@ -10,6 +10,7 @@
 #include <AzCore/Outcome/Outcome.h>
 #include <AzCore/RTTI/RTTI.h>
 #include <AzCore/std/containers/span.h>
+#include <AzCore/std/limits.h>
 #include <AzCore/std/containers/vector.h>
 #include <AzCore/std/smart_ptr/shared_ptr.h>
 #include <AzCore/std/string/string.h>
@@ -21,6 +22,22 @@ namespace GOAT
 
     //! A compiled program, or why it could not be compiled.
     using CompileOutcome = AZ::Outcome<AZStd::shared_ptr<const AgentProgram>, AZStd::string>;
+
+    //! What a backend wants done with the plan an agent is running.
+    enum class TickResult : AZ::u8
+    {
+        Continue, //!< Leave it running.
+        Abandon   //!< Drop it and decide again.
+    };
+
+    //! What a backend decided for one agent.
+    struct Decision final
+    {
+        //! True when a plan was produced.
+        bool m_planned = false;
+        //! Seconds until this agent is worth asking again, when nothing was produced.
+        float m_wakeIn = AZStd::numeric_limits<float>::max();
+    };
 
     //! Decides how an agent acts. One of these per paradigm.
     class IDecisionBackend
@@ -37,7 +54,7 @@ namespace GOAT
         virtual AZStd::vector<AZ::Name> GetNodeTypes() const = 0;
 
         //! Turns an authored node tree into a program agents can run.
-        virtual CompileOutcome Compile(const AZ::Name& name, const AuthoredNode& root) const = 0;
+        virtual CompileOutcome Compile(const AZ::Name& name, const AuthoredNode& root) = 0;
 
         //! How much per agent state this backend needs.
         virtual size_t GetStateSize() const = 0;
@@ -48,9 +65,18 @@ namespace GOAT
         {
         }
 
-        //! Produces the next plan for an agent. False when it has none.
-        virtual bool Decide(
-            const PlanContext& context, const AgentProgram& program, BrainState state, ActionPlan& outPlan) = 0;
+        //! Re-checks whatever could interrupt the agent, and runs any periodic work it has.
+        //! Only called when a watched slot changed or the program asked to be ticked.
+        virtual TickResult Advance([[maybe_unused]] const PlanContext& context,
+            [[maybe_unused]] const AgentProgram& program, [[maybe_unused]] BrainState state,
+            [[maybe_unused]] float elapsed)
+        {
+            return TickResult::Continue;
+        }
+
+        //! Produces the next plan for an agent, given how the last one ended.
+        virtual Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
+            ActionResult lastResult, float elapsed, ActionPlan& outPlan) = 0;
 
         //! Releases any per agent state held for this agent.
         virtual void Release([[maybe_unused]] const PlanContext& context)

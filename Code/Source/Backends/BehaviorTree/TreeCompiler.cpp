@@ -1,4 +1,4 @@
-#include <Core/Frontend/TreeCompiler.h>
+#include <Backends/BehaviorTree/TreeCompiler.h>
 
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
@@ -634,9 +634,17 @@ namespace GOAT
         {
             if (node.m_op == NodeOp::LuaComposite || node.m_op == NodeOp::LuaDecorator)
             {
-                program.m_pollEveryTick = true;
+                program.m_wantsTick = true;
                 break;
             }
+        }
+
+        // Services need a beat of their own, so a tree with any is never left dormant.
+        program.m_wantsTick = program.m_wantsTick || !program.m_services.empty();
+
+        for (const BlackboardKey key : program.m_observedKeys)
+        {
+            program.m_watchedScopes[static_cast<size_t>(key.GetScope())] = true;
         }
 
         AZ_Assert(program.m_nodes[0].m_subtreeEnd == program.m_nodes.size(),

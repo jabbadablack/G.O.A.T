@@ -2,6 +2,7 @@
 
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
+#include <Core/Scripting/LuaDispatch.h>
 #include <Core/Application/AgentStore.h>
 
 #include <AzCore/EBus/ScheduledEvent.h>

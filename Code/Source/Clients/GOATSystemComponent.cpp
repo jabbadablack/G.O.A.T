@@ -5,7 +5,6 @@
 #include <Core/Actions/WaitAction.h>
 #include <Core/Director/DirectorActions.h>
 #include <Core/Frontend/DirectBackend.h>
-#include <Core/Frontend/TreeCompiler.h>
 #include <Core/Scripting/LuaBackend.h>
 #include <Core/Scripting/LuaNameCollector.h>
 #include <Core/Scripting/LuaPlanBuilder.h>
@@ -147,9 +146,15 @@ namespace GOAT
         m_actions->RegisterAt(CoreActions::RunScript, AZStd::make_unique<RunScriptAction>(*m_dispatch, *m_scriptContext));
 
         m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
+
+        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
+            *m_nodeTypes, *m_blackboardSystem, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_scriptContext);
+        m_treeBackend = treeBackend.get();
+        AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
+        m_decisionBackends->Register(AZStd::move(installed));
+
         m_runtime = AZStd::make_unique<AgentRuntime>(
-            *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
-            *m_scripting, *m_planStore);
+            *m_blackboardSystem, *m_actions, *m_backends, *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
         m_reachFilters = AZStd::make_unique<ReachFilterRegistry>("reach filter");
         m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents, *m_blackboardSystem, *m_reachFilters);
@@ -187,6 +192,7 @@ namespace GOAT
         m_dispatch.reset();
         m_trees.reset();
         m_nodeTypes.reset();
+        m_treeBackend = nullptr;
         m_decisionBackends.reset();
         m_backends.reset();
         m_actions.reset();
@@ -503,14 +509,13 @@ namespace GOAT
 
         m_trees->Add(treeName, emitted.GetValue());
 
-        const TreeCompiler compiler(*m_nodeTypes, *m_blackboardSystem, *m_trees, *m_actions);
-        auto compiled = compiler.Compile(treeName, *emitted.GetValue());
+        auto compiled = m_treeBackend->Compile(treeName, *emitted.GetValue());
         if (!compiled.IsSuccess())
         {
             return AZ::Failure(compiled.TakeError());
         }
 
-        auto program = AZStd::shared_ptr<const DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
+        AZStd::shared_ptr<const AgentProgram> program = compiled.TakeValue();
         m_programs[treeName] = program;
 
         // An entity may have registered before this tree compiled, leaving its archetype holding
@@ -835,7 +840,13 @@ namespace GOAT
                 continue;
             }
 
-            const auto& slots = program->m_boundSlots;
+            const auto* tree = azrtti_cast<const DecisionProgram*>(program.get());
+            if (tree == nullptr)
+            {
+                continue;
+            }
+
+            const auto& slots = tree->m_boundSlots;
             if (AZStd::find(slots.begin(), slots.end(), slot) != slots.end())
             {
                 affected.push_back(name);
@@ -1103,10 +1114,10 @@ namespace GOAT
             : AZ::Name("idle");
 
         return AZStd::string::format(
-            "tree '%s' (%zu interrupted) band %u node %u action '%s' step %zu of %zu elapsed %.2fs",
+            "program '%s' on backend '%s' (%zu interrupted) band %u action '%s' step %zu of %zu elapsed %.2fs",
             record->m_program != nullptr ? record->m_program->m_name.GetCStr() : "<none>",
-            record->m_treeStack.size(), static_cast<AZ::u32>(record->m_band),
-            record->m_cursor.GetActiveLeaf(), verb.GetCStr(),
+            record->GetBackend() != nullptr ? record->GetBackend()->GetName().GetCStr() : "<none>",
+            record->m_treeStack.size(), static_cast<AZ::u32>(record->m_band), verb.GetCStr(),
             record->m_machine.GetStepIndex(), record->m_machine.GetPlanSize(), record->m_machine.GetElapsed());
     }
 
@@ -1468,9 +1479,11 @@ namespace GOAT
         for (const AZ::Name& name : GetTreeNames())
         {
             const auto program = m_programs.find(name);
+            const auto* tree = azrtti_cast<const DecisionProgram*>(program->second.get());
             AZLOG_INFO(
-                "tree: %s (%zu nodes, %zu guards, %zu services)", name.GetCStr(), program->second->m_nodes.size(),
-                program->second->m_guardNodes.size(), program->second->m_services.size());
+                "tree: %s (%zu nodes, %zu guards, %zu services)", name.GetCStr(),
+                tree != nullptr ? tree->m_nodes.size() : 0, tree != nullptr ? tree->m_guardNodes.size() : 0,
+                tree != nullptr ? tree->m_services.size() : 0);
         }
     }
 
