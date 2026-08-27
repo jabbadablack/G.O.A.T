@@ -145,8 +145,9 @@ namespace GOAT
         NodeIndex parent = program.m_nodes[node].m_parent;
         while (parent != InvalidNodeIndex)
         {
-            const NodeOp op = program.m_nodes[parent].m_op;
-            if (op == NodeOp::Selector || op == NodeOp::Sequence)
+            // Only a Lua composite remembers which child it chose; a built in one finds its
+            // next sibling from the child it is leaving, so it has nothing to rebuild.
+            if (program.m_nodes[parent].m_op == NodeOp::LuaComposite)
             {
                 cursor.ChildIndex(parent) = ChildIndexOf(program, parent, child);
             }
@@ -184,7 +185,6 @@ namespace GOAT
                 {
                 case NodeOp::Selector:
                 case NodeOp::Sequence:
-                    cursor.ChildIndex(node) = 0;
                     node = current.m_firstChild;
                     continue;
 
@@ -199,7 +199,6 @@ namespace GOAT
                     // Only the main branch is ever walked. The background one is a predicate
                     // that GuardEvaluator re-checks; stepping into it would need a second
                     // action slot, and an agent's state machine has exactly one.
-                    cursor.ChildIndex(node) = 0;
                     node = current.m_firstChild;
                     continue;
 
@@ -309,12 +308,13 @@ namespace GOAT
                     continue;
                 }
 
-                AZ::u16& childIndex = cursor.ChildIndex(parentIndex);
-                ++childIndex;
-                if (childIndex < parent.m_childCount)
+                // The next sibling begins where this child's subtree ends, so stepping to it is
+                // one load. Counting children instead meant walking the sibling chain from the
+                // first one every time, which made a wide composite cost the square of its width.
+                const NodeIndex next = program.m_nodes[node].m_subtreeEnd;
+                if (next < parent.m_subtreeEnd)
                 {
-                    node = NthChild(program, parentIndex, childIndex);
-                    AZ_Assert(node != InvalidNodeIndex, "Stepping to the next sibling must land on a node");
+                    node = next;
                     bubbling = false;
                     continue;
                 }
@@ -332,12 +332,13 @@ namespace GOAT
                     continue;
                 }
 
-                AZ::u16& childIndex = cursor.ChildIndex(parentIndex);
-                ++childIndex;
-                if (childIndex < parent.m_childCount)
+                // The next sibling begins where this child's subtree ends, so stepping to it is
+                // one load. Counting children instead meant walking the sibling chain from the
+                // first one every time, which made a wide composite cost the square of its width.
+                const NodeIndex next = program.m_nodes[node].m_subtreeEnd;
+                if (next < parent.m_subtreeEnd)
                 {
-                    node = NthChild(program, parentIndex, childIndex);
-                    AZ_Assert(node != InvalidNodeIndex, "Stepping to the next sibling must land on a node");
+                    node = next;
                     bubbling = false;
                     continue;
                 }
