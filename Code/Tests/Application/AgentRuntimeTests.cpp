@@ -87,6 +87,32 @@ namespace GOAT
     //! Runs whole ticks against a hand built program. Lua is deliberately never connected:
     //! LuaDispatch guards every entry point on a null context, so a tree of conditions and
     //! action leaves runs end to end without an asset, an entity or a script.
+    //! Runs for a second, and asks not to be stepped until that second is up.
+    class SleepingAction final : public IActionState
+    {
+    public:
+        AZ_RTTI(SleepingAction, "{9C4A1E70-52B8-4D33-A16F-8E0D3B7C4192}", IActionState);
+
+        AZ::Name GetName() const override { return AZ::Name("sleep"); }
+
+        ActionResult Step(const ActionContext& context, float deltaTime) override
+        {
+            ++m_steps;
+            m_slept += deltaTime;
+            if (m_slept >= 1.0f)
+            {
+                return ActionResult::Success;
+            }
+
+            context.m_wake->m_when = WakeWhen::AtTime;
+            context.m_wake->m_in = 1.0f - m_slept;
+            return ActionResult::Running;
+        }
+
+        int m_steps = 0;
+        float m_slept = 0.0f;
+    };
+
     class AgentRuntimeFixture : public UnitTest::LeakDetectionFixture
     {
     protected:
@@ -114,6 +140,10 @@ namespace GOAT
             auto holding = AZStd::make_unique<HoldingAction>();
             m_holding = holding.get();
             m_holdId = m_actions->Register(AZStd::move(holding));
+
+            auto sleeping = AZStd::make_unique<SleepingAction>();
+            m_sleeping = sleeping.get();
+            m_sleepId = m_actions->Register(AZStd::move(sleeping));
 
             m_agent.m_id = AgentId(0, 1);
             m_agent.m_entity = AZ::EntityId(1234);
@@ -207,6 +237,8 @@ namespace GOAT
         BlackboardKey m_gate;
         ActionStateId m_holdId = CoreActions::Invalid;
         HoldingAction* m_holding = nullptr;
+        ActionStateId m_sleepId = CoreActions::Invalid;
+        SleepingAction* m_sleeping = nullptr;
         AgentRecord m_agent;
         AZStd::unique_ptr<BlackboardSystem> m_inner;
         AZStd::unique_ptr<CountingBlackboard> m_blackboard;
@@ -374,5 +406,40 @@ namespace GOAT
         EXPECT_EQ(m_holding->m_begins, 0);
         m_runtime->Tick(m_agent, 0.033f);
         EXPECT_EQ(m_holding->m_begins, 1);
+    }
+
+    //! An action that says when it next has something to do is left alone until then, rather
+    //! than being stepped every band tick to be told nothing changed.
+    TEST_F(AgentRuntimeFixture, Tick_LeavesASleepingActionAlone)
+    {
+        BuildGuardedTree(true);
+        const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program))
+            ->m_nodes[2].m_action.m_action = m_sleepId;
+
+        for (int i = 0; i < 12; ++i)
+        {
+            m_runtime->Tick(m_agent, 0.1f);
+        }
+
+        // One step to arm the sleep and one when the second is up, rather than one per tick.
+        EXPECT_LE(m_sleeping->m_steps, 3);
+        EXPECT_GT(m_sleeping->m_steps, 0);
+    }
+
+    //! The sleep is a bound, not a promise: something that knows better can end it early.
+    TEST_F(AgentRuntimeFixture, Wake_EndsASleepEarly)
+    {
+        BuildGuardedTree(true);
+        const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program))
+            ->m_nodes[2].m_action.m_action = m_sleepId;
+
+        m_runtime->Tick(m_agent, 0.1f);
+        m_runtime->Tick(m_agent, 0.1f);
+        const int armed = m_sleeping->m_steps;
+
+        m_agent.m_wakeIn = 0.0f;
+        m_runtime->Tick(m_agent, 0.1f);
+
+        EXPECT_GT(m_sleeping->m_steps, armed);
     }
 } // namespace GOAT

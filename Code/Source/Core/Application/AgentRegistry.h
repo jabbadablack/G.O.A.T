@@ -45,6 +45,9 @@ namespace GOAT
         //! per agent. Blackboard storage already grows in steps of its own.
         void Reserve(size_t count, size_t band);
 
+        //! Marks agents as having something to do again.
+        void Wake(AZStd::span<const AgentId> agents);
+
         //! Runs every agent in one band. Public because it is the tick entry point: the band's
         //! scheduled event calls it, and so does anything measuring or testing a whole tick.
         void TickBand(size_t band);

@@ -953,6 +953,14 @@ namespace GOAT
         }
     }
 
+    void GOATSystemComponent::WakeAgents(AZStd::span<const AgentId> agents)
+    {
+        if (m_agents != nullptr)
+        {
+            m_agents->Wake(agents);
+        }
+    }
+
     bool GOATSystemComponent::RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend)
     {
         return m_decisionBackends != nullptr && m_decisionBackends->Register(AZStd::move(backend));

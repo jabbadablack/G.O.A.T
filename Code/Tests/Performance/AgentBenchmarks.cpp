@@ -419,12 +419,29 @@ namespace GOAT::Benchmark
             ActionResult Step(const ActionContext&, float) override { return ActionResult::Running; }
         };
 
-        void MakeArchetype()
+        //! A verb that always has a second to wait, so every agent is asleep between services.
+        class WaitingAction final : public IActionState
+        {
+        public:
+            AZ_RTTI(WaitingAction, "{1E9D4C05-73A6-42BB-8F41-0D6C2E5A9B38}", IActionState);
+            AZ::Name GetName() const override { return AZ::Name("waiting"); }
+
+            ActionResult Step(const ActionContext& context, float) override
+            {
+                context.m_wake->m_when = WakeWhen::AtTime;
+                context.m_wake->m_in = 1.0f;
+                return ActionResult::Running;
+            }
+        };
+
+        void MakeArchetype(bool waiting = false)
         {
             BuildProgram(8);
             // Every leaf runs the busy verb, so a walk that reaches one produces a plan the
             // agent keeps running rather than a refusal.
-            const ActionStateId busy = m_actions->Register(AZStd::make_unique<BusyAction>());
+            const ActionStateId busy = waiting
+                ? m_actions->Register(AZStd::make_unique<WaitingAction>())
+                : m_actions->Register(AZStd::make_unique<BusyAction>());
             for (DecisionNode& node : m_program->m_nodes)
             {
                 if (node.m_op == NodeOp::Action)
@@ -531,6 +548,52 @@ namespace GOAT::Benchmark
     }
 
     BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickBand)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! The same population, but every agent said when it next has something to do. This is what
+    //! the tick costs once an action stops being asked every time whether anything changed.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_TickWaiting)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        MakeArchetype(true);
+        m_registry->Reserve(static_cast<size_t>(agents), 0);
+
+        AZStd::vector<AgentId> registered;
+        registered.reserve(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            registered.push_back(
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{}));
+        }
+
+        for (const AgentId agent : registered)
+        {
+            m_blackboard->Set<bool>(m_gate, true, agent);
+        }
+
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+
+        size_t running = 0;
+        for (const AgentId agent : registered)
+        {
+            const AgentRecord* record = m_registry->Find(agent);
+            running += record != nullptr && record->m_machine.HasPlan() ? 1 : 0;
+        }
+        if (running != static_cast<size_t>(agents))
+        {
+            state.SkipWithError("agents are not running anything, so this measures an idle tick");
+            return;
+        }
+
+        for ([[maybe_unused]] auto _ : state)
+        {
+            m_registry->TickBand(0);
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickWaiting)->Arg(100)->Arg(1000)->Arg(10000);
 
     //! The same, told up front how many are coming.
     BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_RegisterAgentsReserved)(::benchmark::State& state)

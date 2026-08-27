@@ -1,9 +1,28 @@
 #include <Core/Application/AgentRuntime.h>
 
 #include <AzCore/Console/ILogger.h>
+#include <AzCore/std/algorithm.h>
+#include <AzCore/std/limits.h>
 
 namespace GOAT
 {
+    namespace
+    {
+        //! Seconds to leave an agent alone for, from what its running action asked for.
+        float WakeDelay(const WakeCondition& wake)
+        {
+            switch (wake.m_when)
+            {
+            case WakeWhen::AtTime:
+                return AZStd::max(wake.m_in, 0.0f);
+            case WakeWhen::OnSignal:
+                return AZStd::numeric_limits<float>::max();
+            default:
+                return 0.0f;
+            }
+        }
+    } // namespace
+
     AgentRuntime::AgentRuntime(
         IBlackboardSystem& blackboard,
         const ActionStateRegistry& actions,
@@ -88,9 +107,9 @@ namespace GOAT
         const bool dirty = agent.m_observer.IsDirty();
         const bool wantsTick = agent.m_program->m_wantsTick;
 
-        // Dormant: it is running nothing, nothing it watches changed, and whatever it was
-        // waiting for has not come due. Asking its backend again would reach the same answer.
-        if (!agent.m_machine.HasPlan() && !dirty && !wantsTick)
+        // Asleep: nothing it watches changed and whatever it was waiting for has not come due.
+        // A running action counts, so an agent waiting out a timer costs one subtraction.
+        if (!dirty && !wantsTick)
         {
             agent.m_wakeIn -= deltaTime;
             if (agent.m_wakeIn > 0.0f)
@@ -100,28 +119,35 @@ namespace GOAT
         }
 
         const PlanContext planContext = MakePlanContext(agent);
-        float elapsed = agent.m_elapsed;
+
+        // The agent's clock and its backend's are different clocks over the same wall time, so
+        // both are given the whole span, but the backend is given it only once.
+        const float elapsed = agent.m_elapsed;
+        float backendElapsed = elapsed;
         agent.m_elapsed = 0.0f;
 
         bool abandoned = false;
         if (dirty || wantsTick)
         {
             agent.m_observer.Clear();
-            if (backend->Advance(planContext, *agent.m_program, agent.GetState(), elapsed) == TickResult::Abandon)
+            if (backend->Advance(planContext, *agent.m_program, agent.GetState(), backendElapsed) ==
+                TickResult::Abandon)
             {
                 AbortAgent(agent);
                 abandoned = true;
             }
-            elapsed = 0.0f;
+            backendElapsed = 0.0f;
         }
 
         ActionResult lastResult = abandoned ? ActionResult::Failure : ActionResult::Success;
         if (agent.m_machine.HasPlan())
         {
             ActionContext actionContext = MakeActionContext(agent);
-            lastResult = agent.m_machine.Step(m_actions, actionContext, deltaTime);
+            WakeCondition wake;
+            lastResult = agent.m_machine.Step(m_actions, actionContext, elapsed, wake);
             if (lastResult == ActionResult::Running)
             {
+                agent.m_wakeIn = WakeDelay(wake);
                 return;
             }
         }

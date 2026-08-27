@@ -120,6 +120,9 @@ namespace GOAT
         virtual void UnregisterReachFilter(const AZ::Name& name) = 0;
         virtual AZStd::vector<AZ::Name> GetReachFilterNames() const = 0;
 
+        //! Wakes agents whose running action was waiting to be told something.
+        virtual void WakeAgents(AZStd::span<const AgentId> agents) = 0;
+
         //! Installs a backend. Removing one is what makes backends decoupled.
         virtual bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) = 0;
         virtual void UnregisterBackend(const AZ::Name& name) = 0;

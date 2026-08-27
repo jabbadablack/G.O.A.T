@@ -393,6 +393,17 @@ namespace GOAT
         return m_agents.GetHandleAt(slot);
     }
 
+    void AgentRegistry::Wake(AZStd::span<const AgentId> agents)
+    {
+        for (const AgentId agent : agents)
+        {
+            if (AgentRecord* record = Find(agent))
+            {
+                record->m_wakeIn = 0.0f;
+            }
+        }
+    }
+
     void AgentRegistry::TickBand(size_t band)
     {
         AZ_Assert(band < BandCount, "A scheduled event fired for a band that does not exist");

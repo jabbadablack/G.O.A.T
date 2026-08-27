@@ -38,7 +38,18 @@ namespace GOAT
         elapsed += deltaTime;
 
         AZ_Assert(elapsed >= 0.0f, "Elapsed wait time must never go negative");
-        return elapsed >= context.m_request->m_amount ? ActionResult::Success : ActionResult::Running;
+        if (elapsed >= context.m_request->m_amount)
+        {
+            return ActionResult::Success;
+        }
+
+        // Nothing to do until the rest of it runs out, so ask not to be stepped until then.
+        if (context.m_wake != nullptr)
+        {
+            context.m_wake->m_when = WakeWhen::AtTime;
+            context.m_wake->m_in = context.m_request->m_amount - elapsed;
+        }
+        return ActionResult::Running;
     }
 
 } // namespace GOAT
