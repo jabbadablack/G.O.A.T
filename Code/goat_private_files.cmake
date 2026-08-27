@@ -36,6 +36,8 @@ set(FILES
     Source/Backends/Htn/HtnPlanner.cpp
     Source/Backends/Htn/HtnPlanner.h
     Source/Backends/BehaviorTree/BehaviorTreeBackend.h
+    Source/Backends/BehaviorTree/BehaviorTreeWords.cpp
+    Source/Backends/BehaviorTree/BehaviorTreeWords.h
     Source/Backends/BehaviorTree/BehaviorTreeBackend.cpp
     Source/Backends/BehaviorTree/DecisionCursor.h
     Source/Backends/BehaviorTree/DecisionCursor.cpp

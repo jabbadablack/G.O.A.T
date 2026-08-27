@@ -108,10 +108,6 @@ namespace GOAT
         AZStd::vector<NodeIndex> m_serviceNodes;
         //! Parallel nodes, so re-checking their background branches scans only those.
         AZStd::vector<NodeIndex> m_parallelNodes;
-        //! Subtree slots this program was compiled against, deduplicated.
-        //! Recorded here because the compiler that resolved them is the only thing that knows,
-        //! and a separate index would be a second invariant to keep in step with this one.
-        AZStd::vector<AZ::Name> m_boundSlots;
         //! Cursor slots this tree needs, and where the run of one slot per service starts.
         AZ::u16 m_cursorSlotCount = 0;
         AZ::u16 m_serviceSlotBase = 0;

@@ -7,6 +7,7 @@
 #include <AzCore/Name/Name.h>
 #include <AzCore/RTTI/RTTI.h>
 #include <AzCore/std/containers/array.h>
+#include <AzCore/std/containers/vector.h>
 
 namespace GOAT
 {
@@ -27,6 +28,10 @@ namespace GOAT
         IDecisionBackend* m_backend = nullptr;
         //! Blackboard scopes this program guards on, so a write elsewhere never wakes it.
         AZStd::array<bool, static_cast<size_t>(BlackboardScope::Count)> m_watchedScopes{};
+        //! Subtree slots this was compiled against, deduplicated. Recorded because the compiler
+        //! that resolved them is the only thing that knows, and rebinding one has to find
+        //! whoever used it again.
+        AZStd::vector<AZ::Name> m_boundSlots;
         //! True when this needs a call every tick, not only when a watched slot changed.
         bool m_wantsTick = false;
     };

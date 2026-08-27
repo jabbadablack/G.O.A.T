@@ -6,6 +6,7 @@
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
 #include <Backends/BehaviorTree/BehaviorTreeBackend.h>
+#include <Backends/BehaviorTree/BehaviorTreeWords.h>
 #include <Backends/Htn/HtnBackend.h>
 #include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
@@ -257,6 +258,8 @@ namespace GOAT
         AZStd::unique_ptr<DecisionBackendRegistry> m_decisionBackends;
         //! Owned by m_decisionBackends; what a tree agent is compiled and run by.
         IDecisionBackend* m_treeBackend = nullptr;
+        //! The words a tree is written in, which leave with the backend that reads them.
+        VocabularyScope m_treeWords{ "behaviour tree" };
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TreeLibrary> m_trees;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;

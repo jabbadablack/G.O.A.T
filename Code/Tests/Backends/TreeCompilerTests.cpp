@@ -1,3 +1,4 @@
+#include <Backends/BehaviorTree/BehaviorTreeWords.h>
 #include <Backends/BehaviorTree/TreeCompiler.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
@@ -30,6 +31,10 @@ namespace GOAT
             m_actions = AZStd::make_unique<ActionStateRegistry>();
             m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitingVerb>());
             m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
+            for (NodeTypeDescriptor& word : BehaviorTreeWords())
+            {
+                m_nodeTypes->Register(AZStd::move(word));
+            }
             m_agents = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions);
             m_library = AZStd::make_unique<TreeLibrary>();
 

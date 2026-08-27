@@ -70,6 +70,27 @@ namespace GOAT
             return true;
         }
 
+        //! Installs a word that runs no verb of its own, as a composite or a decorator does.
+        bool InstallWord(NodeTypeDescriptor descriptor)
+        {
+            IAgentSystem* agents = AgentSystemInterface::Get();
+            AZ_Assert(agents != nullptr, "Installing a word needs the GOAT agent system");
+            if (agents == nullptr)
+            {
+                return false;
+            }
+
+            const AZ::Name name = descriptor.m_name;
+            AZ_Assert(!name.IsEmpty(), "A word is always installed under a name");
+            if (!agents->RegisterNodeType(AZStd::move(descriptor)))
+            {
+                return false;
+            }
+
+            m_nodeTypes.push_back(name);
+            return true;
+        }
+
         //! Remembers a reach filter so it leaves with the rest.
         void Own(const AZ::Name& reachFilter) { m_reachFilters.push_back(reachFilter); }
 

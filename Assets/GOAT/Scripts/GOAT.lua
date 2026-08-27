@@ -84,6 +84,11 @@ local function nodeType(typeName, isService)
     end
 end
 
+--! Shared so a backend's own vocabulary file can build its words the same way, including the
+--! forms GOAT_DeclareNode cannot reach -- a service attaches to a composite rather than becoming
+--! a child of one.
+GOAT.nodeType = nodeType
+
 -- Composites.
 selector = nodeType("selector")
 sequence = nodeType("sequence")

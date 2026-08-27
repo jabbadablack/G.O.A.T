@@ -139,6 +139,8 @@ namespace GOAT
 
         m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
 
+        InstallBehaviorTreeWords(m_treeWords);
+
         auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*this, *m_blackboardSystem, *m_trees);
         m_treeBackend = treeBackend.get();
         AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
@@ -185,6 +187,7 @@ namespace GOAT
         }
         m_dispatch.reset();
         m_trees.reset();
+        m_treeWords.Clear();
         m_nodeTypes.reset();
         m_treeBackend = nullptr;
         m_decisionBackends.reset();
@@ -855,13 +858,7 @@ namespace GOAT
                 continue;
             }
 
-            const auto* tree = azrtti_cast<const DecisionProgram*>(program.get());
-            if (tree == nullptr)
-            {
-                continue;
-            }
-
-            const auto& slots = tree->m_boundSlots;
+            const auto& slots = program->m_boundSlots;
             if (AZStd::find(slots.begin(), slots.end(), slot) != slots.end())
             {
                 affected.push_back(name);
@@ -1549,11 +1546,10 @@ namespace GOAT
         for (const AZ::Name& name : GetTreeNames())
         {
             const auto program = m_programs.find(name);
-            const auto* tree = azrtti_cast<const DecisionProgram*>(program->second.get());
-            AZLOG_INFO(
-                "tree: %s (%zu nodes, %zu guards, %zu services)", name.GetCStr(),
-                tree != nullptr ? tree->m_nodes.size() : 0, tree != nullptr ? tree->m_guardNodes.size() : 0,
-                tree != nullptr ? tree->m_services.size() : 0);
+            const IDecisionBackend* backend = program->second->m_backend;
+            AZLOG_INFO("program: %s (%s, %zu bound slot(s))", name.GetCStr(),
+                backend != nullptr ? backend->GetName().GetCStr() : "no backend",
+                program->second->m_boundSlots.size());
         }
     }
 
