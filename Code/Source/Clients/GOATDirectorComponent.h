@@ -47,8 +47,10 @@ namespace GOAT
         AZStd::vector<AZ::Data::Asset<BlackboardAsset>> m_blackboards;
         //! Lua scripts declaring the behaviours and trees it runs.
         AZStd::vector<AZ::Data::Asset<AZ::ScriptAsset>> m_scripts;
-        //! Trees it may run. The first is the one it starts in.
-        AZStd::vector<AZStd::string> m_trees;
+        //! What decides how it acts.
+        AZStd::string m_brain = "tree";
+        //! Programs it may run. The first is the one it starts in.
+        AZStd::vector<AZStd::string> m_programs;
 
         //! Which agents it governs, authored as strings because that is what the property editor
         //! can show; converted to the interned form once, when this component activates.

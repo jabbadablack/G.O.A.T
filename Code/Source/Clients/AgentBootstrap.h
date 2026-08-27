@@ -19,17 +19,19 @@ namespace GOAT
         AZ::EntityId m_entity;
         AZStd::vector<AZ::Data::Asset<BlackboardAsset>>* m_blackboards = nullptr;
         AZStd::vector<AZ::Data::Asset<AZ::ScriptAsset>>* m_scripts = nullptr;
-        //! Trees this entity may run. The first is the one it starts in.
-        const AZStd::vector<AZStd::string>* m_trees = nullptr;
+        //! What runs this entity's programs.
+        AZStd::string m_brain;
+        //! Programs this entity may run. The first is the one it starts in.
+        const AZStd::vector<AZStd::string>* m_programs = nullptr;
         AZStd::string m_squad;
         int m_band = 1;
     };
 
-    //! Declares the variables, runs the scripts, compiles every listed tree and registers the
+    //! Declares the variables, runs the scripts, compiles every listed program and registers the
     //! agent. Returns a null handle when anything on that path failed.
     //!
-    //! The order is load bearing: variables before trees, because a guard resolves its name to a
-    //! slot when the tree compiles; and every tree rather than only the first, so a name the
-    //! entity switches to much later fails now, while whoever wrote it is still looking at it.
+    //! The order is load bearing: variables before programs, because a guard resolves its name to
+    //! a slot when the program compiles; and every program rather than only the first, so a name
+    //! the entity switches to much later fails now, while whoever wrote it is still looking.
     AgentId BootstrapAgent(const AgentBootstrapRequest& request);
 } // namespace GOAT

@@ -30,7 +30,7 @@ namespace GOAT
 
     AgentId BootstrapAgent(const AgentBootstrapRequest& request)
     {
-        AZ_Assert(request.m_trees != nullptr, "An entity always says which trees it may run");
+        AZ_Assert(request.m_programs != nullptr, "An entity always says which programs it may run");
 
         IAgentSystem* agents = AgentSystemInterface::Get();
         if (agents == nullptr)
@@ -66,55 +66,56 @@ namespace GOAT
             }
         }
 
-        if (request.m_trees->empty())
+        if (request.m_programs->empty())
         {
-            AZ_Warning("GOAT", false, "Entity %s names no tree to run", request.m_entity.ToString().c_str());
+            AZ_Warning("GOAT", false, "Entity %s names no program to run", request.m_entity.ToString().c_str());
             return AgentId{};
         }
 
-        // All of them, not just the one it starts in. A tree this entity only switches to much
-        // later is worth failing on now, while whoever named it is still looking at it.
-        // The same list becomes the agent's repertoire, so what it declares is what it may run.
-        AZStd::vector<AZ::Name> repertoire;
-        repertoire.reserve(request.m_trees->size());
+        // What runs it, defaulted so an entity that says nothing still gets a behaviour tree.
+        const AZ::Name backend(request.m_brain.empty() ? "tree" : request.m_brain.c_str());
 
-        for (const AZStd::string& name : *request.m_trees)
+        // All of them, not just the one it starts in. A program this entity only switches to much
+        // later is worth failing on now, while whoever named it is still looking at it.
+        AZStd::vector<AZ::Name> declared;
+        declared.reserve(request.m_programs->size());
+
+        for (const AZStd::string& name : *request.m_programs)
         {
             if (name.empty())
             {
-                AZ_Warning("GOAT", false, "Entity %s lists an unnamed tree", request.m_entity.ToString().c_str());
+                AZ_Warning("GOAT", false, "Entity %s lists an unnamed program", request.m_entity.ToString().c_str());
                 continue;
             }
 
-            // Listed whether or not it compiles: the repertoire is what the author declared, so a
-            // tree that failed to compile is reported as that rather than as one never declared.
+            // Listed whether or not it compiles: what an agent may run is what the author
+            // declared, so one that failed to compile is reported as that rather than as absent.
             const AZ::Name candidate(name);
-            repertoire.push_back(candidate);
+            declared.push_back(candidate);
 
             // The compiled program is immutable and shared, so entities past the first reuse it
             // rather than re-emitting and recompiling identical content once each.
-            if (agents->IsTreeCompiled(candidate))
+            if (agents->IsProgramCompiled(candidate))
             {
                 continue;
             }
 
-            if (auto compiled = agents->CompileTree(candidate); !compiled.IsSuccess())
+            if (auto compiled = agents->CompileProgram(backend, candidate); !compiled.IsSuccess())
             {
                 AZ_Warning("GOAT", false, "%s", compiled.GetError().c_str());
             }
         }
 
-        const AZ::Name treeName(request.m_trees->front());
-        if (!agents->IsTreeCompiled(treeName))
+        if (declared.empty() || !agents->IsProgramCompiled(declared.front()))
         {
-            AZ_Error("GOAT", false, "Entity %s cannot start: its first tree '%s' did not compile",
-                request.m_entity.ToString().c_str(), treeName.GetCStr());
+            AZ_Error("GOAT", false, "Entity %s cannot start: its first program did not compile",
+                request.m_entity.ToString().c_str());
             return AgentId{};
         }
 
         // The squad goes in with the registration rather than after it, so squad scoped guards
         // are armed against storage that already exists.
         return agents->RegisterAgent(
-            request.m_entity, treeName, static_cast<size_t>(request.m_band), AZ::Name(request.m_squad), repertoire);
+            request.m_entity, backend, declared, static_cast<size_t>(request.m_band), AZ::Name(request.m_squad));
     }
 } // namespace GOAT

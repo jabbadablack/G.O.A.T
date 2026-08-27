@@ -38,23 +38,23 @@ namespace GOAT
         //! Declares the variables a blackboard asset holds. Duplicate names fail.
         virtual AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) = 0;
 
-        //! Compiles a declared tree so agents can run it. Always recompiles, which is what
-        //! makes it the way to pick up a rebound dynamic subtree.
-        virtual AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) = 0;
+        //! Compiles a declared program through a named backend. Always recompiles, which is
+        //! what makes it the way to pick up a rebound dynamic subtree.
+        virtual AZ::Outcome<void, AZStd::string> CompileProgram(
+            const AZ::Name& backendName, const AZ::Name& programName) = 0;
 
-        //! True when a tree is already compiled and agents can be registered against it.
-        //! Tree names share one namespace, like blackboard variable names.
-        virtual bool IsTreeCompiled(const AZ::Name& treeName) const = 0;
+        //! True when a program is already compiled and agents can be registered against it.
+        //! Program names share one namespace, like blackboard variable names.
+        virtual bool IsProgramCompiled(const AZ::Name& programName) const = 0;
 
-        //! Registers an entity as an agent running a compiled tree.
-        //! The band selects how often it runs, from most frequent at zero.
+        //! Registers an entity as an agent, run by a named backend.
+        //! @param programs what it may run. The first is what it starts in, and anything outside
+        //! the list is refused, so an order cannot put an agent somewhere its author did not say.
         //! @param squad joined as part of registering, because an agent's guards are armed here
         //! and a squad scoped guard can only watch storage that already exists.
-        //! @param repertoire the trees this entity may be moved to. Anything outside it is
-        //! refused, so an order can never put an agent somewhere its author did not sanction.
         virtual AgentId RegisterAgent(
-            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad = AZ::Name{},
-            AZStd::span<const AZ::Name> repertoire = {}) = 0;
+            AZ::EntityId entity, const AZ::Name& backendName, AZStd::span<const AZ::Name> programs, size_t band,
+            const AZ::Name& squad) = 0;
 
         //! Removes an agent and everything held for it.
         virtual void UnregisterAgent(AgentId agent) = 0;

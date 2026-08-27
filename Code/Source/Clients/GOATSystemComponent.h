@@ -53,11 +53,12 @@ namespace GOAT
         // IAgentSystem
         bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset) override;
         AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) override;
-        AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) override;
-        bool IsTreeCompiled(const AZ::Name& treeName) const override;
+        AZ::Outcome<void, AZStd::string> CompileProgram(
+            const AZ::Name& backendName, const AZ::Name& programName) override;
+        bool IsProgramCompiled(const AZ::Name& programName) const override;
         AgentId RegisterAgent(
-            AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad,
-            AZStd::span<const AZ::Name> repertoire) override;
+            AZ::EntityId entity, const AZ::Name& backendName, AZStd::span<const AZ::Name> programs, size_t band,
+            const AZ::Name& squad) override;
         void UnregisterAgent(AgentId agent) override;
         void WakeAgents(AZStd::span<const AgentId> agents) override;
         bool SetAgentTree(AgentId agent, const AZ::Name& treeName, AZ::u8 priority) override;

@@ -24,10 +24,11 @@ namespace GOAT
         }
 
         serializeContext->Class<GOATDirectorComponent, AZ::Component>()
-            ->Version(1)
+            ->Version(2)
             ->Field("Blackboards", &GOATDirectorComponent::m_blackboards)
             ->Field("Scripts", &GOATDirectorComponent::m_scripts)
-            ->Field("Trees", &GOATDirectorComponent::m_trees)
+            ->Field("Brain", &GOATDirectorComponent::m_brain)
+            ->Field("Programs", &GOATDirectorComponent::m_programs)
             ->Field("Squad", &GOATDirectorComponent::m_squad)
             ->Field("Tree", &GOATDirectorComponent::m_tree)
             ->Field("Radius", &GOATDirectorComponent::m_radius)
@@ -56,8 +57,11 @@ namespace GOAT
                 AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_scripts, "Scripts",
                 "Lua scripts declaring the behaviours and trees it runs")
             ->DataElement(
-                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_trees, "Trees",
-                "Trees this director may run. The first is the one it starts in.")
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_brain, "Brain",
+                "The backend that decides how this director acts")
+            ->DataElement(
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_programs, "Programs",
+                "Programs this director may run. The first is the one it starts in.")
             ->ClassElement(AZ::Edit::ClassElements::Group, "Governs")
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_squad, "Squad",
@@ -127,7 +131,8 @@ namespace GOAT
         request.m_entity = GetEntityId();
         request.m_blackboards = &m_blackboards;
         request.m_scripts = &m_scripts;
-        request.m_trees = &m_trees;
+        request.m_brain = m_brain;
+        request.m_programs = &m_programs;
         request.m_band = m_band;
 
         m_agent = BootstrapAgent(request);

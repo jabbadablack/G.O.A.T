@@ -478,7 +478,8 @@ namespace GOAT
         return AZ::Success();
     }
 
-    AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileTree(const AZ::Name& treeName)
+    AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileProgram(
+        const AZ::Name& backendName, const AZ::Name& programName)
     {
         if (m_dispatch == nullptr || m_trees == nullptr)
         {
@@ -492,22 +493,30 @@ namespace GOAT
         }
 
         // Ask Lua for the authored tree, then compile it exactly as a graph editor's asset would be.
-        auto emitted = m_dispatch->EmitTree(treeName);
+        auto emitted = m_dispatch->EmitTree(programName);
         if (!emitted.IsSuccess())
         {
             return AZ::Failure(emitted.TakeError());
         }
 
-        m_trees->Add(treeName, emitted.GetValue());
+        m_trees->Add(programName, emitted.GetValue());
 
-        auto compiled = m_treeBackend->Compile(treeName, *emitted.GetValue());
+        IDecisionBackend* backend = m_decisionBackends->Find(backendName);
+        if (backend == nullptr)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "No backend named '%s' is installed, so '%s' cannot be compiled", backendName.GetCStr(),
+                programName.GetCStr()));
+        }
+
+        auto compiled = backend->Compile(programName, *emitted.GetValue());
         if (!compiled.IsSuccess())
         {
             return AZ::Failure(compiled.TakeError());
         }
 
         AZStd::shared_ptr<const AgentProgram> program = compiled.TakeValue();
-        m_programs[treeName] = program;
+        m_programs[programName] = program;
 
         // An entity may have registered before this tree compiled, leaving its archetype holding
         // an empty slot under this name. Filling it here is what turns that declaration into
@@ -515,46 +524,58 @@ namespace GOAT
         // archetype refused for the rest of the level.
         for (const auto& archetype : m_archetypes)
         {
-            archetype->Resolve(treeName, program);
+            archetype->Resolve(programName, program);
         }
 
-        AZ_Assert(IsTreeCompiled(treeName), "Compiling a tree must leave a program agents can be registered against");
+        AZ_Assert(IsProgramCompiled(programName), "Compiling a tree must leave a program agents can be registered against");
         return AZ::Success();
     }
 
-    bool GOATSystemComponent::IsTreeCompiled(const AZ::Name& treeName) const
+    bool GOATSystemComponent::IsProgramCompiled(const AZ::Name& programName) const
     {
-        AZ_Assert(!treeName.IsEmpty(), "A tree is always asked about by name");
-        return m_programs.find(treeName) != m_programs.end();
+        AZ_Assert(!programName.IsEmpty(), "A tree is always asked about by name");
+        return m_programs.find(programName) != m_programs.end();
     }
 
     AgentId GOATSystemComponent::RegisterAgent(
-        AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad,
-        AZStd::span<const AZ::Name> repertoire)
+        AZ::EntityId entity, const AZ::Name& backendName, AZStd::span<const AZ::Name> programs, size_t band,
+        const AZ::Name& squad)
     {
-        if (m_agents == nullptr)
+        if (m_agents == nullptr || programs.empty())
         {
+            AZ_Warning("GOAT", !programs.empty(), "Entity %s names no program to run",
+                entity.ToString().c_str());
             return AgentId{};
         }
 
-        // The tree it starts in comes first, whatever order the entity listed them in, because
-        // slot zero is where an agent begins. Anything else it declared follows.
+        AZ_Warning("GOAT", programs.size() <= MaxArchetypeTrees,
+            "Entity %s lists %zu programs but an agent may declare %zu; the rest are ignored",
+            entity.ToString().c_str(), programs.size(), MaxArchetypeTrees);
+
         // On the stack: registering a thousand agents must not mean a thousand throwaway lists.
-        AZStd::fixed_vector<AZ::Name, MaxArchetypeTrees> trees;
-        trees.push_back(treeName);
-        for (const AZ::Name& tree : repertoire)
+        AZStd::fixed_vector<AZ::Name, MaxArchetypeTrees> declared;
+        for (const AZ::Name& program : programs)
         {
-            if (tree != treeName && trees.size() < trees.capacity())
+            const bool listed = AZStd::find(declared.begin(), declared.end(), program) != declared.end();
+            if (!listed && declared.size() < declared.capacity())
             {
-                trees.push_back(tree);
+                declared.push_back(program);
             }
         }
 
-        AZ_Warning("GOAT", repertoire.size() < MaxArchetypeTrees,
-            "Entity %s lists %zu trees but an agent may declare %zu; the rest are ignored",
-            entity.ToString().c_str(), repertoire.size(), MaxArchetypeTrees);
+        // Program names share one namespace, so two entities can name the same one under
+        // different backends. Running it under the wrong paradigm is worth saying out loud.
+        const auto compiled = m_programs.find(declared.front());
+        if (compiled != m_programs.end() && compiled->second->m_backend != nullptr &&
+            compiled->second->m_backend->GetName() != backendName)
+        {
+            AZ_Error("GOAT", false, "Entity %s asks for backend '%s' but '%s' was compiled by '%s'",
+                entity.ToString().c_str(), backendName.GetCStr(), declared.front().GetCStr(),
+                compiled->second->m_backend->GetName().GetCStr());
+            return AgentId{};
+        }
 
-        AZStd::shared_ptr<const AgentArchetype> archetype = AcquireArchetype(trees);
+        AZStd::shared_ptr<const AgentArchetype> archetype = AcquireArchetype(declared);
         if (archetype == nullptr)
         {
             return AgentId{};
@@ -593,7 +614,7 @@ namespace GOAT
 
                 // The slot is taken regardless, so this archetype still describes the list it was
                 // asked for and the next agent authored the same way shares it rather than
-                // building another that will also match nothing. CompileTree fills it in.
+                // building another that will also match nothing. CompileProgram fills it in.
                 AZ_Warning("GOAT", false, "Tree '%s' is declared but has not compiled yet", tree.GetCStr());
                 archetype->Add(tree, nullptr);
                 continue;
@@ -671,7 +692,7 @@ namespace GOAT
             return false;
         }
 
-        if (kind != TreeSwitchKind::Pop && !IsTreeCompiled(treeName))
+        if (kind != TreeSwitchKind::Pop && !IsProgramCompiled(treeName))
         {
             AZ_Error("GOAT", false, "Agent %u cannot change to tree '%s', which is not compiled",
                 agent.GetIndex(), treeName.GetCStr());
@@ -852,7 +873,7 @@ namespace GOAT
         {
             for (const AZ::Name& declared : m_dispatch->GetDeclaredTreeNames())
             {
-                if (!IsTreeCompiled(declared) &&
+                if (!IsProgramCompiled(declared) &&
                     AZStd::find(affected.begin(), affected.end(), declared) == affected.end())
                 {
                     affected.push_back(declared);
@@ -860,16 +881,24 @@ namespace GOAT
             }
         }
 
-        // A failed recompile leaves the old program in place, because CompileTree fails before it
-        // touches m_programs. A bad rebind therefore leaves the world running.
+        // A failed recompile leaves the old program in place, because CompileProgram fails before
+        // it touches m_programs. A bad rebind therefore leaves the world running.
         size_t recompiled = 0;
         for (const AZ::Name& name : affected)
         {
-            if (auto compiled = CompileTree(name); compiled.IsSuccess())
+            const auto current = m_programs.find(name);
+            const IDecisionBackend* backend =
+                current != m_programs.end() ? current->second->m_backend : nullptr;
+            if (backend == nullptr)
+            {
+                continue;
+            }
+
+            if (auto compiled = CompileProgram(backend->GetName(), name); compiled.IsSuccess())
             {
                 ++recompiled;
             }
-            else if (IsTreeCompiled(name))
+            else if (IsProgramCompiled(name))
             {
                 // A tree that was running and now will not compile is a real failure; one that
                 // was never compiled and still is not simply does not use this slot.
