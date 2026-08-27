@@ -38,9 +38,6 @@ namespace GOAT
 
         ActionContext actionContext = MakeActionContext(agent);
         agent.m_machine.Abort(m_actions, actionContext);
-        // Written out rather than braced: AZ::EntityId's default constructor is explicit.
-        Intent none;
-        agent.m_intent = none;
 
         AZ_Assert(!agent.m_machine.HasPlan(), "Aborting must leave the agent with no plan to continue");
     }
@@ -162,7 +159,6 @@ namespace GOAT
         AZLOG(GoatAgent, "GOAT: agent %u node %u -> backend '%s' produced %zu step(s)",
             agent.m_id.GetIndex(), intent.m_node, backend->GetName().GetCStr(), plan.Size());
 
-        agent.m_intent = intent;
         agent.m_machine.SetPlan(m_planStore, plan);
 
         AZ_Assert(agent.m_machine.HasPlan(), "Starting a plan must leave the state machine holding one");
@@ -196,6 +192,10 @@ namespace GOAT
 
         TickServices(agent, deltaTime);
 
+        // Tracks whether the step in hand came from a walk that started at the root, because a
+        // walk that started there and found nothing cannot find anything by starting again.
+        bool walkedFromRoot = false;
+
         if (!haveStep)
         {
             if (agent.m_machine.HasPlan())
@@ -211,6 +211,7 @@ namespace GOAT
             else
             {
                 step = m_walker.Begin(*agent.m_program, agent.m_cursor, planContext);
+                walkedFromRoot = true;
             }
             haveStep = true;
         }
@@ -221,8 +222,17 @@ namespace GOAT
         {
             if (step.m_outcome == WalkOutcome::Finished)
             {
+                // Nothing between two walks of the same tree in one tick can change what a
+                // predicate reads, so a root walk that already found nothing is the answer
+                // rather than something to ask again.
+                if (walkedFromRoot)
+                {
+                    return;
+                }
+
                 // The tree ran out of work, so it starts again from the root.
                 step = m_walker.Begin(*agent.m_program, agent.m_cursor, planContext);
+                walkedFromRoot = true;
                 if (step.m_outcome == WalkOutcome::Finished)
                 {
                     return;

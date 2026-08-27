@@ -7,7 +7,6 @@
 #include <GOAT/Domain/AgentStateMachine.h>
 #include <GOAT/Domain/DecisionProgram.h>
 #include <GOAT/Domain/DirectorProfile.h>
-#include <GOAT/Domain/Intent.h>
 
 #include <AzCore/Component/EntityId.h>
 #include <AzCore/Memory/SystemAllocator.h>
@@ -57,9 +56,6 @@ namespace GOAT
         AgentStateMachine m_machine;
         //! Wakes the agent only when a blackboard slot its tree guards on changes.
         AgentObserver m_observer;
-
-        //! The intent currently being satisfied, kept so a re-plan knows what it was for.
-        Intent m_intent;
 
         //! The trees this entity declared it may run, including the one it starts in. A switch
         //! to anything else is refused, so no order can put an agent somewhere its author did
