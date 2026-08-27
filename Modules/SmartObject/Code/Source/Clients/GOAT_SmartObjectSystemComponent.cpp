@@ -94,40 +94,6 @@ namespace GOAT_SmartObject
     void GOAT_SmartObjectSystemComponent::Init()
     {
     }
-
-    bool GOAT_SmartObjectSystemComponent::InstallVerb(
-        AZStd::unique_ptr<GOAT::IActionState> action, GOAT::NodeTypeDescriptor descriptor)
-    {
-        AZ_Assert(action != nullptr, "A verb must exist before it can be installed");
-
-        GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get();
-        AZ_Assert(agents != nullptr, "Installing a verb needs the GOAT agent system");
-        if (agents == nullptr || action == nullptr)
-        {
-            return false;
-        }
-
-        const AZ::Name name = action->GetName();
-        AZ_Assert(descriptor.m_name == name, "A leaf word and the verb it runs must share a name");
-
-        const GOAT::ActionStateId id = agents->RegisterAction(AZStd::move(action));
-        if (id == GOAT::CoreActions::Invalid)
-        {
-            AZ_Error("GOAT", false, "Smart object verb '%s' could not be registered", name.GetCStr());
-            return false;
-        }
-        m_installedActions.push_back(id);
-
-        if (!agents->RegisterNodeType(AZStd::move(descriptor)))
-        {
-            return false;
-        }
-        m_installedNodeTypes.push_back(name);
-
-        AZLOG_INFO("GOAT: smart object registered verb '%s'", name.GetCStr());
-        return true;
-    }
-
     bool GOAT_SmartObjectSystemComponent::InstallVocabulary()
     {
         GOAT::IBlackboardSystem* blackboard = GOAT::BlackboardSystemInterface::Get();
@@ -153,41 +119,16 @@ namespace GOAT_SmartObject
         use.m_parameters.push_back(Param("seconds", GOAT::BlackboardType::Float, true));
 
         const bool installed =
-            InstallVerb(
+            m_vocabulary.Install(
                 AZStd::unique_ptr<GOAT::IActionState>(aznew ClaimSmartObjectAction(*m_registry, m_keys)),
                 AZStd::move(claim)) &&
-            InstallVerb(
+            m_vocabulary.Install(
                 AZStd::unique_ptr<GOAT::IActionState>(aznew UseSmartObjectAction(*m_registry, m_keys)),
                 AZStd::move(use));
 
         AZ_Error("GOAT", installed, "The smart object module could not install its full vocabulary");
         return installed;
     }
-
-    void GOAT_SmartObjectSystemComponent::RemoveVocabulary()
-    {
-        GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get();
-        if (agents == nullptr)
-        {
-            // The core shut down first, which takes its registries with it.
-            m_installedActions.clear();
-            m_installedNodeTypes.clear();
-            return;
-        }
-
-        for (const AZ::Name& name : m_installedNodeTypes)
-        {
-            agents->UnregisterNodeType(name);
-        }
-        m_installedNodeTypes.clear();
-
-        for (const GOAT::ActionStateId id : m_installedActions)
-        {
-            agents->UnregisterAction(id);
-        }
-        m_installedActions.clear();
-    }
-
     void GOAT_SmartObjectSystemComponent::Activate()
     {
         m_registry = AZStd::make_unique<SmartObjectRegistry>();
@@ -201,7 +142,7 @@ namespace GOAT_SmartObject
         GOAT_SmartObjectRequestBus::Handler::BusDisconnect();
 
         // The verbs hold a reference to the registry, so they go first.
-        RemoveVocabulary();
+        m_vocabulary.Clear();
         m_registry.reset();
 
         AZ_Assert(m_registry == nullptr, "Deactivating must release the smart object registry");

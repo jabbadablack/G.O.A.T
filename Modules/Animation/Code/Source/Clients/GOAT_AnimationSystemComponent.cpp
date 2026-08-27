@@ -74,40 +74,6 @@ namespace GOAT_Animation
         [[maybe_unused]] AZ::ComponentDescriptor::DependencyArrayType& dependent)
     {
     }
-
-    bool GOAT_AnimationSystemComponent::InstallVerb(
-        AZStd::unique_ptr<GOAT::IActionState> action, GOAT::NodeTypeDescriptor descriptor)
-    {
-        AZ_Assert(action != nullptr, "A verb must exist before it can be installed");
-
-        GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get();
-        AZ_Assert(agents != nullptr, "Installing a verb needs the GOAT agent system");
-        if (agents == nullptr || action == nullptr)
-        {
-            return false;
-        }
-
-        const AZ::Name name = action->GetName();
-        AZ_Assert(descriptor.m_name == name, "A leaf word and the verb it runs must share a name");
-
-        const GOAT::ActionStateId id = agents->RegisterAction(AZStd::move(action));
-        if (id == GOAT::CoreActions::Invalid)
-        {
-            AZ_Error("GOAT", false, "Animation verb '%s' could not be registered", name.GetCStr());
-            return false;
-        }
-        m_installedActions.push_back(id);
-
-        if (!agents->RegisterNodeType(AZStd::move(descriptor)))
-        {
-            return false;
-        }
-        m_installedNodeTypes.push_back(name);
-
-        AZLOG_INFO("GOAT: animation registered verb '%s'", name.GetCStr());
-        return true;
-    }
-
     bool GOAT_AnimationSystemComponent::InstallVocabulary()
     {
         // `animate "Speed" { key = "nav_remaining" }` -- the tree states what the agent is and
@@ -123,37 +89,12 @@ namespace GOAT_Animation
         playMotion.m_parameters.push_back(Param("seconds", GOAT::BlackboardType::Float));
 
         const bool installed =
-            InstallVerb(AZStd::unique_ptr<GOAT::IActionState>(aznew AnimateAction()), AZStd::move(animate)) &&
-            InstallVerb(AZStd::unique_ptr<GOAT::IActionState>(aznew PlayMotionAction()), AZStd::move(playMotion));
+            m_vocabulary.Install(AZStd::unique_ptr<GOAT::IActionState>(aznew AnimateAction()), AZStd::move(animate)) &&
+            m_vocabulary.Install(AZStd::unique_ptr<GOAT::IActionState>(aznew PlayMotionAction()), AZStd::move(playMotion));
 
         AZ_Error("GOAT", installed, "The animation module could not install its full vocabulary");
         return installed;
     }
-
-    void GOAT_AnimationSystemComponent::RemoveVocabulary()
-    {
-        GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get();
-        if (agents == nullptr)
-        {
-            // The core shut down first, which takes its registries with it.
-            m_installedActions.clear();
-            m_installedNodeTypes.clear();
-            return;
-        }
-
-        for (const AZ::Name& name : m_installedNodeTypes)
-        {
-            agents->UnregisterNodeType(name);
-        }
-        m_installedNodeTypes.clear();
-
-        for (const GOAT::ActionStateId id : m_installedActions)
-        {
-            agents->UnregisterAction(id);
-        }
-        m_installedActions.clear();
-    }
-
     void GOAT_AnimationSystemComponent::Activate()
     {
         InstallVocabulary();
@@ -161,6 +102,6 @@ namespace GOAT_Animation
 
     void GOAT_AnimationSystemComponent::Deactivate()
     {
-        RemoveVocabulary();
+        m_vocabulary.Clear();
     }
 } // namespace GOAT_Animation

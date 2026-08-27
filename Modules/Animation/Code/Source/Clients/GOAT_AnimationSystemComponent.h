@@ -4,6 +4,8 @@
 #include <GOAT/Interfaces/IActionState.h>
 
 
+#include <GOAT/VocabularyScope.h>
+
 #include <AzCore/Component/Component.h>
 #include <AzCore/std/containers/vector.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
@@ -37,14 +39,9 @@ namespace GOAT_Animation
         //! Installs this module's verbs and the words that run them.
         bool InstallVocabulary();
 
-        //! Takes them back out again, so disabling the gem really does remove the vocabulary.
-        void RemoveVocabulary();
 
-        //! Registers one verb together with the word that runs it.
-        bool InstallVerb(
-            AZStd::unique_ptr<GOAT::IActionState> action, GOAT::NodeTypeDescriptor descriptor);
 
-        AZStd::vector<GOAT::ActionStateId> m_installedActions;
-        AZStd::vector<AZ::Name> m_installedNodeTypes;
+        //! What this module added to the core, removed again when it is destroyed.
+        GOAT::VocabularyScope m_vocabulary{"animation"};
     };
 } // namespace GOAT_Animation

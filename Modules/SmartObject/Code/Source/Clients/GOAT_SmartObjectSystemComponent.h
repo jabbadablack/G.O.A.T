@@ -8,6 +8,8 @@
 
 #include <GOAT_SmartObject/GOAT_SmartObjectBus.h>
 
+#include <GOAT/VocabularyScope.h>
+
 #include <AzCore/Component/Component.h>
 #include <AzCore/std/containers/vector.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
@@ -50,8 +52,6 @@ namespace GOAT_SmartObject
         //! Declares this module's blackboard variables and installs its verbs and words.
         bool InstallVocabulary();
 
-        //! Takes them back out again, so disabling the gem really does remove the vocabulary.
-        void RemoveVocabulary();
 
         //! Registers one verb together with the word that runs it.
         bool InstallVerb(AZStd::unique_ptr<GOAT::IActionState> action, GOAT::NodeTypeDescriptor descriptor);
@@ -59,7 +59,7 @@ namespace GOAT_SmartObject
         AZStd::unique_ptr<SmartObjectRegistry> m_registry;
         SmartObjectKeys m_keys;
 
-        AZStd::vector<GOAT::ActionStateId> m_installedActions;
-        AZStd::vector<AZ::Name> m_installedNodeTypes;
+        //! What this module added to the core, removed again when it is destroyed.
+        GOAT::VocabularyScope m_vocabulary{"smart object"};
     };
 } // namespace GOAT_SmartObject
