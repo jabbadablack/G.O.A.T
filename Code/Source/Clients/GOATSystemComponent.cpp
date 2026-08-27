@@ -506,8 +506,17 @@ namespace GOAT
             return AZ::Failure(compiled.TakeError());
         }
 
-        m_programs[treeName] =
-            AZStd::shared_ptr<const DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
+        auto program = AZStd::shared_ptr<const DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
+        m_programs[treeName] = program;
+
+        // An entity may have registered before this tree compiled, leaving its archetype holding
+        // an empty slot under this name. Filling it here is what turns that declaration into
+        // something the agent can be switched to, rather than leaving every agent sharing that
+        // archetype refused for the rest of the level.
+        for (const auto& archetype : m_archetypes)
+        {
+            archetype->Resolve(treeName, program);
+        }
 
         AZ_Assert(IsTreeCompiled(treeName), "Compiling a tree must leave a program agents can be registered against");
         return AZ::Success();
@@ -576,12 +585,17 @@ namespace GOAT
                 // Only the tree it starts in has to be compiled: a tree it merely declared may
                 // still be waiting on a subtree binding, and refusing the agent for that would
                 // stop it running the tree that is ready.
-                AZ_Warning("GOAT", tree != trees.front(), "Tree '%s' is declared but not compiled", tree.GetCStr());
                 if (tree == trees.front())
                 {
                     AZ_Warning("GOAT", false, "Tree '%s' has not been compiled", tree.GetCStr());
                     return nullptr;
                 }
+
+                // The slot is taken regardless, so this archetype still describes the list it was
+                // asked for and the next agent authored the same way shares it rather than
+                // building another that will also match nothing. CompileTree fills it in.
+                AZ_Warning("GOAT", false, "Tree '%s' is declared but has not compiled yet", tree.GetCStr());
+                archetype->Add(tree, nullptr);
                 continue;
             }
 

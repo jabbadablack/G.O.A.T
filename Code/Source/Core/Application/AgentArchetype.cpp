@@ -31,6 +31,18 @@ namespace GOAT
         return InvalidTreeSlot;
     }
 
+    bool AgentArchetype::Resolve(const AZ::Name& name, AZStd::shared_ptr<const DecisionProgram> program)
+    {
+        const TreeSlot slot = FindTree(name);
+        if (slot == InvalidTreeSlot || m_programs[slot] != nullptr)
+        {
+            return false;
+        }
+
+        m_programs[slot] = AZStd::move(program);
+        return true;
+    }
+
     const DecisionProgram* AgentArchetype::GetProgram(TreeSlot slot) const
     {
         return slot < m_programs.size() ? m_programs[slot].get() : nullptr;
