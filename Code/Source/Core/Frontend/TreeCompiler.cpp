@@ -594,7 +594,8 @@ namespace GOAT
         AZ_Assert(emitted.GetValue() == 0, "The root of a compiled program is always node zero");
         AZ_Assert(!program.m_nodes.empty(), "A successful compile always produces at least one node");
 
-        // Sorted and unique because AgentObserver binary searches this list on every write.
+        // Sorted only so the duplicates can be removed: the same slot guarded twice is one
+        // thing to watch, and the count reported below is what an author reads back.
         AZStd::sort(program.m_observedKeys.begin(), program.m_observedKeys.end());
         program.m_observedKeys.erase(
             AZStd::unique(program.m_observedKeys.begin(), program.m_observedKeys.end()), program.m_observedKeys.end());

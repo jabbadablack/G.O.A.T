@@ -1,4 +1,6 @@
 #include <Core/Application/BlackboardSystem.h>
+#include <Core/Application/AgentRecord.h>
+#include <Core/Application/GuardWatch.h>
 #include <Core/Frontend/DecisionCursor.h>
 #include <Core/Frontend/TreeWalker.h>
 
@@ -259,7 +261,46 @@ namespace GOAT::Benchmark
 
     BENCHMARK_REGISTER_F(AgentBenchmarkFixture, BM_SpawnAgents)->Arg(100)->Arg(1000)->Arg(10000);
 
-    //! One write to a slot every agent's tree observes. Today this is O(agents); it should not be.
+    //! One write to a Global slot that every agent's tree guards on. The number that matters is
+    //! not the absolute time but whether it grows with the agent count: a write that has to tell
+    //! each watcher is O(agents), and a write that bumps a counter they read for themselves is
+    //! O(1). Flatness across the three sizes is the whole claim.
+    BENCHMARK_DEFINE_F(AgentBenchmarkFixture, BM_GlobalWrite)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        BuildProgram(8);
+
+        const BlackboardKey alarm =
+            m_blackboard->Declare(AZ::Name("alarm"), BlackboardScope::Global, BlackboardType::Bool).GetValue();
+
+        auto watched = AZStd::make_unique<DecisionProgram>();
+        watched->m_name = AZ::Name("Watching");
+        watched->m_nodes = m_program->m_nodes;
+        watched->m_observedKeys.push_back(alarm);
+
+        SpawnAgents(agents);
+
+        AZStd::vector<GuardWatch> watches(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            watches[static_cast<size_t>(i)].Connect(*watched, *m_blackboard, m_agents[static_cast<size_t>(i)]);
+            watches[static_cast<size_t>(i)].Clear();
+        }
+
+        bool value = false;
+        for ([[maybe_unused]] auto _ : state)
+        {
+            value = !value;
+            m_blackboard->Set<bool>(alarm, value, AgentId{});
+        }
+
+        state.counters["bytes/AgentRecord"] = ::benchmark::Counter(static_cast<double>(sizeof(AgentRecord)));
+        watches.set_capacity(0);
+    }
+
+    BENCHMARK_REGISTER_F(AgentBenchmarkFixture, BM_GlobalWrite)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! One write to each agent's own slot.
     BENCHMARK_DEFINE_F(AgentBenchmarkFixture, BM_AgentWrite)(::benchmark::State& state)
     {
         const int agents = static_cast<int>(state.range(0));

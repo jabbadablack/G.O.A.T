@@ -15,8 +15,8 @@ set(FILES
     Source/Core/Actions/WaitAction.h
     Source/Core/Application/ActionStateRegistry.cpp
     Source/Core/Application/ActionStateRegistry.h
-    Source/Core/Application/AgentObserver.cpp
-    Source/Core/Application/AgentObserver.h
+    Source/Core/Application/GuardWatch.cpp
+    Source/Core/Application/GuardWatch.h
     Source/Core/Application/AgentRecord.h
     Source/Core/Application/AgentRegistry.cpp
     Source/Core/Application/AgentStore.cpp

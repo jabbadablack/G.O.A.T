@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Core/Application/AgentObserver.h>
+#include <Core/Application/GuardWatch.h>
 #include <Core/Frontend/DecisionCursor.h>
 
 #include <GOAT/Domain/AgentId.h>
@@ -54,8 +54,8 @@ namespace GOAT
         DecisionCursor m_cursor;
         //! The action this agent is running, and the plan it came from.
         AgentStateMachine m_machine;
-        //! Wakes the agent only when a blackboard slot its tree guards on changes.
-        AgentObserver m_observer;
+        //! Wakes the agent only when a scope its tree guards on has changed.
+        GuardWatch m_observer;
 
         //! The trees this entity declared it may run, including the one it starts in. A switch
         //! to anything else is refused, so no order can put an agent somewhere its author did

@@ -5,7 +5,6 @@
 #include <GOAT/Domain/BlackboardKey.h>
 #include <GOAT/Domain/BlackboardTraits.h>
 
-#include <AzCore/EBus/Event.h>
 #include <AzCore/std/containers/vector.h>
 
 namespace GOAT
@@ -16,7 +15,9 @@ namespace GOAT
     {
     public:
         //! Signalled with the key that changed, so observers wake only for what they watch.
-        using ChangedEvent = AZ::Event<BlackboardKey>;
+        //! How many times anything in this storage has actually changed. An agent compares it
+        //! against the count it last acted on, which is what replaces subscribing to a change.
+        AZ::u32 GetEpoch() const { return m_epoch; }
 
         //! Grows every array to the layout's slot counts, seeding only the newly added slots.
         //! Existing values are kept, so declaring a variable later does not disturb live agents.
@@ -35,7 +36,6 @@ namespace GOAT
         bool Set(BlackboardKey key, const T& value);
 
         //! Subscribes a handler to every change in this storage.
-        void ConnectChangedHandler(ChangedEvent::Handler& handler) { handler.Connect(m_changed); }
 
     private:
         //! Returns the array that holds a given value type.
@@ -57,7 +57,8 @@ namespace GOAT
         AZStd::vector<AZ::Transform> m_transforms;
         AZStd::vector<EntityIdList> m_entityLists;
 
-        ChangedEvent m_changed;
+        //! Starts at one so a watcher's zeroed count never matches an untouched storage.
+        AZ::u32 m_epoch = 1;
     };
 
 // Binds each value type to the array that stores it.
@@ -118,7 +119,10 @@ namespace GOAT
         }
 
         slot = value;
-        m_changed.Signal(key);
+
+        // Only a real change counts. A write of the value already there must not wake anybody,
+        // which is what keeps a director writing the same order every tick from costing anything.
+        ++m_epoch;
         return true;
     }
 } // namespace GOAT
