@@ -45,15 +45,13 @@ namespace GOAT
 
     AgentId AgentRegistry::Register(
         AZ::EntityId entity,
-        const AZ::Name& treeName,
-        AZStd::shared_ptr<const DecisionProgram> program,
+        AZStd::shared_ptr<const AgentArchetype> archetype,
         size_t band,
-        const AZ::Name& squad,
-        AZStd::span<const AZ::Name> repertoire)
+        const AZ::Name& squad)
     {
         AZ_Assert(entity.IsValid(), "An agent must be registered against a valid entity");
-        AZ_Assert(program != nullptr, "An agent must be registered with a compiled program");
 
+        const DecisionProgram* program = archetype != nullptr ? archetype->GetProgram(0) : nullptr;
         if (program == nullptr || program->IsEmpty())
         {
             AZ_Error("GOAT", false, "Entity %s cannot become an agent: its tree compiled to an empty program",
@@ -65,25 +63,20 @@ namespace GOAT
             band, entity.ToString().c_str());
         band = AZStd::min(band, BandCount - 1);
 
-        auto record = AZStd::make_unique<AgentRecord>();
-        AgentRecord* raw = record.get();
-        const AgentId id = m_agents.Acquire(AZStd::move(record));
+        // Written out rather than braced: AZ::EntityId's default constructor is explicit.
+        AgentRecord fresh;
+        const AgentId id = m_agents.Acquire(AZStd::move(fresh));
+        AgentRecord* raw = m_agents.Find(id);
+        AZ_Assert(raw != nullptr, "A slot just taken must hold the record it was taken for");
 
         raw->m_id = id;
         raw->m_entity = entity;
-        raw->m_program = AZStd::move(program);
-        raw->m_treeName = treeName;
-        raw->m_band = band;
+        raw->m_archetype = AZStd::move(archetype);
+        raw->m_tree = 0;
+        raw->m_program = program;
+        raw->m_band = static_cast<AZ::u8>(band);
         raw->m_cursor.Reset(*raw->m_program);
         raw->m_wakeAt = 0.0f;
-
-        // The tree it starts in is always one it may run, whatever was declared. Without this an
-        // entity that listed nothing could never be returned to where it began.
-        raw->m_repertoire.assign(repertoire.begin(), repertoire.end());
-        if (!raw->MayRun(treeName))
-        {
-            raw->m_repertoire.push_back(treeName);
-        }
 
         m_blackboard.CreateAgentBlackboard(id);
 
@@ -102,9 +95,6 @@ namespace GOAT
 
         AZ_Assert(Find(id) == raw, "A registered agent must be findable by the id it was given");
         AZ_Assert(FindByEntity(entity) == id, "A registered agent must be findable by its entity");
-        AZ_Assert(raw->m_band == band, "A registered agent must sit in the band it asked for");
-        AZ_Assert(raw->MayRun(treeName), "An agent must be allowed to run the tree it starts in");
-
         AZLOG(GoatAgent, "GOAT: entity %s became agent %u in band %zu",
             entity.ToString().c_str(), id.GetIndex(), band);
         return id;
@@ -241,21 +231,23 @@ namespace GOAT
         }
 
         RemoveFromBand(agent, record->m_band);
-        record->m_band = band;
+        record->m_band = static_cast<AZ::u8>(band);
         AddToBand(agent, band);
 
         AZ_Assert(record->m_band == band, "Changing band must record the band the agent moved to");
     }
 
-    bool AgentRegistry::ApplyTree(
-        AgentId agent, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, bool remember)
+    bool AgentRegistry::ApplyTree(AgentId agent, TreeSlot tree, bool remember)
     {
-        AZ_Assert(!treeName.IsEmpty(), "An agent is only ever switched to a named tree");
-        AZ_Assert(program != nullptr, "Switching a tree needs the compiled program to switch to");
-
         AgentRecord* record = Find(agent);
         AZ_Assert(record != nullptr, "Switching the tree of an agent that is not registered");
-        if (record == nullptr || program == nullptr || program->IsEmpty())
+        if (record == nullptr)
+        {
+            return false;
+        }
+
+        const DecisionProgram* program = record->m_archetype->GetProgram(tree);
+        if (program == nullptr || program->IsEmpty())
         {
             return false;
         }
@@ -270,20 +262,20 @@ namespace GOAT
                     agent.GetIndex(), record->m_treeStack.size());
                 return false;
             }
-            record->m_treeStack.push_back(record->m_treeName);
+            record->m_treeStack.push_back(record->m_tree);
         }
 
         // Every step below is needed. Ending the running action is what gives back a pooled path
-        // slot or a smart object claim; the cursor arrays are sized to the program; the observed
-        // keys differ between programs; and the old intent names a node that no longer exists.
+        // slot or a smart object claim, and the cursor's slots mean different things in a
+        // different tree.
         m_runtime.AbortAgent(*record);
 
         // After the abort, so a backend is told the agent is gone only once its plan has been
         // given back and nothing can still be running through it.
         m_runtime.ReleaseAgent(*record);
 
-        record->m_program = AZStd::move(program);
-        record->m_treeName = treeName;
+        record->m_tree = tree;
+        record->m_program = program;
         record->m_cursor.Reset(*record->m_program);
 
         // A different tree is about to run, so whatever the previous one was waiting for says
@@ -294,19 +286,18 @@ namespace GOAT
         record->m_observer.Connect(*record->m_program, m_blackboard, agent);
 
         AZLOG(GoatAgent, "GOAT: agent %u is now running tree '%s' (%zu interrupted)",
-            agent.GetIndex(), treeName.GetCStr(), record->m_treeStack.size());
+            agent.GetIndex(), record->GetTreeName().GetCStr(), record->m_treeStack.size());
 
-        AZ_Assert(record->m_treeName == treeName, "Switching must leave the agent on the tree it asked for");
         AZ_Assert(!record->m_machine.HasPlan(), "Switching must leave the agent with no plan from the old tree");
         return true;
     }
 
-    AZ::Name AgentRegistry::PeekInterruptedTree(AgentId agent) const
+    TreeSlot AgentRegistry::PeekInterruptedTree(AgentId agent) const
     {
         const AgentRecord* record = m_agents.Find(agent);
         if (record == nullptr || record->m_treeStack.empty())
         {
-            return AZ::Name{};
+            return InvalidTreeSlot;
         }
         return record->m_treeStack.back();
     }

@@ -28,15 +28,13 @@ namespace GOAT
 
         //! Registers an entity as an agent running a compiled tree.
         //! @param squad joined before the agent's guards are armed, so squad scoped ones work.
-        //! @param repertoire every tree this entity may be moved to. The starting tree is added
-        //! when it is missing, so an agent can always be left where it began.
+        //! @param archetype the trees this kind of agent may run. Slot zero is the one it starts
+        //! in, and a switch to anything outside it is refused.
         AgentId Register(
             AZ::EntityId entity,
-            const AZ::Name& treeName,
-            AZStd::shared_ptr<const DecisionProgram> program,
+            AZStd::shared_ptr<const AgentArchetype> archetype,
             size_t band,
-            const AZ::Name& squad = AZ::Name{},
-            AZStd::span<const AZ::Name> repertoire = {});
+            const AZ::Name& squad = AZ::Name{});
 
         //! Removes an agent, dropping its blackboard and its Lua scratch.
         void Unregister(AgentId agent);
@@ -68,11 +66,10 @@ namespace GOAT
         //! Puts an agent onto another compiled tree, ending whatever it was running first.
         //! @param remember pushes the outgoing tree so a later pop returns to it.
         //! @return false when the agent is gone, or when its stack is already at its limit.
-        bool ApplyTree(
-            AgentId agent, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, bool remember);
+        bool ApplyTree(AgentId agent, TreeSlot tree, bool remember);
 
-        //! Names the tree an agent should return to, or an empty name when it has none.
-        AZ::Name PeekInterruptedTree(AgentId agent) const;
+        //! The tree an agent should return to, or InvalidTreeSlot when it interrupted nothing.
+        TreeSlot PeekInterruptedTree(AgentId agent) const;
 
         //! Drops the innermost remembered tree, which a pop does once it has switched.
         void ForgetInterruptedTree(AgentId agent);

@@ -5,7 +5,6 @@
 #include <GOAT/Domain/AgentId.h>
 
 #include <AzCore/std/containers/vector.h>
-#include <AzCore/std/smart_ptr/unique_ptr.h>
 
 namespace GOAT
 {
@@ -16,13 +15,17 @@ namespace GOAT
     //! map keyed by the same handle. A released slot becomes a hole rather than being compacted
     //! away, because compacting is exactly what would invalidate all of them at once.
     //!
-    //! Holes cost one pointer each and are bounded by the peak number of live agents, which for a
-    //! crowd is the right bound. Iterating asks for a slot at a time and skips the empty ones.
+    //! Records live in the array by value. Nothing in one captures its own address any more --
+    //! the guard watch counts changes rather than subscribing to them -- so growing the array is
+    //! free to move them, and ten thousand agents are one allocation rather than ten thousand.
+    //!
+    //! Holes are bounded by the peak number of live agents, which for a crowd is the right
+    //! bound. Iterating asks for a slot at a time and skips the empty ones.
     class AgentStore final
     {
     public:
         //! Takes ownership of a record and returns the handle that addresses it.
-        AgentId Acquire(AZStd::unique_ptr<AgentRecord> record);
+        AgentId Acquire(AgentRecord&& record);
 
         //! Destroys the record a handle addresses and frees its slot for reuse.
         //! False when the handle addresses nothing, which is what a stale one does.
@@ -42,12 +45,12 @@ namespace GOAT
         size_t Size() const { return m_liveCount; }
 
     private:
-        //! One agent's place. The record is held behind a pointer because an agent's observer
-        //! installs handlers that capture its address, so the record may not move once handed
-        //! out. Once the observer is gone the record can live here by value.
+        //! One agent's place.
         struct Slot final
         {
-            AZStd::unique_ptr<AgentRecord> m_record;
+            AgentRecord m_record;
+            //! False when the slot is a hole.
+            bool m_live = false;
             //! Bumped when the slot is reused, so a handle to the previous occupant resolves to
             //! nothing rather than to whoever took its place.
             AZ::u32 m_generation = 1;

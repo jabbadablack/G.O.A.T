@@ -1,13 +1,12 @@
 #include <Core/Application/AgentStore.h>
 
 #include <AzCore/Debug/Trace.h>
+#include <AzCore/std/algorithm.h>
 
 namespace GOAT
 {
-    AgentId AgentStore::Acquire(AZStd::unique_ptr<AgentRecord> record)
+    AgentId AgentStore::Acquire(AgentRecord&& record)
     {
-        AZ_Assert(record != nullptr, "A slot is only taken for a record that exists");
-
         AZ::u32 slot = 0;
         if (!m_freeSlots.empty())
         {
@@ -16,11 +15,18 @@ namespace GOAT
         }
         else
         {
+            // Capacity doubles rather than fitting each arrival, or registering N agents would
+            // copy every record already there N times.
             slot = static_cast<AZ::u32>(m_slots.size());
-            m_slots.push_back(Slot{});
+            if (m_slots.size() == m_slots.capacity())
+            {
+                m_slots.reserve(AZStd::max(size_t(16), m_slots.capacity() * 2));
+            }
+            m_slots.emplace_back();
         }
 
         m_slots[slot].m_record = AZStd::move(record);
+        m_slots[slot].m_live = true;
         ++m_liveCount;
 
         return AgentId(slot, m_slots[slot].m_generation);
@@ -34,7 +40,13 @@ namespace GOAT
         }
 
         Slot& entry = m_slots[agent.GetIndex()];
-        entry.m_record.reset();
+
+        // Emptied rather than destroyed, so the slot's own buffers go back to the free list with
+        // it and the next agent here does not allocate them again. Written out rather than
+        // braced: AZ::EntityId's default constructor is explicit.
+        AgentRecord empty;
+        entry.m_record = AZStd::move(empty);
+        entry.m_live = false;
 
         // Bumped before the slot is offered again, so every handle to the agent that just left
         // stops resolving the moment it leaves rather than when its replacement arrives.
@@ -58,13 +70,13 @@ namespace GOAT
         }
 
         const Slot& entry = m_slots[agent.GetIndex()];
-        return entry.m_generation == agent.GetGeneration() ? entry.m_record.get() : nullptr;
+        return entry.m_live && entry.m_generation == agent.GetGeneration() ? &entry.m_record : nullptr;
     }
 
     AgentId AgentStore::GetHandleAt(size_t slot) const
     {
         AZ_Assert(slot < m_slots.size(), "A slot index must address a slot the store has");
-        if (slot >= m_slots.size() || m_slots[slot].m_record == nullptr)
+        if (slot >= m_slots.size() || !m_slots[slot].m_live)
         {
             return AgentId{};
         }

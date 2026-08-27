@@ -18,6 +18,8 @@ set(FILES
     Source/Core/Application/GuardWatch.cpp
     Source/Core/Application/GuardWatch.h
     Source/Core/Application/AgentRecord.h
+    Source/Core/Application/AgentArchetype.cpp
+    Source/Core/Application/AgentArchetype.h
     Source/Core/Application/AgentRegistry.cpp
     Source/Core/Application/AgentStore.cpp
     Source/Core/Application/AgentStore.h

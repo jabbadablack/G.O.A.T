@@ -21,10 +21,11 @@ namespace GOAT
             UnitTest::LeakDetectionFixture::TearDown();
         }
 
-        static AZStd::unique_ptr<AgentRecord> MakeRecord(AZ::u64 entity)
+        //! Written out rather than braced: AZ::EntityId's default constructor is explicit.
+        static AgentRecord MakeRecord(AZ::u64 entity)
         {
-            auto record = AZStd::make_unique<AgentRecord>();
-            record->m_entity = AZ::EntityId(entity);
+            AgentRecord record;
+            record.m_entity = AZ::EntityId(entity);
             return record;
         }
     };

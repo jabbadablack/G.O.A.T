@@ -528,14 +528,64 @@ namespace GOAT
             return AgentId{};
         }
 
-        const auto program = m_programs.find(treeName);
-        if (program == m_programs.end())
+        // The tree it starts in comes first, whatever order the entity listed them in, because
+        // slot zero is where an agent begins. Anything else it declared follows.
+        AZStd::vector<AZ::Name> trees;
+        trees.reserve(repertoire.size() + 1);
+        trees.push_back(treeName);
+        for (const AZ::Name& tree : repertoire)
         {
-            AZ_Warning("GOAT", false, "Tree '%s' has not been compiled", treeName.GetCStr());
+            if (tree != treeName)
+            {
+                trees.push_back(tree);
+            }
+        }
+
+        AZStd::shared_ptr<const AgentArchetype> archetype = AcquireArchetype(trees);
+        if (archetype == nullptr)
+        {
             return AgentId{};
         }
 
-        return m_agents->Register(entity, treeName, program->second, band, squad, repertoire);
+        return m_agents->Register(entity, AZStd::move(archetype), band, squad);
+    }
+
+    AZStd::shared_ptr<const AgentArchetype> GOATSystemComponent::AcquireArchetype(AZStd::span<const AZ::Name> trees)
+    {
+        // Shared rather than built per entity: ten thousand agents authored the same way then
+        // hold one list of programs between them. The scan is over the number of distinct ways
+        // agents are authored in a level, which is a handful.
+        for (const auto& existing : m_archetypes)
+        {
+            if (existing->Matches(trees))
+            {
+                return existing;
+            }
+        }
+
+        auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
+        for (const AZ::Name& tree : trees)
+        {
+            const auto program = m_programs.find(tree);
+            if (program == m_programs.end())
+            {
+                // Only the tree it starts in has to be compiled: a tree it merely declared may
+                // still be waiting on a subtree binding, and refusing the agent for that would
+                // stop it running the tree that is ready.
+                AZ_Warning("GOAT", tree != trees.front(), "Tree '%s' is declared but not compiled", tree.GetCStr());
+                if (tree == trees.front())
+                {
+                    AZ_Warning("GOAT", false, "Tree '%s' has not been compiled", tree.GetCStr());
+                    return nullptr;
+                }
+                continue;
+            }
+
+            archetype->Add(tree, program->second);
+        }
+
+        m_archetypes.push_back(archetype);
+        return archetype;
     }
 
     void GOATSystemComponent::UnregisterAgent(AgentId agent)
@@ -580,7 +630,8 @@ namespace GOAT
         // Asked before the tree is looked up, because "the entity never said it could do that" is
         // what the author needs to hear. Compilation is global, so without this an order would
         // succeed or fail on whether some unrelated entity happened to list the same tree.
-        if (kind != TreeSwitchKind::Pop && !record->MayRun(treeName))
+        const TreeSlot wantedSlot = kind != TreeSwitchKind::Pop ? record->FindTree(treeName) : InvalidTreeSlot;
+        if (kind != TreeSwitchKind::Pop && wantedSlot == InvalidTreeSlot)
         {
             // Said once per agent and tree. A repertoire is fixed when the agent registers, so
             // the answer can never change, and a director asking every tick would bury every
@@ -609,14 +660,14 @@ namespace GOAT
             return false;
         }
 
-        if (kind == TreeSwitchKind::Pop && m_agents->PeekInterruptedTree(agent).IsEmpty())
+        if (kind == TreeSwitchKind::Pop && m_agents->PeekInterruptedTree(agent) == InvalidTreeSlot)
         {
             AZ_Warning("GOAT", false, "Agent %u has nothing to return to", agent.GetIndex());
             return false;
         }
 
         // Recorded rather than done: the caller may be Lua running inside this agent's own tick.
-        record->m_pendingTree = treeName;
+        record->m_pendingTree = wantedSlot;
         record->m_pendingSwitch = kind;
         record->m_pendingPriority = priority;
         return true;
@@ -625,11 +676,11 @@ namespace GOAT
     void GOATSystemComponent::ApplyTreeSwitch(AgentRecord& agent)
     {
         const TreeSwitchKind kind = agent.m_pendingSwitch;
-        AZ::Name wanted = agent.m_pendingTree;
+        TreeSlot wanted = agent.m_pendingTree;
 
         // Cleared first, so a switch that cannot be carried out is not retried every tick.
         agent.m_pendingSwitch = TreeSwitchKind::None;
-        agent.m_pendingTree = AZ::Name{};
+        agent.m_pendingTree = InvalidTreeSlot;
         agent.m_pendingPriority = SelfSwitchPriority;
 
         if (kind == TreeSwitchKind::None || m_agents == nullptr)
@@ -640,21 +691,13 @@ namespace GOAT
         if (kind == TreeSwitchKind::Pop)
         {
             wanted = m_agents->PeekInterruptedTree(agent.m_id);
-            if (wanted.IsEmpty())
+            if (wanted == InvalidTreeSlot)
             {
                 return;
             }
         }
 
-        const auto program = m_programs.find(wanted);
-        if (program == m_programs.end())
-        {
-            AZ_Error("GOAT", false, "Tree '%s' is no longer compiled, so agent %u stays where it is",
-                wanted.GetCStr(), agent.m_id.GetIndex());
-            return;
-        }
-
-        if (!m_agents->ApplyTree(agent.m_id, wanted, program->second, kind == TreeSwitchKind::Push))
+        if (!m_agents->ApplyTree(agent.m_id, wanted, kind == TreeSwitchKind::Push))
         {
             return;
         }
@@ -663,7 +706,7 @@ namespace GOAT
         {
             // Replacing outright abandons whatever was interrupted; there is no going back to a
             // tree the agent was told to stop running.
-            while (!m_agents->PeekInterruptedTree(agent.m_id).IsEmpty())
+            while (m_agents->PeekInterruptedTree(agent.m_id) != InvalidTreeSlot)
             {
                 m_agents->ForgetInterruptedTree(agent.m_id);
             }
@@ -694,7 +737,7 @@ namespace GOAT
     AZ::Name GOATSystemComponent::GetAgentTree(AgentId agent) const
     {
         const AgentRecord* record = m_agents != nullptr ? m_agents->Find(agent) : nullptr;
-        return record != nullptr ? record->m_treeName : AZ::Name{};
+        return record != nullptr ? record->GetTreeName() : AZ::Name{};
     }
 
     void GOATSystemComponent::LeaveSquad(AgentId agent)
@@ -816,8 +859,8 @@ namespace GOAT
         for (const AgentId agent : GetAgents())
         {
             const AgentRecord* record = m_agents->Find(agent);
-            const auto current = record != nullptr ? m_programs.find(record->m_treeName) : m_programs.end();
-            if (record != nullptr && current != m_programs.end() && record->m_program != current->second)
+            const auto current = record != nullptr ? m_programs.find(record->GetTreeName()) : m_programs.end();
+            if (record != nullptr && current != m_programs.end() && record->m_program != current->second.get())
             {
                 ++stale;
             }
@@ -1015,9 +1058,10 @@ namespace GOAT
             : AZ::Name("idle");
 
         return AZStd::string::format(
-            "tree '%s' (%zu interrupted) band %zu node %u action '%s' step %zu of %zu elapsed %.2fs",
+            "tree '%s' (%zu interrupted) band %u node %u action '%s' step %zu of %zu elapsed %.2fs",
             record->m_program != nullptr ? record->m_program->m_name.GetCStr() : "<none>",
-            record->m_treeStack.size(), record->m_band, record->m_cursor.GetActiveLeaf(), verb.GetCStr(),
+            record->m_treeStack.size(), static_cast<AZ::u32>(record->m_band),
+            record->m_cursor.GetActiveLeaf(), verb.GetCStr(),
             record->m_machine.GetStepIndex(), record->m_machine.GetPlanSize(), record->m_machine.GetElapsed());
     }
 
@@ -1488,10 +1532,10 @@ namespace GOAT
         // Printed because a refused order is most often a tree the entity never listed, and this
         // is the only place that list can be seen from.
         AZStd::string mayRun;
-        for (const AZ::Name& tree : record->m_repertoire)
+        for (size_t slot = 0; slot < record->m_archetype->Size(); ++slot)
         {
             mayRun += mayRun.empty() ? "" : ", ";
-            mayRun += tree.GetCStr();
+            mayRun += record->m_archetype->GetName(static_cast<TreeSlot>(slot)).GetCStr();
         }
 
         AZLOG_INFO("  may run: %s", mayRun.c_str());

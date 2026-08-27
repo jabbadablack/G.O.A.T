@@ -1,4 +1,5 @@
 #include <Core/Application/ActionStateRegistry.h>
+#include <Core/Application/AgentArchetype.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
@@ -133,7 +134,8 @@ namespace GOAT
             m_actions.reset();
             m_blackboard.reset();
             m_inner.reset();
-            m_agent.m_program.reset();
+            m_agent.m_archetype.reset();
+            m_agent.m_program = nullptr;
             AZ::NameDictionary::Destroy();
             UnitTest::LeakDetectionFixture::TearDown();
         }
@@ -177,7 +179,19 @@ namespace GOAT
 
             program->m_observedKeys.push_back(m_gate);
 
-            m_agent.m_program = AZStd::shared_ptr<const DecisionProgram>(program);
+            Install(program);
+        }
+
+        //! Puts one hand built tree on the agent through an archetype, the way the registry
+        //! does, so the record under test is shaped exactly like a real one.
+        void Install(DecisionProgram* program)
+        {
+            auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
+            archetype->Add(program->m_name, AZStd::shared_ptr<const DecisionProgram>(program));
+
+            m_agent.m_archetype = archetype;
+            m_agent.m_tree = 0;
+            m_agent.m_program = archetype->GetProgram(0);
             m_agent.m_cursor.Reset(*m_agent.m_program);
         }
 
@@ -283,8 +297,7 @@ namespace GOAT
         program->m_nodes.push_back(leaf);
 
         program->m_cursorSlotCount = 1;
-        m_agent.m_program = AZStd::shared_ptr<const DecisionProgram>(program);
-        m_agent.m_cursor.Reset(*m_agent.m_program);
+        Install(program);
 
         // Already cooling, with half a second left to run. Slot zero is the cooldown's, since
         // it is the only node in this tree that keeps anything between ticks.

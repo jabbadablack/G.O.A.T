@@ -165,7 +165,7 @@ namespace GOAT
                 continue;
             }
 
-            if (!reach.m_tree.IsEmpty() && agent->m_treeName != reach.m_tree)
+            if (!reach.m_tree.IsEmpty() && agent->GetTreeName() != reach.m_tree)
             {
                 continue;
             }
