@@ -39,12 +39,19 @@ namespace GOAT
         void Clear();
 
     private:
+        //! The change count of one watched scope, or zero when it has no storage.
+        AZ::u32 EpochOf(size_t scopeIndex) const;
+
         static constexpr size_t ScopeCount = static_cast<size_t>(BlackboardScope::Count);
 
-        //! Storage of each watched scope, or null for a scope this tree does not guard on.
-        //! Safe to hold because a storage instance lives in a node based map and so keeps its
-        //! address, and because an agent stops watching before its storage is destroyed.
-        AZStd::array<const BlackboardStorage*, ScopeCount> m_watched{};
+        //! Asked for each time rather than held, because agent storage lives in a slot array
+        //! that moves when it grows. The lookup is an array index, and only the scopes this
+        //! tree actually guards on are asked about -- usually one.
+        IBlackboardSystem* m_blackboard = nullptr;
+        AgentId m_agent;
+
+        //! Which scopes this tree guards on.
+        AZStd::array<bool, ScopeCount> m_watched{};
 
         //! The change count this agent has already accounted for, per watched scope.
         AZStd::array<AZ::u32, ScopeCount> m_seen{};
