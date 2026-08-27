@@ -1,6 +1,6 @@
 #pragma once
 
-#include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT/Domain/AgentProgram.h>
 
 #include <AzCore/Memory/SystemAllocator.h>
 #include <AzCore/Name/Name.h>
@@ -32,13 +32,27 @@ namespace GOAT
         AZ_CLASS_ALLOCATOR(AgentArchetype, AZ::SystemAllocator);
 
         //! Adds a tree. The first one added is the tree agents of this kind start in.
-        void Add(const AZ::Name& name, AZStd::shared_ptr<const DecisionProgram> program);
+        //!
+        //! The program may be null. A tree an entity declared is part of what identifies this
+        //! archetype whether or not it has compiled yet, so the slot is taken now and filled by
+        //! Resolve when the tree arrives. Leaving the name out instead would leave this
+        //! archetype describing a shorter list than the one it was built from, so the next
+        //! agent authored identically would fail to match it and build another.
+        void Add(const AZ::Name& name, AZStd::shared_ptr<const AgentProgram> program);
+
+        //! Fills in a tree that was declared before it compiled. True when this archetype was
+        //! waiting on that name.
+        //!
+        //! Only an empty slot is ever filled, so a tree an agent is already running is never
+        //! swapped underneath it, and a slot's meaning never changes once handed out.
+        bool Resolve(const AZ::Name& name, AZStd::shared_ptr<const AgentProgram> program);
 
         //! Slot of a tree by name, or InvalidTreeSlot when this kind of agent never declared it.
         TreeSlot FindTree(const AZ::Name& name) const;
 
-        //! The compiled tree in a slot, or nullptr when the slot is not one of ours.
-        const DecisionProgram* GetProgram(TreeSlot slot) const;
+        //! The compiled tree in a slot, or nullptr when the slot is not one of ours or names a
+        //! tree that has been declared but has not compiled yet.
+        const AgentProgram* GetProgram(TreeSlot slot) const;
 
         //! What the tree in a slot is called, or an empty name.
         AZ::Name GetName(TreeSlot slot) const;
@@ -51,6 +65,6 @@ namespace GOAT
 
     private:
         AZStd::vector<AZ::Name> m_names;
-        AZStd::vector<AZStd::shared_ptr<const DecisionProgram>> m_programs;
+        AZStd::vector<AZStd::shared_ptr<const AgentProgram>> m_programs;
     };
 } // namespace GOAT

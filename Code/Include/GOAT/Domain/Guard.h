@@ -5,7 +5,6 @@
 #include <GOAT/GOATTypeIds.h>
 
 #include <AzCore/RTTI/TypeInfo.h>
-#include <AzCore/std/containers/vector.h>
 
 namespace GOAT
 {
@@ -32,9 +31,6 @@ namespace GOAT
         //! What to interrupt when the condition stops holding.
         AbortMode m_abort = AbortMode::None;
     };
-
-    //! Guards collected for one agent's active plan.
-    using GuardList = AZStd::vector<Guard>;
 
     //! Reflects the guard types for serialization and scripting.
     void ReflectGuardTypes(AZ::ReflectContext* context);

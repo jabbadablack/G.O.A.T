@@ -39,7 +39,7 @@ namespace GOAT
         //! The assembled root, valid once the emission completed.
         //! The builder deliberately does not own an asset: AZ::Data::AssetData is refcounted
         //! and not copyable, so the caller wraps this in one.
-        const BehaviorTreeNode& GetRoot() const { return m_root; }
+        const AuthoredNode& GetRoot() const { return m_root; }
 
         //! Name the emitted tree declared.
         const AZStd::string& GetTreeName() const { return m_name; }
@@ -54,14 +54,14 @@ namespace GOAT
             AZStd::string m_type;
             int m_childCount = 0;
             int m_serviceCount = 0;
-            AZStd::vector<BehaviorTreeProperty> m_properties;
+            AZStd::vector<AuthoredProperty> m_properties;
         };
 
         //! Consumes the record at an index and its descendants, returning the next index.
-        size_t Build(size_t index, BehaviorTreeNode& out);
+        size_t Build(size_t index, AuthoredNode& out);
 
         AZStd::vector<Record> m_records;
-        BehaviorTreeNode m_root;
+        AuthoredNode m_root;
         AZStd::string m_name;
         AZStd::string m_error;
         bool m_complete = false;

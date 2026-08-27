@@ -60,10 +60,10 @@ namespace GOAT
     {
         AZ_Assert(entity.IsValid(), "An agent must be registered against a valid entity");
 
-        const DecisionProgram* program = archetype != nullptr ? archetype->GetProgram(0) : nullptr;
-        if (program == nullptr || program->IsEmpty())
+        const AgentProgram* program = archetype != nullptr ? archetype->GetProgram(0) : nullptr;
+        if (program == nullptr || program->m_backend == nullptr)
         {
-            AZ_Error("GOAT", false, "Entity %s cannot become an agent: its tree compiled to an empty program",
+            AZ_Error("GOAT", false, "Entity %s cannot become an agent: it has no compiled program to run",
                 entity.ToString().c_str());
             return AgentId{};
         }
@@ -84,8 +84,8 @@ namespace GOAT
         raw->m_tree = 0;
         raw->m_program = program;
         raw->m_band = static_cast<AZ::u8>(band);
-        raw->m_cursor.Reset(*raw->m_program);
-        raw->m_wakeAt = 0.0f;
+        raw->m_wakeIn = 0.0f;
+        raw->m_elapsed = 0.0f;
 
         m_blackboard.CreateAgentBlackboard(id);
 
@@ -98,6 +98,7 @@ namespace GOAT
         }
 
         raw->m_observer.Connect(*raw->m_program, m_blackboard, id);
+        program->m_backend->Attach(m_runtime.MakePlanContext(*raw), *program, raw->GetState());
 
         AddToBand(id, band);
         m_byEntity[entity] = id;
@@ -255,8 +256,8 @@ namespace GOAT
             return false;
         }
 
-        const DecisionProgram* program = record->m_archetype->GetProgram(tree);
-        if (program == nullptr || program->IsEmpty())
+        const AgentProgram* program = record->m_archetype->GetProgram(tree);
+        if (program == nullptr || program->m_backend == nullptr)
         {
             return false;
         }
@@ -285,14 +286,15 @@ namespace GOAT
 
         record->m_tree = tree;
         record->m_program = program;
-        record->m_cursor.Reset(*record->m_program);
 
         // A different tree is about to run, so whatever the previous one was waiting for says
         // nothing about this one. Zero means walk it on the next tick.
-        record->m_wakeAt = 0.0f;
+        record->m_wakeIn = 0.0f;
+        record->m_elapsed = 0.0f;
 
         record->m_observer.Disconnect();
         record->m_observer.Connect(*record->m_program, m_blackboard, agent);
+        program->m_backend->Attach(m_runtime.MakePlanContext(*record), *program, record->GetState());
 
         AZLOG(GoatAgent, "GOAT: agent %u is now running tree '%s' (%zu interrupted)",
             agent.GetIndex(), record->GetTreeName().GetCStr(), record->m_treeStack.size());
@@ -389,6 +391,17 @@ namespace GOAT
     {
         AZ_Assert(slot < m_agents.GetSlotCount(), "A slot index must address a slot the store has");
         return m_agents.GetHandleAt(slot);
+    }
+
+    void AgentRegistry::Wake(AZStd::span<const AgentId> agents)
+    {
+        for (const AgentId agent : agents)
+        {
+            if (AgentRecord* record = Find(agent))
+            {
+                record->m_wakeIn = 0.0f;
+            }
+        }
     }
 
     void AgentRegistry::TickBand(size_t band)

@@ -30,6 +30,8 @@ namespace GOAT
         const ActionRequest* m_request = nullptr;
         //! Scratch owned by this agent's state machine, zeroed before Begin.
         ActionScratch* m_scratch = nullptr;
+        //! What this action is waiting for. Left alone, it is stepped every tick.
+        WakeCondition* m_wake = nullptr;
     };
 
     //! One executable verb. Modules and backends register these to extend the vocabulary.

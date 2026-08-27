@@ -130,12 +130,6 @@ namespace GOAT
         }
     }
 
-    void LuaPlanBuilder::SetSource(AZStd::string plan, double option)
-    {
-        m_sourcePlan = AZStd::move(plan);
-        m_sourceOption = static_cast<int>(option);
-    }
-
     bool LuaPlanBuilder::BakeOption(AZStd::string plan, double option)
     {
         AZ_Assert(m_store != nullptr, "Baking a plan needs a store to bake into");
@@ -244,7 +238,6 @@ namespace GOAT
             ->Method("SetTargetKey", &LuaPlanBuilder::SetTargetKey)
             ->Method("SetTargetPosition", &LuaPlanBuilder::SetTargetPosition)
             ->Method("SetTargetEntity", &LuaPlanBuilder::SetTargetEntity)
-            ->Method("SetSource", &LuaPlanBuilder::SetSource)
             ->Method("ChooseBaked", &LuaPlanBuilder::ChooseBaked)
             ->Method("BakeOption", &LuaPlanBuilder::BakeOption)
             ->Method("EndPlan", &LuaPlanBuilder::EndPlan);

@@ -48,7 +48,7 @@ namespace GOAT
         bool RunScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset);
 
         //! Asks Lua to hand a declared tree over through the reflected builder.
-        AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> EmitTree(const AZ::Name& treeName);
+        AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitTree(const AZ::Name& treeName);
 
         //! Runs one phase of a Lua behaviour and reports what it returned.
         ActionResult CallBehavior(

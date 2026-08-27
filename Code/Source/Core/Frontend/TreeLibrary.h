@@ -16,10 +16,10 @@ namespace GOAT
     {
     public:
         //! Adds or replaces a tree under a name.
-        void Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeNode> root);
+        void Add(const AZ::Name& name, AZStd::shared_ptr<const AuthoredNode> root);
 
         //! The authored root registered under a name, or nullptr when there is none.
-        const BehaviorTreeNode* Find(const AZ::Name& name) const;
+        const AuthoredNode* Find(const AZ::Name& name) const;
 
 
         //! Binds a named slot to a tree, which is how a subtree is swapped at runtime.
@@ -34,7 +34,7 @@ namespace GOAT
 
 
     private:
-        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const BehaviorTreeNode>> m_trees;
+        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const AuthoredNode>> m_trees;
         AZStd::unordered_map<AZ::Name, AZ::Name> m_bindings;
     };
 } // namespace GOAT

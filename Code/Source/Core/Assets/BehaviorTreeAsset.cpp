@@ -5,48 +5,48 @@
 
 namespace GOAT
 {
-    void BehaviorTreeProperty::Reflect(AZ::ReflectContext* context)
+    void AuthoredProperty::Reflect(AZ::ReflectContext* context)
     {
         if (auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
-            serializeContext->Class<BehaviorTreeProperty>()
+            serializeContext->Class<AuthoredProperty>()
                 ->Version(1)
-                ->Field("Name", &BehaviorTreeProperty::m_name)
-                ->Field("Value", &BehaviorTreeProperty::m_value);
+                ->Field("Name", &AuthoredProperty::m_name)
+                ->Field("Value", &AuthoredProperty::m_value);
         }
     }
 
-    void BehaviorTreeNodeMetadata::Reflect(AZ::ReflectContext* context)
+    void AuthoredNodeMetadata::Reflect(AZ::ReflectContext* context)
     {
         if (auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
-            serializeContext->Class<BehaviorTreeNodeMetadata>()
+            serializeContext->Class<AuthoredNodeMetadata>()
                 ->Version(1)
-                ->Field("Position", &BehaviorTreeNodeMetadata::m_position)
-                ->Field("Comment", &BehaviorTreeNodeMetadata::m_comment);
+                ->Field("Position", &AuthoredNodeMetadata::m_position)
+                ->Field("Comment", &AuthoredNodeMetadata::m_comment);
         }
     }
 
-    void BehaviorTreeNode::Reflect(AZ::ReflectContext* context)
+    void AuthoredNode::Reflect(AZ::ReflectContext* context)
     {
-        BehaviorTreeProperty::Reflect(context);
-        BehaviorTreeNodeMetadata::Reflect(context);
+        AuthoredProperty::Reflect(context);
+        AuthoredNodeMetadata::Reflect(context);
 
         if (auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context))
         {
-            serializeContext->Class<BehaviorTreeNode>()
+            serializeContext->Class<AuthoredNode>()
                 ->Version(1)
-                ->Field("Type", &BehaviorTreeNode::m_type)
-                ->Field("Properties", &BehaviorTreeNode::m_properties)
-                ->Field("Services", &BehaviorTreeNode::m_services)
-                ->Field("Children", &BehaviorTreeNode::m_children)
-                ->Field("Metadata", &BehaviorTreeNode::m_metadata);
+                ->Field("Type", &AuthoredNode::m_type)
+                ->Field("Properties", &AuthoredNode::m_properties)
+                ->Field("Services", &AuthoredNode::m_services)
+                ->Field("Children", &AuthoredNode::m_children)
+                ->Field("Metadata", &AuthoredNode::m_metadata);
         }
     }
 
     void BehaviorTreeAsset::Reflect(AZ::ReflectContext* context)
     {
-        BehaviorTreeNode::Reflect(context);
+        AuthoredNode::Reflect(context);
 
         auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context);
         if (serializeContext == nullptr)

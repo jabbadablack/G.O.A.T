@@ -12,7 +12,6 @@ namespace GOAT
                 ->Version(1)
                 ->Field("Backend", &Intent::m_backend)
                 ->Field("Goal", &Intent::m_goal)
-                ->Field("Direct", &Intent::m_direct)
                 ->Field("Node", &Intent::m_node);
         }
     }

@@ -30,7 +30,9 @@ namespace GOAT
 
         //! Advances the running action, moving to the next step when one finishes.
         //! Returns Running while the plan still has work, otherwise how the plan ended.
-        ActionResult Step(const ActionStateRegistry& registry, ActionContext& context, float deltaTime);
+        ActionResult Step(
+            const ActionStateRegistry& registry, ActionContext& context, float deltaTime,
+            WakeCondition& outWake);
 
         //! Ends the running action and drops the plan.
         void Abort(const ActionStateRegistry& registry, ActionContext& context);
@@ -55,7 +57,7 @@ namespace GOAT
         void EndCurrent(const ActionStateRegistry& registry, ActionContext& context);
 
         //! Points the context at this agent's current action and scratch.
-        void FillContext(ActionContext& context) const;
+        void FillContext(ActionContext& context, WakeCondition* wake) const;
 
         //! The store the current plan's steps live in, so they can be given back without the
         //! caller having to remember which store issued them.

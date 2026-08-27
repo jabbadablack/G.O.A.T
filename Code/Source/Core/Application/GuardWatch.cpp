@@ -1,30 +1,21 @@
 #include <Core/Application/GuardWatch.h>
 
 #include <AzCore/Debug/Trace.h>
-#include <AzCore/std/algorithm.h>
 
 namespace GOAT
 {
-    void GuardWatch::Connect(const DecisionProgram& program, IBlackboardSystem& blackboard, AgentId agent)
+    void GuardWatch::Connect(const AgentProgram& program, IBlackboardSystem& blackboard, AgentId agent)
     {
         Disconnect();
 
         for (size_t scopeIndex = 0; scopeIndex < ScopeCount; ++scopeIndex)
         {
-            const auto scope = static_cast<BlackboardScope>(scopeIndex);
-            const bool watchesScope = AZStd::any_of(
-                program.m_observedKeys.begin(), program.m_observedKeys.end(),
-                [scope](BlackboardKey key)
-                {
-                    return key.GetScope() == scope;
-                });
-
-            if (!watchesScope)
+            if (!program.m_watchedScopes[scopeIndex])
             {
                 continue;
             }
 
-            AZ_Warning("GOAT", blackboard.FindStorage(scope, agent) != nullptr,
+            AZ_Warning("GOAT", blackboard.FindStorage(static_cast<BlackboardScope>(scopeIndex), agent) != nullptr,
                 "Agent %u guards a variable in a scope it has no storage for, so those guards never fire",
                 agent.GetIndex());
 

@@ -2,6 +2,7 @@
 
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
+#include <Core/Scripting/LuaDispatch.h>
 #include <Core/Application/AgentStore.h>
 
 #include <AzCore/EBus/ScheduledEvent.h>
@@ -43,6 +44,9 @@ namespace GOAT
         //! store, the entity index and the band's roster once between them rather than once each
         //! per agent. Blackboard storage already grows in steps of its own.
         void Reserve(size_t count, size_t band);
+
+        //! Marks agents as having something to do again.
+        void Wake(AZStd::span<const AgentId> agents);
 
         //! Runs every agent in one band. Public because it is the tick entry point: the band's
         //! scheduled event calls it, and so does anything measuring or testing a whole tick.

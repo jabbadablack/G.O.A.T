@@ -1,4 +1,4 @@
-#include <Core/Frontend/TreeCompiler.h>
+#include <Backends/BehaviorTree/TreeCompiler.h>
 
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
@@ -10,9 +10,9 @@ namespace GOAT
     namespace
     {
         //! Finds an authored property by name, or nullptr when it was not set.
-        const AZStd::any* FindProperty(const BehaviorTreeNode& node, const AZ::Name& name)
+        const AZStd::any* FindProperty(const AuthoredNode& node, const AZ::Name& name)
         {
-            for (const BehaviorTreeProperty& property : node.m_properties)
+            for (const AuthoredProperty& property : node.m_properties)
             {
                 if (name == AZ::Name(property.m_name))
                 {
@@ -131,7 +131,7 @@ namespace GOAT
     }
 
     AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Inline(
-        const BehaviorTreeNode& authored,
+        const AuthoredNode& authored,
         NodeIndex parent,
         AZ::u32 depth,
         DecisionProgram& program,
@@ -180,7 +180,7 @@ namespace GOAT
                 AZStd::string::format("Subtree '%s' refers to itself, directly or through another tree", treeName.GetCStr()));
         }
 
-        const BehaviorTreeNode* referenced = m_library.Find(treeName);
+        const AuthoredNode* referenced = m_library.Find(treeName);
         if (referenced == nullptr)
         {
             return AZ::Failure(AZStd::string::format("Unknown subtree '%s'", treeName.GetCStr()));
@@ -248,12 +248,12 @@ namespace GOAT
     }
 
     AZ::Outcome<void, AZStd::string> TreeCompiler::Validate(
-        const BehaviorTreeNode& authored, const NodeTypeDescriptor& descriptor) const
+        const AuthoredNode& authored, const NodeTypeDescriptor& descriptor) const
     {
         AZ_Assert(!descriptor.m_name.IsEmpty(), "A node type descriptor is always registered under a name");
 
         // Reject properties the node type does not accept, so typos fail at author time.
-        for (const BehaviorTreeProperty& property : authored.m_properties)
+        for (const AuthoredProperty& property : authored.m_properties)
         {
             const AZ::Name propertyName(property.m_name);
             const bool accepted = AZStd::any_of(
@@ -298,7 +298,7 @@ namespace GOAT
     }
 
     AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Emit(
-        const BehaviorTreeNode& authored,
+        const AuthoredNode& authored,
         NodeIndex parent,
         AZ::u32 depth,
         DecisionProgram& program,
@@ -480,6 +480,14 @@ namespace GOAT
             }
         }
 
+        // A script leaf runs one verb with one name, both known here.
+        if (descriptor->m_op == NodeOp::Script)
+        {
+            DecisionNode& node = program.m_nodes[index];
+            node.m_action.m_action = CoreActions::RunScript;
+            node.m_action.m_tag = node.m_tag;
+        }
+
         // Guards are the only thing that needs observing, so collect just those keys.
         {
             const DecisionNode& node = program.m_nodes[index];
@@ -497,7 +505,7 @@ namespace GOAT
         // Services attached to this composite.
         {
             const AZ::u32 firstService = aznumeric_cast<AZ::u32>(program.m_services.size());
-            for (const BehaviorTreeNode& authoredService : authored.m_services)
+            for (const AuthoredNode& authoredService : authored.m_services)
             {
                 const NodeTypeDescriptor* serviceType = m_types.Find(AZ::Name(authoredService.m_type));
                 if (serviceType == nullptr || serviceType->m_kind != NodeKind::Service)
@@ -540,7 +548,7 @@ namespace GOAT
         // The first child follows its parent immediately; each later sibling starts at the
         // previous sibling's subtree end, which is what makes a subtree one contiguous range.
         const NodeIndex firstChild = aznumeric_cast<NodeIndex>(program.m_nodes.size());
-        for (const BehaviorTreeNode& child : authored.m_children)
+        for (const AuthoredNode& child : authored.m_children)
         {
             auto emitted = Emit(child, index, depth + 1, program, inlining);
             if (!emitted.IsSuccess())
@@ -571,7 +579,7 @@ namespace GOAT
     }
 
     AZ::Outcome<DecisionProgram, AZStd::string> TreeCompiler::Compile(
-        const AZ::Name& name, const BehaviorTreeNode& root) const
+        const AZ::Name& name, const AuthoredNode& root) const
     {
         AZ_Assert(!name.IsEmpty(), "A tree is always compiled under a name");
 
@@ -634,9 +642,17 @@ namespace GOAT
         {
             if (node.m_op == NodeOp::LuaComposite || node.m_op == NodeOp::LuaDecorator)
             {
-                program.m_pollEveryTick = true;
+                program.m_wantsTick = true;
                 break;
             }
+        }
+
+        // Services need a beat of their own, so a tree with any is never left dormant.
+        program.m_wantsTick = program.m_wantsTick || !program.m_services.empty();
+
+        for (const BlackboardKey key : program.m_observedKeys)
+        {
+            program.m_watchedScopes[static_cast<size_t>(key.GetScope())] = true;
         }
 
         AZ_Assert(program.m_nodes[0].m_subtreeEnd == program.m_nodes.size(),

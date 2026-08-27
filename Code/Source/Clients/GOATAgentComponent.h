@@ -12,7 +12,7 @@
 
 namespace GOAT
 {
-    //! Turns an entity into an agent running a named tree.
+    //! Turns an entity into an agent running a named program.
     //! Everything it needs is authored: blackboard assets declare the variables,
     //! Lua scripts declare the behaviours and the tree, and the tree name selects one.
     class GOATAgentComponent
@@ -40,14 +40,12 @@ namespace GOAT
         AZStd::vector<AZ::Data::Asset<BlackboardAsset>> m_blackboards;
         //! Lua scripts declaring behaviours, backends and trees.
         AZStd::vector<AZ::Data::Asset<AZ::ScriptAsset>> m_scripts;
-        //! Trees this agent may run. The first is the one it starts in; every one of them is
+        //! What decides how this agent acts.
+        AZStd::string m_brain = "tree";
+        //! Programs this agent may run. The first is the one it starts in; every one of them is
         //! compiled when the entity activates, so a name it only switches to much later still
         //! fails immediately rather than in the middle of a game.
-        AZStd::vector<AZStd::string> m_trees;
-
-        //! The single tree name older levels were saved with. Still read so those levels load,
-        //! and folded into m_trees on activation.
-        AZStd::string m_legacyTreeName;
+        AZStd::vector<AZStd::string> m_programs;
         //! Squad this agent joins, if any.
         AZStd::string m_squad;
         //! How often the agent runs, from zero for the most frequent band.

@@ -4,8 +4,6 @@
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
 #include <Core/Director/DirectorActions.h>
-#include <Core/Frontend/DirectBackend.h>
-#include <Core/Frontend/TreeCompiler.h>
 #include <Core/Scripting/LuaBackend.h>
 #include <Core/Scripting/LuaNameCollector.h>
 #include <Core/Scripting/LuaPlanBuilder.h>
@@ -103,6 +101,7 @@ namespace GOAT
         StartServices();
         RegisterAssetHandlers();
         AzFramework::AssetCatalogEventBus::Handler::BusConnect();
+        GOATBackendRequestBus::Handler::BusConnect();
 
         if (AgentSystemInterface::Get() == nullptr)
         {
@@ -117,6 +116,7 @@ namespace GOAT
             AgentSystemInterface::Unregister(this);
         }
 
+        GOATBackendRequestBus::Handler::BusDisconnect();
         AzFramework::AssetCatalogEventBus::Handler::BusDisconnect();
         UnregisterAssetHandlers();
         StopServices();
@@ -128,25 +128,29 @@ namespace GOAT
         m_blackboardSystem = AZStd::make_unique<BlackboardSystem>();
         m_actions = AZStd::make_unique<ActionStateRegistry>();
         m_backends = AZStd::make_unique<BackendRegistry>("backend");
+        m_decisionBackends = AZStd::make_unique<DecisionBackendRegistry>("decision backend");
         m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
         m_trees = AZStd::make_unique<TreeLibrary>();
         m_dispatch = AZStd::make_unique<LuaDispatch>();
         m_scriptContext = AZStd::make_unique<AgentScriptContext>();
 
-        // The direct backend is frontend plumbing, not a backend algorithm: it is what lets a
-        // plainly authored leaf reach the state machine by the same route as a plan. It is
-        // registered like any other backend so a leaf naming it by name resolves normally.
-        auto direct = AZStd::make_unique<DirectBackend>();
-        m_directBackend = direct.get();
-        m_backends->Register(AZStd::move(direct));
-
         m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitAction>());
         m_actions->RegisterAt(CoreActions::RunScript, AZStd::make_unique<RunScriptAction>(*m_dispatch, *m_scriptContext));
 
         m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
+
+        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
+            *m_nodeTypes, *m_blackboardSystem, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_scriptContext);
+        m_treeBackend = treeBackend.get();
+        AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
+        m_decisionBackends->Register(AZStd::move(installed));
+
+        auto htnBackend = AZStd::make_unique<HtnBackend>(*m_nodeTypes, *m_blackboardSystem, *m_actions);
+        AZStd::unique_ptr<IDecisionBackend> htn = AZStd::move(htnBackend);
+        m_decisionBackends->Register(AZStd::move(htn));
+
         m_runtime = AZStd::make_unique<AgentRuntime>(
-            *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
-            *m_scripting, *m_planStore);
+            *m_blackboardSystem, *m_actions, *m_backends, *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
         m_reachFilters = AZStd::make_unique<ReachFilterRegistry>("reach filter");
         m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents, *m_blackboardSystem, *m_reachFilters);
@@ -174,7 +178,6 @@ namespace GOAT
         m_reachFilters.reset();
         m_agents.reset();
         m_runtime.reset();
-        m_directBackend = nullptr;
         m_scripting.reset();
         m_scriptContext.reset();
         if (m_dispatch != nullptr)
@@ -184,6 +187,8 @@ namespace GOAT
         m_dispatch.reset();
         m_trees.reset();
         m_nodeTypes.reset();
+        m_treeBackend = nullptr;
+        m_decisionBackends.reset();
         m_backends.reset();
         m_actions.reset();
         m_blackboardSystem.reset();
@@ -477,7 +482,8 @@ namespace GOAT
         return AZ::Success();
     }
 
-    AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileTree(const AZ::Name& treeName)
+    AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileProgram(
+        const AZ::Name& backendName, const AZ::Name& programName)
     {
         if (m_dispatch == nullptr || m_trees == nullptr)
         {
@@ -491,61 +497,89 @@ namespace GOAT
         }
 
         // Ask Lua for the authored tree, then compile it exactly as a graph editor's asset would be.
-        auto emitted = m_dispatch->EmitTree(treeName);
+        auto emitted = m_dispatch->EmitTree(programName);
         if (!emitted.IsSuccess())
         {
             return AZ::Failure(emitted.TakeError());
         }
 
-        m_trees->Add(treeName, emitted.GetValue());
+        m_trees->Add(programName, emitted.GetValue());
 
-        const TreeCompiler compiler(*m_nodeTypes, *m_blackboardSystem, *m_trees, *m_actions);
-        auto compiled = compiler.Compile(treeName, *emitted.GetValue());
+        IDecisionBackend* backend = m_decisionBackends->Find(backendName);
+        if (backend == nullptr)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "No backend named '%s' is installed, so '%s' cannot be compiled", backendName.GetCStr(),
+                programName.GetCStr()));
+        }
+
+        auto compiled = backend->Compile(programName, *emitted.GetValue());
         if (!compiled.IsSuccess())
         {
             return AZ::Failure(compiled.TakeError());
         }
 
-        m_programs[treeName] =
-            AZStd::shared_ptr<const DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
+        AZStd::shared_ptr<const AgentProgram> program = compiled.TakeValue();
+        m_programs[programName] = program;
 
-        AZ_Assert(IsTreeCompiled(treeName), "Compiling a tree must leave a program agents can be registered against");
+        // An entity may have registered before this tree compiled, leaving its archetype holding
+        // an empty slot under this name. Filling it here is what turns that declaration into
+        // something the agent can be switched to, rather than leaving every agent sharing that
+        // archetype refused for the rest of the level.
+        for (const auto& archetype : m_archetypes)
+        {
+            archetype->Resolve(programName, program);
+        }
+
+        AZ_Assert(IsProgramCompiled(programName), "Compiling a tree must leave a program agents can be registered against");
         return AZ::Success();
     }
 
-    bool GOATSystemComponent::IsTreeCompiled(const AZ::Name& treeName) const
+    bool GOATSystemComponent::IsProgramCompiled(const AZ::Name& programName) const
     {
-        AZ_Assert(!treeName.IsEmpty(), "A tree is always asked about by name");
-        return m_programs.find(treeName) != m_programs.end();
+        AZ_Assert(!programName.IsEmpty(), "A tree is always asked about by name");
+        return m_programs.find(programName) != m_programs.end();
     }
 
     AgentId GOATSystemComponent::RegisterAgent(
-        AZ::EntityId entity, const AZ::Name& treeName, size_t band, const AZ::Name& squad,
-        AZStd::span<const AZ::Name> repertoire)
+        AZ::EntityId entity, const AZ::Name& backendName, AZStd::span<const AZ::Name> programs, size_t band,
+        const AZ::Name& squad)
     {
-        if (m_agents == nullptr)
+        if (m_agents == nullptr || programs.empty())
         {
+            AZ_Warning("GOAT", !programs.empty(), "Entity %s names no program to run",
+                entity.ToString().c_str());
             return AgentId{};
         }
 
-        // The tree it starts in comes first, whatever order the entity listed them in, because
-        // slot zero is where an agent begins. Anything else it declared follows.
+        AZ_Warning("GOAT", programs.size() <= MaxArchetypeTrees,
+            "Entity %s lists %zu programs but an agent may declare %zu; the rest are ignored",
+            entity.ToString().c_str(), programs.size(), MaxArchetypeTrees);
+
         // On the stack: registering a thousand agents must not mean a thousand throwaway lists.
-        AZStd::fixed_vector<AZ::Name, MaxArchetypeTrees> trees;
-        trees.push_back(treeName);
-        for (const AZ::Name& tree : repertoire)
+        AZStd::fixed_vector<AZ::Name, MaxArchetypeTrees> declared;
+        for (const AZ::Name& program : programs)
         {
-            if (tree != treeName && trees.size() < trees.capacity())
+            const bool listed = AZStd::find(declared.begin(), declared.end(), program) != declared.end();
+            if (!listed && declared.size() < declared.capacity())
             {
-                trees.push_back(tree);
+                declared.push_back(program);
             }
         }
 
-        AZ_Warning("GOAT", repertoire.size() < MaxArchetypeTrees,
-            "Entity %s lists %zu trees but an agent may declare %zu; the rest are ignored",
-            entity.ToString().c_str(), repertoire.size(), MaxArchetypeTrees);
+        // Program names share one namespace, so two entities can name the same one under
+        // different backends. Running it under the wrong paradigm is worth saying out loud.
+        const auto compiled = m_programs.find(declared.front());
+        if (compiled != m_programs.end() && compiled->second->m_backend != nullptr &&
+            compiled->second->m_backend->GetName() != backendName)
+        {
+            AZ_Error("GOAT", false, "Entity %s asks for backend '%s' but '%s' was compiled by '%s'",
+                entity.ToString().c_str(), backendName.GetCStr(), declared.front().GetCStr(),
+                compiled->second->m_backend->GetName().GetCStr());
+            return AgentId{};
+        }
 
-        AZStd::shared_ptr<const AgentArchetype> archetype = AcquireArchetype(trees);
+        AZStd::shared_ptr<const AgentArchetype> archetype = AcquireArchetype(declared);
         if (archetype == nullptr)
         {
             return AgentId{};
@@ -576,12 +610,17 @@ namespace GOAT
                 // Only the tree it starts in has to be compiled: a tree it merely declared may
                 // still be waiting on a subtree binding, and refusing the agent for that would
                 // stop it running the tree that is ready.
-                AZ_Warning("GOAT", tree != trees.front(), "Tree '%s' is declared but not compiled", tree.GetCStr());
                 if (tree == trees.front())
                 {
                     AZ_Warning("GOAT", false, "Tree '%s' has not been compiled", tree.GetCStr());
                     return nullptr;
                 }
+
+                // The slot is taken regardless, so this archetype still describes the list it was
+                // asked for and the next agent authored the same way shares it rather than
+                // building another that will also match nothing. CompileProgram fills it in.
+                AZ_Warning("GOAT", false, "Tree '%s' is declared but has not compiled yet", tree.GetCStr());
+                archetype->Add(tree, nullptr);
                 continue;
             }
 
@@ -657,7 +696,7 @@ namespace GOAT
             return false;
         }
 
-        if (kind != TreeSwitchKind::Pop && !IsTreeCompiled(treeName))
+        if (kind != TreeSwitchKind::Pop && !IsProgramCompiled(treeName))
         {
             AZ_Error("GOAT", false, "Agent %u cannot change to tree '%s', which is not compiled",
                 agent.GetIndex(), treeName.GetCStr());
@@ -817,7 +856,13 @@ namespace GOAT
                 continue;
             }
 
-            const auto& slots = program->m_boundSlots;
+            const auto* tree = azrtti_cast<const DecisionProgram*>(program.get());
+            if (tree == nullptr)
+            {
+                continue;
+            }
+
+            const auto& slots = tree->m_boundSlots;
             if (AZStd::find(slots.begin(), slots.end(), slot) != slots.end())
             {
                 affected.push_back(name);
@@ -832,7 +877,7 @@ namespace GOAT
         {
             for (const AZ::Name& declared : m_dispatch->GetDeclaredTreeNames())
             {
-                if (!IsTreeCompiled(declared) &&
+                if (!IsProgramCompiled(declared) &&
                     AZStd::find(affected.begin(), affected.end(), declared) == affected.end())
                 {
                     affected.push_back(declared);
@@ -840,16 +885,24 @@ namespace GOAT
             }
         }
 
-        // A failed recompile leaves the old program in place, because CompileTree fails before it
-        // touches m_programs. A bad rebind therefore leaves the world running.
+        // A failed recompile leaves the old program in place, because CompileProgram fails before
+        // it touches m_programs. A bad rebind therefore leaves the world running.
         size_t recompiled = 0;
         for (const AZ::Name& name : affected)
         {
-            if (auto compiled = CompileTree(name); compiled.IsSuccess())
+            const auto current = m_programs.find(name);
+            const IDecisionBackend* backend =
+                current != m_programs.end() ? current->second->m_backend : nullptr;
+            if (backend == nullptr)
+            {
+                continue;
+            }
+
+            if (auto compiled = CompileProgram(backend->GetName(), name); compiled.IsSuccess())
             {
                 ++recompiled;
             }
-            else if (IsTreeCompiled(name))
+            else if (IsProgramCompiled(name))
             {
                 // A tree that was running and now will not compile is a real failure; one that
                 // was never compiled and still is not simply does not use this slot.
@@ -931,6 +984,37 @@ namespace GOAT
         {
             m_agents->JoinSquad(agent, squad);
         }
+    }
+
+    void GOATSystemComponent::WakeAgents(AZStd::span<const AgentId> agents)
+    {
+        if (m_agents != nullptr)
+        {
+            m_agents->Wake(agents);
+        }
+    }
+
+    bool GOATSystemComponent::RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend)
+    {
+        return m_decisionBackends != nullptr && m_decisionBackends->Register(AZStd::move(backend));
+    }
+
+    void GOATSystemComponent::UnregisterDecisionBackend(const AZ::Name& name)
+    {
+        if (m_decisionBackends != nullptr)
+        {
+            m_decisionBackends->Unregister(name);
+        }
+    }
+
+    IDecisionBackend* GOATSystemComponent::FindDecisionBackend(const AZ::Name& name) const
+    {
+        return m_decisionBackends != nullptr ? m_decisionBackends->Find(name) : nullptr;
+    }
+
+    AZStd::vector<AZ::Name> GOATSystemComponent::GetDecisionBackendNames() const
+    {
+        return m_decisionBackends != nullptr ? m_decisionBackends->GetNames() : AZStd::vector<AZ::Name>{};
     }
 
     bool GOATSystemComponent::RegisterBackend(AZStd::unique_ptr<IBackend> backend)
@@ -1062,10 +1146,10 @@ namespace GOAT
             : AZ::Name("idle");
 
         return AZStd::string::format(
-            "tree '%s' (%zu interrupted) band %u node %u action '%s' step %zu of %zu elapsed %.2fs",
+            "program '%s' on backend '%s' (%zu interrupted) band %u action '%s' step %zu of %zu elapsed %.2fs",
             record->m_program != nullptr ? record->m_program->m_name.GetCStr() : "<none>",
-            record->m_treeStack.size(), static_cast<AZ::u32>(record->m_band),
-            record->m_cursor.GetActiveLeaf(), verb.GetCStr(),
+            record->GetBackend() != nullptr ? record->GetBackend()->GetName().GetCStr() : "<none>",
+            record->m_treeStack.size(), static_cast<AZ::u32>(record->m_band), verb.GetCStr(),
             record->m_machine.GetStepIndex(), record->m_machine.GetPlanSize(), record->m_machine.GetElapsed());
     }
 
@@ -1427,9 +1511,11 @@ namespace GOAT
         for (const AZ::Name& name : GetTreeNames())
         {
             const auto program = m_programs.find(name);
+            const auto* tree = azrtti_cast<const DecisionProgram*>(program->second.get());
             AZLOG_INFO(
-                "tree: %s (%zu nodes, %zu guards, %zu services)", name.GetCStr(), program->second->m_nodes.size(),
-                program->second->m_guardNodes.size(), program->second->m_services.size());
+                "tree: %s (%zu nodes, %zu guards, %zu services)", name.GetCStr(),
+                tree != nullptr ? tree->m_nodes.size() : 0, tree != nullptr ? tree->m_guardNodes.size() : 0,
+                tree != nullptr ? tree->m_services.size() : 0);
         }
     }
 

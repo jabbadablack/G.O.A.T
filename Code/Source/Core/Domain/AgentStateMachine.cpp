@@ -48,10 +48,11 @@ namespace GOAT
         return HasPlan() ? m_plan.GetStep(m_step) : nullptr;
     }
 
-    void AgentStateMachine::FillContext(ActionContext& context) const
+    void AgentStateMachine::FillContext(ActionContext& context, WakeCondition* wake) const
     {
         context.m_request = GetCurrentAction();
         context.m_scratch = &m_scratch;
+        context.m_wake = wake;
 
         AZ_Assert(context.m_scratch != nullptr, "Every action runs with scratch it owns for its whole lifetime");
     }
@@ -63,7 +64,8 @@ namespace GOAT
             return;
         }
 
-        FillContext(context);
+        WakeCondition discarded;
+        FillContext(context, &discarded);
         if (const ActionRequest* request = GetCurrentAction())
         {
             IActionState* state = registry.Find(request->m_action);
@@ -81,7 +83,8 @@ namespace GOAT
         AZ_Assert(!m_begun, "Ending the current action must leave nothing begun");
     }
 
-    ActionResult AgentStateMachine::Step(const ActionStateRegistry& registry, ActionContext& context, float deltaTime)
+    ActionResult AgentStateMachine::Step(
+        const ActionStateRegistry& registry, ActionContext& context, float deltaTime, WakeCondition& outWake)
     {
         AZ_Assert(deltaTime >= 0.0f, "A plan cannot be stepped backwards in time");
         AZ_Assert(!m_begun || HasPlan(), "An action cannot be running while the plan has no current step");
@@ -91,7 +94,8 @@ namespace GOAT
             return ActionResult::Success;
         }
 
-        FillContext(context);
+        outWake = WakeCondition{};
+        FillContext(context, &outWake);
         AZ_Assert(context.m_request != nullptr, "A machine with a plan always has a current action to run");
 
         const ActionRequest* current = m_plan.GetStep(m_step);

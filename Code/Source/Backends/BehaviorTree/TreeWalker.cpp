@@ -1,7 +1,6 @@
-#include <Core/Frontend/TreeWalker.h>
+#include <Backends/BehaviorTree/TreeWalker.h>
 
-#include <Core/Frontend/DirectBackend.h>
-#include <Core/Frontend/NodePredicate.h>
+#include <Backends/BehaviorTree/NodePredicate.h>
 
 #include <GOAT/Interfaces/INodeScripting.h>
 
@@ -33,27 +32,6 @@ namespace GOAT
             return step;
         }
 
-        //! Which child of a composite leads to a given descendant.
-        AZ::u16 ChildIndexOf(const DecisionProgram& program, NodeIndex parent, NodeIndex child)
-        {
-            AZ_Assert(parent < program.m_nodes.size(), "A composite index must address a node in the program");
-            AZ_Assert(child > parent && child < program.m_nodes[parent].m_subtreeEnd,
-                "A child must sit inside its parent's subtree, which pre-order indices encode as a range");
-
-            NodeIndex candidate = program.m_nodes[parent].m_firstChild;
-            for (AZ::u16 i = 0; i < program.m_nodes[parent].m_childCount; ++i)
-            {
-                if (candidate == child)
-                {
-                    return i;
-                }
-                candidate = program.m_nodes[candidate].m_subtreeEnd;
-            }
-
-            AZ_Assert(false, "A descendant of a composite must be reachable through one of its children");
-            return 0;
-        }
-
         //! Index of a composite's nth child, reached by following each earlier sibling's subtree end.
         NodeIndex NthChild(const DecisionProgram& program, NodeIndex parent, AZ::u16 n)
         {
@@ -83,26 +61,14 @@ namespace GOAT
         Intent intent;
         intent.m_node = index;
 
-        switch (node.m_op)
+        // Only a delegate names somebody else. An action or a script leaf already carries the
+        // request it wants run, so nothing has to be asked what it means.
+        if (node.m_op == NodeOp::Delegate)
         {
-        case NodeOp::Action:
-            intent.m_backend = DirectBackend::GetBackendName();
-            intent.m_direct = node.m_action;
-            break;
-        case NodeOp::Script:
-            intent.m_backend = DirectBackend::GetBackendName();
-            intent.m_direct.m_action = CoreActions::RunScript;
-            intent.m_direct.m_tag = node.m_tag;
-            break;
-        case NodeOp::Delegate:
             intent.m_backend = node.m_tag;
             intent.m_goal = node.m_goal;
-            break;
-        default:
-            break;
         }
 
-        AZ_Assert(!intent.m_backend.IsEmpty(), "Every intent names the backend that must satisfy it");
         return intent;
     }
 
@@ -132,31 +98,6 @@ namespace GOAT
         AZ_Assert(leaf < program.m_nodes.size(), "The active leaf must address a node in the program");
         cursor.SetActiveLeaf(InvalidNodeIndex);
         return Run(program, cursor, context, leaf, true, lastResult);
-    }
-
-    WalkStep TreeWalker::Restart(
-        const DecisionProgram& program, DecisionCursor& cursor, const PlanContext& context, NodeIndex node) const
-    {
-        // Point every composite above the node at the branch that reaches it, so the walk
-        // resumes there instead of where the abandoned branch left off.
-        AZ_Assert(node < program.m_nodes.size(), "A restart target must address a node in the program");
-
-        NodeIndex child = node;
-        NodeIndex parent = program.m_nodes[node].m_parent;
-        while (parent != InvalidNodeIndex)
-        {
-            // Only a Lua composite remembers which child it chose; a built in one finds its
-            // next sibling from the child it is leaving, so it has nothing to rebuild.
-            if (program.m_nodes[parent].m_op == NodeOp::LuaComposite)
-            {
-                cursor.Slot(program.m_nodes[parent].m_cursorSlot) = static_cast<float>(ChildIndexOf(program, parent, child));
-            }
-            child = parent;
-            parent = program.m_nodes[parent].m_parent;
-        }
-
-        cursor.SetActiveLeaf(InvalidNodeIndex);
-        return Run(program, cursor, context, node, false, ActionResult::Success);
     }
 
     WalkStep TreeWalker::Run(

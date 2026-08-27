@@ -1,6 +1,6 @@
-#include <Core/Frontend/GuardEvaluator.h>
+#include <Backends/BehaviorTree/GuardEvaluator.h>
 
-#include <Core/Frontend/NodePredicate.h>
+#include <Backends/BehaviorTree/NodePredicate.h>
 
 #include <AzCore/Debug/Trace.h>
 

@@ -1,4 +1,4 @@
-#include <Core/Frontend/NodePredicate.h>
+#include <Backends/BehaviorTree/NodePredicate.h>
 
 #include <GOAT/Interfaces/IBlackboardSystem.h>
 

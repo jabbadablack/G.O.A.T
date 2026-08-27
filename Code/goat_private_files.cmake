@@ -27,6 +27,28 @@ set(FILES
     Source/Core/Application/AgentRuntime.cpp
     Source/Core/Application/AgentRuntime.h
     Source/Core/Application/BackendRegistry.h
+    Source/Core/Application/DecisionBackendRegistry.h
+    Source/Backends/Htn/HtnBackend.cpp
+    Source/Backends/Htn/HtnBackend.h
+    Source/Backends/Htn/HtnCompiler.cpp
+    Source/Backends/Htn/HtnCompiler.h
+    Source/Backends/Htn/HtnDomain.h
+    Source/Backends/Htn/HtnPlanner.cpp
+    Source/Backends/Htn/HtnPlanner.h
+    Source/Backends/BehaviorTree/BehaviorTreeBackend.h
+    Source/Backends/BehaviorTree/BehaviorTreeBackend.cpp
+    Source/Backends/BehaviorTree/DecisionCursor.h
+    Source/Backends/BehaviorTree/DecisionCursor.cpp
+    Source/Backends/BehaviorTree/GuardEvaluator.h
+    Source/Backends/BehaviorTree/GuardEvaluator.cpp
+    Source/Backends/BehaviorTree/NodePredicate.h
+    Source/Backends/BehaviorTree/NodePredicate.cpp
+    Source/Backends/BehaviorTree/ServiceTracker.h
+    Source/Backends/BehaviorTree/ServiceTracker.cpp
+    Source/Backends/BehaviorTree/TreeCompiler.h
+    Source/Backends/BehaviorTree/TreeCompiler.cpp
+    Source/Backends/BehaviorTree/TreeWalker.h
+    Source/Backends/BehaviorTree/TreeWalker.cpp
     Source/Core/Application/NamedRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
@@ -56,22 +78,8 @@ set(FILES
     Source/Core/Domain/Guard.cpp
     Source/Core/Domain/Intent.cpp
     Source/Core/Domain/NodeType.cpp
-    Source/Core/Frontend/DirectBackend.cpp
-    Source/Core/Frontend/DirectBackend.h
-    Source/Core/Frontend/DecisionCursor.cpp
-    Source/Core/Frontend/DecisionCursor.h
-    Source/Core/Frontend/GuardEvaluator.cpp
-    Source/Core/Frontend/GuardEvaluator.h
-    Source/Core/Frontend/NodePredicate.cpp
-    Source/Core/Frontend/NodePredicate.h
-    Source/Core/Frontend/ServiceTracker.cpp
-    Source/Core/Frontend/ServiceTracker.h
-    Source/Core/Frontend/TreeCompiler.cpp
-    Source/Core/Frontend/TreeCompiler.h
-    Source/Core/Frontend/TreeWalker.cpp
     Source/Core/Frontend/TreeLibrary.cpp
     Source/Core/Frontend/TreeLibrary.h
-    Source/Core/Frontend/TreeWalker.h
     Source/Core/Scripting/AgentScriptContext.cpp
     Source/Core/Scripting/AgentScriptContext.h
     Source/Core/Scripting/LuaBackend.cpp

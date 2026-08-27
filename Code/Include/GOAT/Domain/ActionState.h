@@ -31,6 +31,22 @@ namespace GOAT
         Failure
     };
 
+    //! When a running action next has something to do.
+    enum class WakeWhen : AZ::u8
+    {
+        EveryTick, //!< Step it continuously. The default, so a verb that says nothing is polled.
+        AtTime,    //!< Nothing to do until a number of seconds it can name now.
+        OnSignal   //!< Nothing to do until something else says so.
+    };
+
+    //! What an action is waiting for, so it is left alone until then.
+    struct WakeCondition final
+    {
+        WakeWhen m_when = WakeWhen::EveryTick;
+        //! Seconds from now, when m_when is AtTime.
+        float m_in = 0.0f;
+    };
+
     //! Parameters for one action, produced by a backend and consumed by an action state.
     //! Fields an action does not use are simply left at their defaults.
     struct ActionRequest final

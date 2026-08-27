@@ -1,10 +1,11 @@
+#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
 #include <Core/Application/ActionStateRegistry.h>
 #include <Core/Application/AgentArchetype.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
-#include <Core/Frontend/DirectBackend.h>
+#include <Core/Application/NodeTypeRegistry.h>
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
 #include <Core/Scripting/LuaNodeScripting.h>
@@ -86,6 +87,32 @@ namespace GOAT
     //! Runs whole ticks against a hand built program. Lua is deliberately never connected:
     //! LuaDispatch guards every entry point on a null context, so a tree of conditions and
     //! action leaves runs end to end without an asset, an entity or a script.
+    //! Runs for a second, and asks not to be stepped until that second is up.
+    class SleepingAction final : public IActionState
+    {
+    public:
+        AZ_RTTI(SleepingAction, "{9C4A1E70-52B8-4D33-A16F-8E0D3B7C4192}", IActionState);
+
+        AZ::Name GetName() const override { return AZ::Name("sleep"); }
+
+        ActionResult Step(const ActionContext& context, float deltaTime) override
+        {
+            ++m_steps;
+            m_slept += deltaTime;
+            if (m_slept >= 1.0f)
+            {
+                return ActionResult::Success;
+            }
+
+            context.m_wake->m_when = WakeWhen::AtTime;
+            context.m_wake->m_in = 1.0f - m_slept;
+            return ActionResult::Running;
+        }
+
+        int m_steps = 0;
+        float m_slept = 0.0f;
+    };
+
     class AgentRuntimeFixture : public UnitTest::LeakDetectionFixture
     {
     protected:
@@ -98,24 +125,25 @@ namespace GOAT
             m_blackboard = AZStd::make_unique<CountingBlackboard>(*m_inner);
             m_actions = AZStd::make_unique<ActionStateRegistry>();
             m_backends = AZStd::make_unique<BackendRegistry>("backend");
-            m_directBackend = AZStd::make_unique<DirectBackend>();
-
-            // Registered as well as passed by reference, because a plainly authored leaf names
-            // the direct backend rather than leaving the name empty, so the runtime reaches it
-            // through the registry and never through the reference it also holds.
-            m_backends->Register(AZStd::make_unique<DirectBackend>());
             m_dispatch = AZStd::make_unique<LuaDispatch>();
             m_scriptContext = AZStd::make_unique<AgentScriptContext>();
             m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
             m_planStore = AZStd::make_unique<PlanStore>();
+            m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
+            m_trees = AZStd::make_unique<TreeLibrary>();
+            m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
+                *m_nodeTypes, *m_blackboard, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_scriptContext);
 
             m_runtime = AZStd::make_unique<AgentRuntime>(
-                *m_blackboard, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
-                *m_scripting, *m_planStore);
+                *m_blackboard, *m_actions, *m_backends, *m_scripting, *m_planStore);
 
             auto holding = AZStd::make_unique<HoldingAction>();
             m_holding = holding.get();
             m_holdId = m_actions->Register(AZStd::move(holding));
+
+            auto sleeping = AZStd::make_unique<SleepingAction>();
+            m_sleeping = sleeping.get();
+            m_sleepId = m_actions->Register(AZStd::move(sleeping));
 
             m_agent.m_id = AgentId(0, 1);
             m_agent.m_entity = AZ::EntityId(1234);
@@ -125,11 +153,13 @@ namespace GOAT
         void TearDown() override
         {
             m_runtime.reset();
+            m_treeBackend.reset();
+            m_trees.reset();
+            m_nodeTypes.reset();
             m_planStore.reset();
             m_scripting.reset();
             m_scriptContext.reset();
             m_dispatch.reset();
-            m_directBackend.reset();
             m_backends.reset();
             m_actions.reset();
             m_blackboard.reset();
@@ -186,28 +216,41 @@ namespace GOAT
         //! does, so the record under test is shaped exactly like a real one.
         void Install(DecisionProgram* program)
         {
+            program->m_backend = m_treeBackend.get();
+            for (const BlackboardKey key : program->m_observedKeys)
+            {
+                program->m_watchedScopes[static_cast<size_t>(key.GetScope())] = true;
+            }
+
             auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
-            archetype->Add(program->m_name, AZStd::shared_ptr<const DecisionProgram>(program));
+            archetype->Add(program->m_name, AZStd::shared_ptr<const AgentProgram>(program));
 
             m_agent.m_archetype = archetype;
             m_agent.m_tree = 0;
             m_agent.m_program = archetype->GetProgram(0);
-            m_agent.m_cursor.Reset(*m_agent.m_program);
+            m_treeBackend->Attach(m_runtime->MakePlanContext(m_agent), *m_agent.m_program, m_agent.GetState());
         }
+
+        //! The cursor the tree backend keeps in the agent's brain state.
+        DecisionCursor& Cursor() { return *reinterpret_cast<DecisionCursor*>(m_agent.m_brainState.data()); }
 
         BlackboardKey m_gate;
         ActionStateId m_holdId = CoreActions::Invalid;
         HoldingAction* m_holding = nullptr;
+        ActionStateId m_sleepId = CoreActions::Invalid;
+        SleepingAction* m_sleeping = nullptr;
         AgentRecord m_agent;
         AZStd::unique_ptr<BlackboardSystem> m_inner;
         AZStd::unique_ptr<CountingBlackboard> m_blackboard;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
-        AZStd::unique_ptr<DirectBackend> m_directBackend;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
         AZStd::unique_ptr<AgentScriptContext> m_scriptContext;
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;
         AZStd::unique_ptr<PlanStore> m_planStore;
+        AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
+        AZStd::unique_ptr<TreeLibrary> m_trees;
+        AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
     };
 
@@ -335,7 +378,7 @@ namespace GOAT
 
         // Already cooling, with half a second left to run. Slot zero is the cooldown's, since
         // it is the only node in this tree that keeps anything between ticks.
-        m_agent.m_cursor.Slot(0) = 0.5f;
+        Cursor().Slot(0) = 0.5f;
 
         m_runtime->Tick(m_agent, 0.1f);
         EXPECT_FALSE(m_agent.m_machine.HasPlan());
@@ -363,5 +406,40 @@ namespace GOAT
         EXPECT_EQ(m_holding->m_begins, 0);
         m_runtime->Tick(m_agent, 0.033f);
         EXPECT_EQ(m_holding->m_begins, 1);
+    }
+
+    //! An action that says when it next has something to do is left alone until then, rather
+    //! than being stepped every band tick to be told nothing changed.
+    TEST_F(AgentRuntimeFixture, Tick_LeavesASleepingActionAlone)
+    {
+        BuildGuardedTree(true);
+        const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program))
+            ->m_nodes[2].m_action.m_action = m_sleepId;
+
+        for (int i = 0; i < 12; ++i)
+        {
+            m_runtime->Tick(m_agent, 0.1f);
+        }
+
+        // One step to arm the sleep and one when the second is up, rather than one per tick.
+        EXPECT_LE(m_sleeping->m_steps, 3);
+        EXPECT_GT(m_sleeping->m_steps, 0);
+    }
+
+    //! The sleep is a bound, not a promise: something that knows better can end it early.
+    TEST_F(AgentRuntimeFixture, Wake_EndsASleepEarly)
+    {
+        BuildGuardedTree(true);
+        const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program))
+            ->m_nodes[2].m_action.m_action = m_sleepId;
+
+        m_runtime->Tick(m_agent, 0.1f);
+        m_runtime->Tick(m_agent, 0.1f);
+        const int armed = m_sleeping->m_steps;
+
+        m_agent.m_wakeIn = 0.0f;
+        m_runtime->Tick(m_agent, 0.1f);
+
+        EXPECT_GT(m_sleeping->m_steps, armed);
     }
 } // namespace GOAT

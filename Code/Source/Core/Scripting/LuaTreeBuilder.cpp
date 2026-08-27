@@ -9,7 +9,7 @@ namespace GOAT
     void LuaTreeBuilder::BeginTree(AZStd::string name)
     {
         m_records.clear();
-        m_root = BehaviorTreeNode{};
+        m_root = AuthoredNode{};
         m_name = AZStd::move(name);
         m_error.clear();
         m_complete = false;
@@ -45,7 +45,7 @@ namespace GOAT
             return;
         }
 
-        BehaviorTreeProperty property;
+        AuthoredProperty property;
         property.m_name = AZStd::move(key);
         property.m_value = AZStd::any(value);
         m_records.back().m_properties.push_back(AZStd::move(property));
@@ -60,7 +60,7 @@ namespace GOAT
             return;
         }
 
-        BehaviorTreeProperty property;
+        AuthoredProperty property;
         property.m_name = AZStd::move(key);
         property.m_value = AZStd::any(value);
         m_records.back().m_properties.push_back(AZStd::move(property));
@@ -75,13 +75,13 @@ namespace GOAT
             return;
         }
 
-        BehaviorTreeProperty property;
+        AuthoredProperty property;
         property.m_name = AZStd::move(key);
         property.m_value = AZStd::any(AZStd::move(value));
         m_records.back().m_properties.push_back(AZStd::move(property));
     }
 
-    size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
+    size_t LuaTreeBuilder::Build(size_t index, AuthoredNode& out)
     {
         if (index >= m_records.size())
         {
@@ -97,14 +97,14 @@ namespace GOAT
 
         for (int i = 0; i < record.m_serviceCount && m_error.empty(); ++i)
         {
-            BehaviorTreeNode service;
+            AuthoredNode service;
             index = Build(index, service);
             out.m_services.push_back(AZStd::move(service));
         }
 
         for (int i = 0; i < record.m_childCount && m_error.empty(); ++i)
         {
-            BehaviorTreeNode child;
+            AuthoredNode child;
             index = Build(index, child);
             out.m_children.push_back(AZStd::move(child));
         }
