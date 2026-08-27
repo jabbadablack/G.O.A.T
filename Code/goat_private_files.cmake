@@ -27,6 +27,7 @@ set(FILES
     Source/Core/Application/AgentRuntime.cpp
     Source/Core/Application/AgentRuntime.h
     Source/Core/Application/BackendRegistry.h
+    Source/Core/Application/DecisionBackendRegistry.h
     Source/Core/Application/NamedRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h

@@ -103,6 +103,7 @@ namespace GOAT
         StartServices();
         RegisterAssetHandlers();
         AzFramework::AssetCatalogEventBus::Handler::BusConnect();
+        GOATBackendRequestBus::Handler::BusConnect();
 
         if (AgentSystemInterface::Get() == nullptr)
         {
@@ -117,6 +118,7 @@ namespace GOAT
             AgentSystemInterface::Unregister(this);
         }
 
+        GOATBackendRequestBus::Handler::BusDisconnect();
         AzFramework::AssetCatalogEventBus::Handler::BusDisconnect();
         UnregisterAssetHandlers();
         StopServices();
@@ -128,6 +130,7 @@ namespace GOAT
         m_blackboardSystem = AZStd::make_unique<BlackboardSystem>();
         m_actions = AZStd::make_unique<ActionStateRegistry>();
         m_backends = AZStd::make_unique<BackendRegistry>("backend");
+        m_decisionBackends = AZStd::make_unique<DecisionBackendRegistry>("decision backend");
         m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
         m_trees = AZStd::make_unique<TreeLibrary>();
         m_dispatch = AZStd::make_unique<LuaDispatch>();
@@ -184,6 +187,7 @@ namespace GOAT
         m_dispatch.reset();
         m_trees.reset();
         m_nodeTypes.reset();
+        m_decisionBackends.reset();
         m_backends.reset();
         m_actions.reset();
         m_blackboardSystem.reset();
@@ -945,6 +949,29 @@ namespace GOAT
         {
             m_agents->JoinSquad(agent, squad);
         }
+    }
+
+    bool GOATSystemComponent::RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend)
+    {
+        return m_decisionBackends != nullptr && m_decisionBackends->Register(AZStd::move(backend));
+    }
+
+    void GOATSystemComponent::UnregisterDecisionBackend(const AZ::Name& name)
+    {
+        if (m_decisionBackends != nullptr)
+        {
+            m_decisionBackends->Unregister(name);
+        }
+    }
+
+    IDecisionBackend* GOATSystemComponent::FindDecisionBackend(const AZ::Name& name) const
+    {
+        return m_decisionBackends != nullptr ? m_decisionBackends->Find(name) : nullptr;
+    }
+
+    AZStd::vector<AZ::Name> GOATSystemComponent::GetDecisionBackendNames() const
+    {
+        return m_decisionBackends != nullptr ? m_decisionBackends->GetNames() : AZStd::vector<AZ::Name>{};
     }
 
     bool GOATSystemComponent::RegisterBackend(AZStd::unique_ptr<IBackend> backend)

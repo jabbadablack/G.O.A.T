@@ -1,5 +1,6 @@
 set(FILES
     Include/GOAT/GOATTypeIds.h
+    Include/GOAT/GOATBackendBus.h
     Include/GOAT/VocabularyScope.h
     Include/GOAT/Assets/BehaviorTreeAsset.h
     Include/GOAT/Assets/BlackboardAsset.h
@@ -8,6 +9,7 @@ set(FILES
     Include/GOAT/Domain/PlanStore.h
     Include/GOAT/Domain/ActionState.h
     Include/GOAT/Domain/AgentId.h
+    Include/GOAT/Domain/AgentProgram.h
     Include/GOAT/Domain/AgentStateMachine.h
     Include/GOAT/Domain/BlackboardKey.h
     Include/GOAT/Domain/BlackboardLayout.h
@@ -19,10 +21,12 @@ set(FILES
     Include/GOAT/Domain/Handle.h
     Include/GOAT/Domain/Intent.h
     Include/GOAT/Domain/NodeType.h
+    Include/GOAT/Domain/PlanContext.h
     Include/GOAT/Interfaces/IActionState.h
     Include/GOAT/Interfaces/IBackend.h
     Include/GOAT/Interfaces/IReachFilter.h
     Include/GOAT/Interfaces/IAgentSystem.h
     Include/GOAT/Interfaces/IBlackboardSystem.h
+    Include/GOAT/Interfaces/IDecisionBackend.h
     Include/GOAT/Interfaces/INodeScripting.h
 )

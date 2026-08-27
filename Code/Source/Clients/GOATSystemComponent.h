@@ -5,6 +5,7 @@
 #include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
+#include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
 #include <Core/Application/ReachFilterRegistry.h>
@@ -15,6 +16,7 @@
 #include <Core/Scripting/LuaDispatch.h>
 #include <Core/Scripting/LuaNodeScripting.h>
 
+#include <GOAT/GOATBackendBus.h>
 #include <GOAT/Interfaces/IAgentSystem.h>
 
 #include <AzCore/Asset/AssetCommon.h>
@@ -33,6 +35,7 @@ namespace GOAT
         : public AZ::Component
         , public IAgentSystem
         , protected AzFramework::AssetCatalogEventBus::Handler
+        , protected GOATBackendRequestBus::Handler
     {
     public:
         AZ_COMPONENT_DECL(GOATSystemComponent);
@@ -94,6 +97,14 @@ namespace GOAT
         //! System components activate before the asset catalog loads, so the vocabulary is
         //! picked up here rather than at activation.
         void OnCatalogLoaded(const char* catalogFile) override;
+        ////////////////////////////////////////////////////////////////////////
+
+        ////////////////////////////////////////////////////////////////////////
+        // GOATBackendRequestBus
+        bool RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend) override;
+        void UnregisterDecisionBackend(const AZ::Name& name) override;
+        IDecisionBackend* FindDecisionBackend(const AZ::Name& name) const override;
+        AZStd::vector<AZ::Name> GetDecisionBackendNames() const override;
         ////////////////////////////////////////////////////////////////////////
 
         ////////////////////////////////////////////////////////////////////////
@@ -229,6 +240,7 @@ namespace GOAT
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
+        AZStd::unique_ptr<DecisionBackendRegistry> m_decisionBackends;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TreeLibrary> m_trees;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
