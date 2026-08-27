@@ -50,9 +50,14 @@ namespace GOAT
 
         const BlackboardKey resolved =
             key >= 1.0 ? BlackboardKey::FromPacked(static_cast<AZ::u32>(key) - 1u) : BlackboardKey{};
+
+        // The handle is reported because what it is says which mistake this was: zero means the
+        // script passed nothing at all -- a nil upvalue or a missing argument -- while any other
+        // value means it passed something ctx:Key did not produce.
         AZ_Warning("GOAT", resolved.IsValid(),
-            "A script tried to %s through a handle ctx:Key never gave it; look the variable up once and keep that",
-            access);
+            "A script tried to %s through handle %.0f, which ctx:Key never gave it; look the variable up "
+            "once and keep what it returned",
+            access, key);
         return resolved;
     }
 
