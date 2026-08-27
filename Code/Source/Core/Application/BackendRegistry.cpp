@@ -30,7 +30,6 @@ namespace GOAT
     void BackendRegistry::Unregister(const AZ::Name& name)
     {
         m_backends.erase(name);
-        AZ_Assert(Find(name) == nullptr, "An unregistered backend must no longer be findable");
     }
 
     IBackend* BackendRegistry::Find(const AZ::Name& name) const

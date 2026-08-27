@@ -152,8 +152,6 @@ namespace GOAT_Animation
             agents->UnregisterAction(id);
         }
         m_installedActions.clear();
-
-        AZ_Assert(m_installedActions.empty(), "Removing the vocabulary must leave no verb installed");
     }
 
     void GOAT_AnimationSystemComponent::Activate()

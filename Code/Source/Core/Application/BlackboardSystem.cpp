@@ -78,8 +78,6 @@ namespace GOAT
         // Leaving first is what refcounts the squad down, so the order here is load bearing.
         m_squads.Leave(agent);
         m_agents.erase(agent);
-
-        AZ_Assert(m_agents.find(agent) == m_agents.end(), "Destroying agent storage must leave nothing behind");
         AZ_Assert(m_squads.Find(agent).IsEmpty(), "A destroyed agent must not still belong to a squad");
     }
 

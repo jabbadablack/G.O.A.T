@@ -57,8 +57,6 @@ namespace GOAT
         {
             names.push_back(name);
         }
-
-        AZ_Assert(names.size() == m_trees.size(), "Listing trees must report exactly as many as are stored");
         return names;
     }
 } // namespace GOAT

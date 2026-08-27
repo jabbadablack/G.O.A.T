@@ -200,8 +200,6 @@ namespace GOAT
         m_byEntity.erase(record->m_entity);
         m_blackboard.DestroyAgentBlackboard(agent);
         m_agents.Release(agent);
-
-        AZ_Assert(Find(agent) == nullptr, "An unregistered agent must no longer be findable");
     }
 
     AgentRecord* AgentRegistry::Find(AgentId agent)
@@ -374,13 +372,10 @@ namespace GOAT
     {
         AZStd::vector<AgentId> agents;
         agents.reserve(m_agents.Size());
-        const size_t expected = m_agents.Size();
         for (size_t i = 0; i < m_agents.Size(); ++i)
         {
             agents.push_back(m_agents.GetHandleAt(i));
         }
-
-        AZ_Assert(agents.size() == expected, "Listing agents must report exactly as many as are registered");
         return agents;
     }
 

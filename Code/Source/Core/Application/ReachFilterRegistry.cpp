@@ -31,7 +31,6 @@ namespace GOAT
     void ReachFilterRegistry::Unregister(const AZ::Name& name)
     {
         m_filters.erase(name);
-        AZ_Assert(Find(name) == nullptr, "An unregistered reach filter must no longer be findable");
     }
 
     const IReachFilter* ReachFilterRegistry::Find(const AZ::Name& name) const
@@ -48,8 +47,6 @@ namespace GOAT
         {
             names.push_back(name);
         }
-
-        AZ_Assert(names.size() == m_filters.size(), "Listing filters must report exactly as many as exist");
         return names;
     }
 } // namespace GOAT

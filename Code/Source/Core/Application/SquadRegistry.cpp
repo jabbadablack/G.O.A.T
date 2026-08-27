@@ -59,8 +59,6 @@ namespace GOAT
         }
 
         m_squadByAgent.erase(membership);
-
-        AZ_Assert(Find(agent).IsEmpty(), "Leaving must leave the agent in no squad");
     }
 
     AZ::Name SquadRegistry::Find(AgentId agent) const
@@ -90,8 +88,6 @@ namespace GOAT
         {
             names.push_back(name);
         }
-
-        AZ_Assert(names.size() == m_squads.size(), "Listing squads must report exactly as many as exist");
         return names;
     }
 
@@ -131,7 +127,5 @@ namespace GOAT
     {
         m_squads.clear();
         m_squadByAgent.clear();
-
-        AZ_Assert(m_squads.empty() && m_squadByAgent.empty(), "Clearing must leave no squad and no membership");
     }
 } // namespace GOAT

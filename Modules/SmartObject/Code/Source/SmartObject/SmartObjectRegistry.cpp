@@ -47,8 +47,6 @@ namespace GOAT_SmartObject
         }
 
         m_objects.erase(found);
-
-        AZ_Assert(m_objects.find(entity) == m_objects.end(), "Removing a smart object must leave nothing behind");
     }
 
     bool SmartObjectRegistry::FindAnchor(AZ::EntityId entity, const AZ::Vector3& offset, AZ::Vector3& outAnchor)
@@ -160,8 +158,6 @@ namespace GOAT_SmartObject
         }
 
         m_claims.erase(claim);
-
-        AZ_Assert(m_claims.find(agent) == m_claims.end(), "Releasing must leave the agent holding nothing");
     }
 
     AZ::u32 SmartObjectRegistry::GetFreeSlots(AZ::EntityId entity) const

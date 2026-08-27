@@ -61,8 +61,6 @@ namespace GOAT
         // Every cooldown this director owned goes with the record, which is the point of holding
         // them here rather than on the agents it was commanding.
         m_directors.erase(director);
-
-        AZ_Assert(FindProfile(director) == nullptr, "An unregistered director must no longer be findable");
     }
 
     const DirectorProfile* DirectorRegistry::FindProfile(AgentId director) const

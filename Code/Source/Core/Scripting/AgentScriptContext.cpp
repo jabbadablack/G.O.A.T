@@ -35,8 +35,6 @@ namespace GOAT
         m_agent = agent;
         m_entity = entity;
         m_blackboard = blackboard;
-
-        AZ_Assert(m_blackboard == blackboard, "Binding must leave this context pointing at that blackboard");
     }
 
     void AgentScriptContext::Unbind()

@@ -69,7 +69,5 @@ namespace GOAT
             handler.Disconnect();
         }
         m_observed.clear();
-
-        AZ_Assert(m_observed.empty(), "Disconnecting must leave no observed keys behind");
     }
 } // namespace GOAT

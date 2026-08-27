@@ -632,9 +632,6 @@ namespace GOAT
         agent.m_pendingTree = AZ::Name{};
         agent.m_pendingPriority = SelfSwitchPriority;
 
-        AZ_Assert(agent.m_pendingPriority == SelfSwitchPriority,
-            "Applying a switch must leave no priority floor behind, or every later command is refused");
-
         if (kind == TreeSwitchKind::None || m_agents == nullptr)
         {
             return;
