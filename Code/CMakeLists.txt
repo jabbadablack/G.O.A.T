@@ -214,6 +214,13 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
         ly_add_googletest(
             NAME Gem::${gem_name}.Tests
         )
+
+        # The same target carries the benchmarks: AZ_UNIT_TEST_HOOK already expands to the
+        # benchmark hook, so they need no target of their own.
+        ly_add_googlebenchmark(
+            NAME Gem::${gem_name}.Benchmarks
+            TARGET Gem::${gem_name}.Tests
+        )
     endif()
 
     # If we are a host platform we want to add tools test like editor tests here
