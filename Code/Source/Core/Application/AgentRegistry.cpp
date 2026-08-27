@@ -96,7 +96,7 @@ namespace GOAT
 
         raw->m_observer.Connect(*raw->m_program, m_blackboard, id);
 
-        m_bands[band].m_members.push_back(id);
+        AddToBand(id, band);
         m_byEntity[entity] = id;
 
         AZ_Assert(Find(id) == raw, "A registered agent must be findable by the id it was given");
@@ -109,6 +109,24 @@ namespace GOAT
         return id;
     }
 
+    void AgentRegistry::AddToBand(AgentId agent, size_t band)
+    {
+        AZ_Assert(band < BandCount, "An agent can only join a band that exists");
+        if (band >= BandCount)
+        {
+            return;
+        }
+
+        Band& entry = m_bands[band];
+        if (entry.m_ticking)
+        {
+            entry.m_joining.push_back(agent);
+            return;
+        }
+
+        entry.m_members.push_back(agent);
+    }
+
     void AgentRegistry::RemoveFromBand(AgentId agent, size_t band)
     {
         AZ_Assert(band < BandCount, "An agent can only be removed from a band that exists");
@@ -117,11 +135,40 @@ namespace GOAT
             return;
         }
 
-        auto& members = m_bands[band].m_members;
+        Band& entry = m_bands[band];
+        if (entry.m_ticking)
+        {
+            entry.m_leaving.push_back(agent);
+            return;
+        }
+
+        auto& members = entry.m_members;
         members.erase(AZStd::remove(members.begin(), members.end(), agent), members.end());
 
         AZ_Assert(AZStd::find(members.begin(), members.end(), agent) == members.end(),
             "Removing an agent from a band must leave no copy of it there");
+    }
+
+    void AgentRegistry::FlushBandChanges(size_t band)
+    {
+        Band& entry = m_bands[band];
+        AZ_Assert(!entry.m_ticking, "Queued membership changes are applied once the band's tick has ended");
+
+        // Removals first, so an agent that left and rejoined in one tick ends up present rather
+        // than being erased by its own earlier departure.
+        for (const AgentId agent : entry.m_leaving)
+        {
+            auto& members = entry.m_members;
+            members.erase(AZStd::remove(members.begin(), members.end(), agent), members.end());
+        }
+
+        for (const AgentId agent : entry.m_joining)
+        {
+            entry.m_members.push_back(agent);
+        }
+
+        entry.m_leaving.clear();
+        entry.m_joining.clear();
     }
 
     void AgentRegistry::Unregister(AgentId agent)
@@ -194,7 +241,7 @@ namespace GOAT
 
         RemoveFromBand(agent, record->m_band);
         record->m_band = band;
-        m_bands[band].m_members.push_back(agent);
+        AddToBand(agent, band);
 
         AZ_Assert(record->m_band == band, "Changing band must record the band the agent moved to");
     }
@@ -339,6 +386,17 @@ namespace GOAT
         return agents;
     }
 
+    size_t AgentRegistry::GetAgentCount() const
+    {
+        return m_agents.Size();
+    }
+
+    AgentId AgentRegistry::GetAgentAt(size_t index) const
+    {
+        AZ_Assert(index < m_agents.Size(), "An agent index must address a registered agent");
+        return m_agents.GetHandleAt(index);
+    }
+
     void AgentRegistry::TickBand(size_t band)
     {
         AZ_Assert(band < BandCount, "A scheduled event fired for a band that does not exist");
@@ -352,14 +410,18 @@ namespace GOAT
 
         AZ_Assert(deltaTime >= 0.0f, "A band's delta time must never run backwards");
 
-        // Copy the roster: a behaviour may register or remove agents while it runs.
-        AZStd::vector<AgentId> roster = entry.m_members;
-        for (const AgentId agent : roster)
+        // Walked in place. A behaviour that registers or removes an agent has its change queued
+        // rather than applied, so the roster cannot move under this loop and nothing is copied.
+        entry.m_ticking = true;
+        for (size_t i = 0; i < entry.m_members.size(); ++i)
         {
-            if (AgentRecord* record = Find(agent))
+            if (AgentRecord* record = Find(entry.m_members[i]))
             {
                 m_runtime.Tick(*record, deltaTime);
             }
         }
+        entry.m_ticking = false;
+
+        FlushBandChanges(band);
     }
 } // namespace GOAT

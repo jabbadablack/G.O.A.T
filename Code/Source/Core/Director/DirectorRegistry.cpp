@@ -138,8 +138,11 @@ namespace GOAT
 
         const float radiusSq = reach.m_radius * reach.m_radius;
 
-        for (const AgentId candidate : m_agents.GetAgents())
+        const size_t candidateCount = m_agents.GetAgentCount();
+        for (size_t i = 0; i < candidateCount; ++i)
         {
+            const AgentId candidate = m_agents.GetAgentAt(i);
+
             // A director never governs itself: it would then be able to order itself onto
             // another tree, which is a loop with no way out.
             if (candidate == director)

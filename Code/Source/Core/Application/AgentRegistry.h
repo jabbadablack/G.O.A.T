@@ -85,6 +85,12 @@ namespace GOAT
         //! Every live agent handle, for console output.
         AZStd::vector<AgentId> GetAgents() const;
 
+        //! Walks the roster without building a list of it. A director resolves its reach against
+        //! every agent on every one of its ticks, so handing it a fresh vector of the whole level
+        //! each time was an allocation per director per tick for a list nothing kept.
+        size_t GetAgentCount() const;
+        AgentId GetAgentAt(size_t index) const;
+
     private:
         //! Runs every agent in one band and records when it last ran.
         void TickBand(size_t band);
@@ -95,6 +101,12 @@ namespace GOAT
         //! Re-arms an agent's guards against the storages that exist now.
         void ReconnectObserver(AgentRecord& record);
 
+        //! Puts an agent on a band, or queues it when that band is mid tick.
+        void AddToBand(AgentId agent, size_t band);
+
+        //! Applies every membership change queued while a band was ticking.
+        void FlushBandChanges(size_t band);
+
         //! One pacing band: an interval, the agents on it, and its scheduler entry.
         struct Band final
         {
@@ -102,6 +114,14 @@ namespace GOAT
             AZ::TimeMs m_lastTick{ 0 };
             AZStd::vector<AgentId> m_members;
             AZStd::unique_ptr<AZ::ScheduledEvent> m_event;
+
+            //! Membership changes asked for while this band was mid tick, applied once it ends.
+            //! Deferring them is what lets the tick walk the roster in place: a behaviour may
+            //! register or remove an agent, and doing that to the vector being walked would
+            //! invalidate it. Copying the roster every tick was the previous answer.
+            AZStd::vector<AgentId> m_joining;
+            AZStd::vector<AgentId> m_leaving;
+            bool m_ticking = false;
         };
 
         AgentRuntime& m_runtime;

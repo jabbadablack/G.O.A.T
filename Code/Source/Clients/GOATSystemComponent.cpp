@@ -1068,23 +1068,18 @@ namespace GOAT
         const AZStd::string wantedTree(arguments[1]);
         const AZ::Name treeName(wantedTree);
 
-        for (const AgentId agent : m_agents->GetAgents())
+        const AgentId agent = m_agents->FindByEntity(wantedEntity);
+        if (agent.IsNull())
         {
-            const AgentRecord* record = m_agents->Find(agent);
-            if (record == nullptr || record->m_entity != wantedEntity)
-            {
-                continue;
-            }
-
-            // From the console, at the highest priority: someone typing a command is overruling
-            // whatever any director decided, which is what a debugging command is for.
-            AZLOG_INFO("%s agent %u to tree '%s'",
-                SetAgentTree(agent, treeName, AZStd::numeric_limits<AZ::u8>::max()) ? "moving" : "could not move",
-                agent.GetIndex(), treeName.GetCStr());
+            AZLOG_INFO("no agent is running on entity %s", wantedEntity.ToString().c_str());
             return;
         }
 
-        AZLOG_INFO("no agent is running on entity %s", wantedEntity.ToString().c_str());
+        // From the console, at the highest priority: someone typing a command is overruling
+        // whatever any director decided, which is what a debugging command is for.
+        AZLOG_INFO("%s agent %u to tree '%s'",
+            SetAgentTree(agent, treeName, AZStd::numeric_limits<AZ::u8>::max()) ? "moving" : "could not move",
+            agent.GetIndex(), treeName.GetCStr());
     }
 
     void GOATSystemComponent::SetAgentBandCommand(const AZ::ConsoleCommandContainer& arguments)
@@ -1505,28 +1500,26 @@ namespace GOAT
         }
 
         const AZ::EntityId wanted(rawEntityId);
-        for (const AgentId agent : m_agents->GetAgents())
+        const AgentId agent = m_agents->FindByEntity(wanted);
+        const AgentRecord* record = agent.IsNull() ? nullptr : m_agents->Find(agent);
+        if (record == nullptr)
         {
-            const AgentRecord* record = m_agents->Find(agent);
-            if (record != nullptr && record->m_entity == wanted)
-            {
-                AZLOG_INFO("agent %u: %s", agent.GetIndex(), DescribeAgent(agent).c_str());
-
-                // Printed because a refused order is most often a tree the entity never listed,
-                // and this is the only place that list can be seen from.
-                AZStd::string mayRun;
-                for (const AZ::Name& tree : record->m_repertoire)
-                {
-                    mayRun += mayRun.empty() ? "" : ", ";
-                    mayRun += tree.GetCStr();
-                }
-
-                AZLOG_INFO("  may run: %s", mayRun.c_str());
-                return;
-            }
+            AZLOG_INFO("no agent is running on entity %s", wanted.ToString().c_str());
+            return;
         }
 
-        AZLOG_INFO("no agent is running on entity %s", wanted.ToString().c_str());
+        AZLOG_INFO("agent %u: %s", agent.GetIndex(), DescribeAgent(agent).c_str());
+
+        // Printed because a refused order is most often a tree the entity never listed, and this
+        // is the only place that list can be seen from.
+        AZStd::string mayRun;
+        for (const AZ::Name& tree : record->m_repertoire)
+        {
+            mayRun += mayRun.empty() ? "" : ", ";
+            mayRun += tree.GetCStr();
+        }
+
+        AZLOG_INFO("  may run: %s", mayRun.c_str());
     }
 
     void GOATSystemComponent::OnCatalogLoaded([[maybe_unused]] const char* catalogFile)
