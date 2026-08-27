@@ -376,7 +376,7 @@ namespace GOAT::Benchmark
             m_blackboard.reset();
             m_blackboard = AZStd::make_unique<BlackboardSystem>();
             m_actions = AZStd::make_unique<ActionStateRegistry>();
-            m_backends = AZStd::make_unique<BackendRegistry>();
+            m_backends = AZStd::make_unique<BackendRegistry>("backend");
             m_backends->Register(AZStd::make_unique<DirectBackend>());
             m_direct = AZStd::make_unique<DirectBackend>();
             m_dispatch = AZStd::make_unique<LuaDispatch>();

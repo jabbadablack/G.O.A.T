@@ -26,11 +26,10 @@ set(FILES
     Source/Core/Application/AgentRegistry.h
     Source/Core/Application/AgentRuntime.cpp
     Source/Core/Application/AgentRuntime.h
-    Source/Core/Application/BackendRegistry.cpp
     Source/Core/Application/BackendRegistry.h
+    Source/Core/Application/NamedRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
-    Source/Core/Application/ReachFilterRegistry.cpp
     Source/Core/Application/ReachFilterRegistry.h
     Source/Core/Director/DirectorActions.cpp
     Source/Core/Director/DirectorActions.h

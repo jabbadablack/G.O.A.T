@@ -127,7 +127,7 @@ namespace GOAT
         m_planStore = AZStd::make_unique<PlanStore>();
         m_blackboardSystem = AZStd::make_unique<BlackboardSystem>();
         m_actions = AZStd::make_unique<ActionStateRegistry>();
-        m_backends = AZStd::make_unique<BackendRegistry>();
+        m_backends = AZStd::make_unique<BackendRegistry>("backend");
         m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
         m_trees = AZStd::make_unique<TreeLibrary>();
         m_dispatch = AZStd::make_unique<LuaDispatch>();
@@ -148,7 +148,7 @@ namespace GOAT
             *m_blackboardSystem, *m_actions, *m_backends, *m_directBackend, *m_dispatch, *m_scriptContext,
             *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
-        m_reachFilters = AZStd::make_unique<ReachFilterRegistry>();
+        m_reachFilters = AZStd::make_unique<ReachFilterRegistry>("reach filter");
         m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents, *m_blackboardSystem, *m_reachFilters);
 
         // Resolving a tree name needs the compiled programs, which live here, so the runtime is

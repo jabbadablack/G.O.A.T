@@ -34,7 +34,12 @@ namespace GOAT
 
     void AgentRuntime::ReleaseAgent(AgentRecord& agent)
     {
-        m_backends.ReleaseAgent(MakePlanContext(agent));
+        const PlanContext context = MakePlanContext(agent);
+        m_backends.ForEach(
+            [&context](IBackend& backend)
+            {
+                backend.Release(context);
+            });
     }
 
     void AgentRuntime::AbortAgent(AgentRecord& agent)

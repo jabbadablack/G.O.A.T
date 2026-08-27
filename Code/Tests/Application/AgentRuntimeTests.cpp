@@ -97,7 +97,7 @@ namespace GOAT
             m_inner = AZStd::make_unique<BlackboardSystem>();
             m_blackboard = AZStd::make_unique<CountingBlackboard>(*m_inner);
             m_actions = AZStd::make_unique<ActionStateRegistry>();
-            m_backends = AZStd::make_unique<BackendRegistry>();
+            m_backends = AZStd::make_unique<BackendRegistry>("backend");
             m_directBackend = AZStd::make_unique<DirectBackend>();
 
             // Registered as well as passed by reference, because a plainly authored leaf names
