@@ -145,7 +145,7 @@ namespace GOAT
         AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
         m_decisionBackends->Register(AZStd::move(installed));
 
-        auto htnBackend = AZStd::make_unique<HtnBackend>(*m_blackboardSystem, *m_actions);
+        auto htnBackend = AZStd::make_unique<HtnBackend>(*m_nodeTypes, *m_blackboardSystem, *m_actions);
         AZStd::unique_ptr<IDecisionBackend> htn = AZStd::move(htnBackend);
         m_decisionBackends->Register(AZStd::move(htn));
 

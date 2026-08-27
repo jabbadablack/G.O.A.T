@@ -5,8 +5,10 @@
 
 namespace GOAT
 {
-    HtnBackend::HtnBackend(IBlackboardSystem& blackboard, const ActionStateRegistry& actions)
-        : m_blackboard(blackboard)
+    HtnBackend::HtnBackend(
+        const NodeTypeRegistry& nodeTypes, IBlackboardSystem& blackboard, const ActionStateRegistry& actions)
+        : m_nodeTypes(nodeTypes)
+        , m_blackboard(blackboard)
         , m_actions(actions)
     {
     }
@@ -34,7 +36,7 @@ namespace GOAT
 
     CompileOutcome HtnBackend::Compile(const AZ::Name& name, const AuthoredNode& root)
     {
-        const HtnCompiler compiler(m_blackboard, m_actions);
+        const HtnCompiler compiler(m_nodeTypes, m_blackboard, m_actions);
         auto compiled = compiler.Compile(name, root);
         if (!compiled.IsSuccess())
         {

@@ -2,6 +2,7 @@
 
 #include <Backends/Htn/HtnDomain.h>
 #include <Core/Application/ActionStateRegistry.h>
+#include <Core/Application/NodeTypeRegistry.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
 #include <GOAT/Interfaces/IBlackboardSystem.h>
@@ -15,7 +16,8 @@ namespace GOAT
     class HtnCompiler final
     {
     public:
-        HtnCompiler(const IBlackboardSystem& blackboard, const ActionStateRegistry& actions);
+        HtnCompiler(const NodeTypeRegistry& nodeTypes, const IBlackboardSystem& blackboard,
+            const ActionStateRegistry& actions);
 
         AZ::Outcome<HtnDomain, AZStd::string> Compile(const AZ::Name& name, const AuthoredNode& root) const;
 
@@ -33,6 +35,7 @@ namespace GOAT
         //! Turns an operator leaf into the request it runs.
         AZ::Outcome<ActionRequest, AZStd::string> ResolveOperator(const AuthoredNode& authored) const;
 
+        const NodeTypeRegistry& m_nodeTypes;
         const IBlackboardSystem& m_blackboard;
         const ActionStateRegistry& m_actions;
     };

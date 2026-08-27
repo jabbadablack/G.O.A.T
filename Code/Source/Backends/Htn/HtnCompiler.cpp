@@ -1,6 +1,7 @@
 #include <Backends/Htn/HtnCompiler.h>
 
 #include <AzCore/std/algorithm.h>
+#include <AzCore/std/limits.h>
 #include <AzCore/std/sort.h>
 
 namespace GOAT
@@ -59,8 +60,10 @@ namespace GOAT
         return InvalidTask;
     }
 
-    HtnCompiler::HtnCompiler(const IBlackboardSystem& blackboard, const ActionStateRegistry& actions)
-        : m_blackboard(blackboard)
+    HtnCompiler::HtnCompiler(
+        const NodeTypeRegistry& nodeTypes, const IBlackboardSystem& blackboard, const ActionStateRegistry& actions)
+        : m_nodeTypes(nodeTypes)
+        , m_blackboard(blackboard)
         , m_actions(actions)
     {
     }
@@ -88,33 +91,88 @@ namespace GOAT
 
     AZ::Outcome<ActionRequest, AZStd::string> HtnCompiler::ResolveOperator(const AuthoredNode& authored) const
     {
-        // The word is the verb, except `raw`, which spends its own name saying which verb to run.
+        // Read through the word's own declared properties, the way a tree reads them, so a
+        // primitive can run any verb a module contributed rather than the few named here.
+        const NodeTypeDescriptor* descriptor = m_nodeTypes.Find(AZ::Name(authored.m_type));
+        if (descriptor == nullptr)
+        {
+            return AZ::Failure(AZStd::string::format("'%s' is not a word any backend registered",
+                authored.m_type.c_str()));
+        }
+
         const bool isRaw = authored.m_type == "raw";
-        const AZStd::string action = isRaw ? Text(authored, "action") : authored.m_type;
-        const ActionStateId verb = m_actions.FindId(AZ::Name(action));
+        BlackboardKey key;
+        AZ::Name tag;
+        AZ::Name goal;
+        float amount = 0.0f;
+        float tolerance = 0.0f;
+
+        for (const NodeParameter& parameter : descriptor->m_parameters)
+        {
+            if (parameter.m_isBlackboardKey)
+            {
+                const AZStd::string named = Text(authored, parameter.m_name.GetCStr());
+                if (named.empty())
+                {
+                    continue;
+                }
+                key = m_blackboard.FindKey(AZ::Name(named));
+                if (!key.IsValid())
+                {
+                    return AZ::Failure(AZStd::string::format("'%s' refers to undeclared variable '%s'",
+                        authored.m_type.c_str(), named.c_str()));
+                }
+                continue;
+            }
+
+            if (parameter.m_type == BlackboardType::Name)
+            {
+                const AZStd::string text = Text(authored, parameter.m_name.GetCStr());
+                if (text.empty())
+                {
+                    continue;
+                }
+                if (parameter.m_name == AZ_NAME_LITERAL("goal") || parameter.m_name == AZ_NAME_LITERAL("payload"))
+                {
+                    goal = AZ::Name(text);
+                }
+                else
+                {
+                    tag = AZ::Name(text);
+                }
+                continue;
+            }
+
+            const float number = Number(authored, parameter.m_name.GetCStr(), AZStd::numeric_limits<float>::max());
+            if (number == AZStd::numeric_limits<float>::max())
+            {
+                continue;
+            }
+            if (parameter.m_name == AZ_NAME_LITERAL("tolerance"))
+            {
+                tolerance = number;
+            }
+            else
+            {
+                amount = number;
+            }
+        }
+
+        // `raw` spends its own name saying which verb to run, so its payload is what it carries.
+        const AZ::Name verbName = isRaw ? tag : AZ::Name(authored.m_type);
+        const ActionStateId verb = m_actions.FindId(verbName);
         if (verb == CoreActions::Invalid)
         {
             return AZ::Failure(AZStd::string::format("'%s' runs verb '%s', which no module has registered",
-                authored.m_type.c_str(), action.c_str()));
+                authored.m_type.c_str(), verbName.GetCStr()));
         }
 
         ActionRequest request;
         request.m_action = verb;
-        request.m_amount = Number(authored, "seconds", 0.0f);
-        request.m_tolerance = Number(authored, "tolerance", 0.0f);
-
-        const AZStd::string tag = isRaw ? Text(authored, "payload") : Text(authored, "behavior");
-        request.m_tag = AZ::Name(tag.empty() ? Text(authored, "tag") : tag);
-
-        if (const AZStd::string target = Text(authored, "key"); !target.empty())
-        {
-            request.m_targetKey = m_blackboard.FindKey(AZ::Name(target));
-            if (!request.m_targetKey.IsValid())
-            {
-                return AZ::Failure(AZStd::string::format("'%s' is not a declared variable", target.c_str()));
-            }
-        }
-
+        request.m_targetKey = key;
+        request.m_amount = amount;
+        request.m_tolerance = tolerance;
+        request.m_tag = isRaw || tag.IsEmpty() ? goal : tag;
         return AZ::Success(request);
     }
 

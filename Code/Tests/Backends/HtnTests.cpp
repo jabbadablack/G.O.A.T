@@ -4,6 +4,7 @@
 #include <Core/Scripting/LuaNodeScripting.h>
 #include <Backends/Htn/HtnPlanner.h>
 #include <Core/Application/BlackboardSystem.h>
+#include <Core/Application/NodeTypeRegistry.h>
 
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/UnitTest/TestTypes.h>
@@ -41,12 +42,21 @@ namespace GOAT
             m_actions->Register(AZStd::make_unique<NamedAction>("wait"));
             m_actions->Register(AZStd::make_unique<NamedAction>("shout"));
 
+            // `wait` is a built-in word; `shout` stands in for one a module contributed.
+            m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
+            NodeTypeDescriptor shout;
+            shout.m_name = AZ_NAME_LITERAL("shout");
+            shout.m_kind = NodeKind::Leaf;
+            shout.m_op = NodeOp::Action;
+            m_nodeTypes->Register(AZStd::move(shout));
+
             m_agent = AgentId(0, 1);
             m_blackboard->CreateAgentBlackboard(m_agent);
         }
 
         void TearDown() override
         {
+            m_nodeTypes.reset();
             m_actions.reset();
             m_blackboard.reset();
             AZ::NameDictionary::Destroy();
@@ -113,8 +123,20 @@ namespace GOAT
 
         AZ::Outcome<HtnDomain, AZStd::string> Compile(const AuthoredNode& root) const
         {
-            const HtnCompiler compiler(*m_blackboard, *m_actions);
+            const HtnCompiler compiler(*m_nodeTypes, *m_blackboard, *m_actions);
             return compiler.Compile(AZ::Name("Test"), root);
+        }
+
+        //! Plans a compiled domain and hands back the steps themselves.
+        HtnPlanBuffer Steps(const HtnDomain& domain) const
+        {
+            WorkingState state;
+            state.Snapshot(domain, *m_blackboard, m_agent);
+
+            HtnPlanBuffer steps;
+            const HtnPlanner planner;
+            planner.Plan(domain, domain.m_root, state, steps);
+            return steps;
         }
 
         //! Plans a compiled domain and reports the verbs it produced, in order.
@@ -141,6 +163,7 @@ namespace GOAT
         AgentId m_agent;
         AZStd::unique_ptr<BlackboardSystem> m_blackboard;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
+        AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
     };
 
     TEST_F(HtnFixture, Plan_DecomposesACompoundTaskIntoItsSubtasks)
@@ -354,7 +377,7 @@ namespace GOAT
         root.m_children.push_back(engage);
         root.m_children.push_back(Primitive("Shout", "shout"));
 
-        HtnBackend backend(*m_blackboard, *m_actions);
+        HtnBackend backend(*m_nodeTypes, *m_blackboard, *m_actions);
         auto compiled = backend.Compile(AZ::Name("Soldier"), root);
         ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
 
@@ -385,5 +408,51 @@ namespace GOAT
 
         agent.m_machine.ReleasePlan();
         agent.m_archetype.reset();
+    }
+
+    //! A primitive runs its verb through that word's own declared properties, so a network can
+    //! reach anything a module contributed rather than the handful the compiler knows by name.
+    TEST_F(HtnFixture, Compile_CarriesAModuleWordsPropertiesIntoTheRequest)
+    {
+        NodeTypeDescriptor order;
+        order.m_name = AZ_NAME_LITERAL("order_interrupt");
+        order.m_kind = NodeKind::Leaf;
+        order.m_op = NodeOp::Action;
+
+        NodeParameter tree;
+        tree.m_name = AZ_NAME_LITERAL("tree");
+        tree.m_type = BlackboardType::Name;
+        tree.m_required = true;
+        order.m_parameters.push_back(tree);
+
+        NodeParameter limit;
+        limit.m_name = AZ_NAME_LITERAL("limit");
+        limit.m_type = BlackboardType::Float;
+        order.m_parameters.push_back(limit);
+
+        ASSERT_TRUE(m_nodeTypes->Register(AZStd::move(order)));
+        const ActionStateId verb = m_actions->Register(AZStd::make_unique<NamedAction>("order_interrupt"));
+
+        AuthoredNode operation = Node("order_interrupt");
+        Text(operation, "tree", "CrowdRally");
+        AuthoredProperty count;
+        count.m_name = "limit";
+        count.m_value = 6.0;
+        operation.m_properties.push_back(count);
+
+        AuthoredNode root = Node("domain");
+        AuthoredNode marshal = Node("primitive");
+        Text(marshal, "name", "Order");
+        marshal.m_children.push_back(operation);
+        root.m_children.push_back(marshal);
+
+        const auto compiled = Compile(root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        const HtnPlanBuffer steps = Steps(compiled.GetValue());
+        ASSERT_EQ(steps.size(), 1u);
+        EXPECT_EQ(steps[0].m_action, verb);
+        EXPECT_EQ(steps[0].m_tag, AZ::Name("CrowdRally"));
+        EXPECT_FLOAT_EQ(steps[0].m_amount, 6.0f);
     }
 } // namespace GOAT

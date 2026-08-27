@@ -15,7 +15,8 @@ namespace GOAT
         AZ_RTTI(HtnBackend, "{6D2A81F4-95C7-4E30-B1A8-3F07C64D2E59}", IDecisionBackend);
         AZ_CLASS_ALLOCATOR(HtnBackend, AZ::SystemAllocator);
 
-        HtnBackend(IBlackboardSystem& blackboard, const ActionStateRegistry& actions);
+        HtnBackend(const NodeTypeRegistry& nodeTypes, IBlackboardSystem& blackboard,
+            const ActionStateRegistry& actions);
 
         //! Name an entity asks for to be run by a task network.
         static AZ::Name GetBackendName();
@@ -28,6 +29,7 @@ namespace GOAT
             ActionResult lastResult, float elapsed, ActionPlan& outPlan) override;
 
     private:
+        const NodeTypeRegistry& m_nodeTypes;
         IBlackboardSystem& m_blackboard;
         const ActionStateRegistry& m_actions;
         HtnPlanner m_planner;
