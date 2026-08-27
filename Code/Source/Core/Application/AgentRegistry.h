@@ -44,6 +44,10 @@ namespace GOAT
         //! per agent. Blackboard storage already grows in steps of its own.
         void Reserve(size_t count, size_t band);
 
+        //! Runs every agent in one band. Public because it is the tick entry point: the band's
+        //! scheduled event calls it, and so does anything measuring or testing a whole tick.
+        void TickBand(size_t band);
+
         //! The record for an agent, or nullptr when the handle is stale.
         AgentRecord* Find(AgentId agent);
         const AgentRecord* Find(AgentId agent) const;
@@ -93,9 +97,6 @@ namespace GOAT
         AgentId GetAgentAtSlot(size_t slot) const;
 
     private:
-        //! Runs every agent in one band and records when it last ran.
-        void TickBand(size_t band);
-
         //! Takes an agent out of whichever band currently lists it.
         void RemoveFromBand(AgentId agent, size_t band);
 

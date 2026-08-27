@@ -405,9 +405,31 @@ namespace GOAT::Benchmark
             m_logger.reset();
         }
 
+        //! A verb that never finishes, so an agent that starts one stays busy. Registering it
+        //! is what makes the benchmark measure working agents rather than dormant ones.
+        class BusyAction final : public IActionState
+        {
+        public:
+            AZ_RTTI(BusyAction, "{6D1F5B2E-4A77-4C09-9E33-70B5A5C1D482}", IActionState);
+            AZ::Name GetName() const override { return AZ::Name("busy"); }
+            bool IsParallelSafe() const override { return true; }
+            ActionResult Step(const ActionContext&, float) override { return ActionResult::Running; }
+        };
+
         void MakeArchetype()
         {
             BuildProgram(8);
+            // Every leaf runs the busy verb, so a walk that reaches one produces a plan the
+            // agent keeps running rather than a refusal.
+            const ActionStateId busy = m_actions->Register(AZStd::make_unique<BusyAction>());
+            for (DecisionNode& node : m_program->m_nodes)
+            {
+                if (node.m_op == NodeOp::Action)
+                {
+                    node.m_action.m_action = busy;
+                }
+            }
+
             auto shared = AZStd::shared_ptr<DecisionProgram>(aznew DecisionProgram(*m_program));
             auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
             archetype->Add(AZ::Name("Bench"), AZStd::move(shared));
@@ -450,6 +472,44 @@ namespace GOAT::Benchmark
     }
 
     BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_RegisterAgents)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! A whole band tick through the registry: the loop, the lookups, and each agent's tick.
+    //! This is the number a parallel tick has to move, and the only one that measures the path
+    //! the engine actually drives.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_TickBand)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        MakeArchetype();
+        m_registry->Reserve(static_cast<size_t>(agents), 0);
+
+        AZStd::vector<AgentId> registered;
+        registered.reserve(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            registered.push_back(
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{}));
+        }
+
+        // Opened so the last branch of every agent's tree produces work: this measures a
+        // population that is running something, not one that has settled.
+        for (const AgentId agent : registered)
+        {
+            m_blackboard->Set<bool>(m_gate, true, agent);
+        }
+
+        // Two ticks to get everybody past starting a plan and into running one.
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+
+        for ([[maybe_unused]] auto _ : state)
+        {
+            m_registry->TickBand(0);
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickBand)->Arg(100)->Arg(1000)->Arg(10000);
 
     //! The same, told up front how many are coming.
     BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_RegisterAgentsReserved)(::benchmark::State& state)
