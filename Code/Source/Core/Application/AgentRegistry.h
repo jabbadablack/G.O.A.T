@@ -39,6 +39,11 @@ namespace GOAT
         //! Removes an agent, dropping its blackboard and its Lua scratch.
         void Unregister(AgentId agent);
 
+        //! Makes room for count more agents in the band given, so registering a crowd grows the
+        //! store, the entity index and the band's roster once between them rather than once each
+        //! per agent. Blackboard storage already grows in steps of its own.
+        void Reserve(size_t count, size_t band);
+
         //! The record for an agent, or nullptr when the handle is stale.
         AgentRecord* Find(AgentId agent);
         const AgentRecord* Find(AgentId agent) const;

@@ -530,16 +530,20 @@ namespace GOAT
 
         // The tree it starts in comes first, whatever order the entity listed them in, because
         // slot zero is where an agent begins. Anything else it declared follows.
-        AZStd::vector<AZ::Name> trees;
-        trees.reserve(repertoire.size() + 1);
+        // On the stack: registering a thousand agents must not mean a thousand throwaway lists.
+        AZStd::fixed_vector<AZ::Name, MaxArchetypeTrees> trees;
         trees.push_back(treeName);
         for (const AZ::Name& tree : repertoire)
         {
-            if (tree != treeName)
+            if (tree != treeName && trees.size() < trees.capacity())
             {
                 trees.push_back(tree);
             }
         }
+
+        AZ_Warning("GOAT", repertoire.size() < MaxArchetypeTrees,
+            "Entity %s lists %zu trees but an agent may declare %zu; the rest are ignored",
+            entity.ToString().c_str(), repertoire.size(), MaxArchetypeTrees);
 
         AZStd::shared_ptr<const AgentArchetype> archetype = AcquireArchetype(trees);
         if (archetype == nullptr)

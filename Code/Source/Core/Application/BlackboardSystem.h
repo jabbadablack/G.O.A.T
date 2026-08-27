@@ -39,6 +39,7 @@ namespace GOAT
         ////////////////////////////////////////////////////////////////////////
 
 
+
         //! The declared variables, for validation messages and console output.
         const BlackboardSchema& GetSchema() const { return m_schema; }
 

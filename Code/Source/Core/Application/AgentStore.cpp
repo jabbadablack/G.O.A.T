@@ -32,6 +32,16 @@ namespace GOAT
         return AgentId(slot, m_slots[slot].m_generation);
     }
 
+    void AgentStore::Reserve(size_t count)
+    {
+        // Holes count: they are slots a registration can take without growing anything.
+        const size_t needed = m_liveCount + count;
+        if (needed > m_slots.size() + m_freeSlots.size())
+        {
+            m_slots.reserve(needed - m_freeSlots.size());
+        }
+    }
+
     bool AgentStore::Release(AgentId agent)
     {
         if (Find(agent) == nullptr)

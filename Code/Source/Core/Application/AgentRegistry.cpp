@@ -43,6 +43,15 @@ namespace GOAT
         }
     }
 
+    void AgentRegistry::Reserve(size_t count, size_t band)
+    {
+        band = AZStd::min(band, BandCount - 1);
+
+        m_agents.Reserve(count);
+        m_byEntity.reserve(m_byEntity.size() + count);
+        m_bands[band].m_members.reserve(m_bands[band].m_members.size() + count);
+    }
+
     AgentId AgentRegistry::Register(
         AZ::EntityId entity,
         AZStd::shared_ptr<const AgentArchetype> archetype,

@@ -27,6 +27,10 @@ namespace GOAT
         //! Takes ownership of a record and returns the handle that addresses it.
         AgentId Acquire(AgentRecord&& record);
 
+        //! Makes room for count more agents, so a burst of registrations grows the array once
+        //! rather than once per agent.
+        void Reserve(size_t count);
+
         //! Destroys the record a handle addresses and frees its slot for reuse.
         //! False when the handle addresses nothing, which is what a stale one does.
         bool Release(AgentId agent);
