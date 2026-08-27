@@ -29,14 +29,47 @@ namespace GOAT
         return key;
     }
 
+    double AgentScriptContext::Key(const AZStd::string& name) const
+    {
+        const BlackboardKey key = Resolve(name, "look up");
+
+        AZLOG(GoatAgent, "GOAT: script looked up '%s' and got handle %.0f", name.c_str(),
+            key.IsValid() ? static_cast<double>(key.GetPacked()) + 1.0 : 0.0);
+
+        // Offset by one so that zero is never a handle. A packed key of zero is a real slot --
+        // the first global bool -- while zero is also what an absent or nil Lua argument arrives
+        // as, and those two must not be the same thing. Without this a script that lost its
+        // handle reads someone else's variable and reports nothing.
+        return key.IsValid() ? static_cast<double>(key.GetPacked()) + 1.0 : 0.0;
+    }
+
+    BlackboardKey AgentScriptContext::FromLua(double key, const char* access) const
+    {
+        if (m_blackboard == nullptr)
+        {
+            AZ_Error("GOAT", false, "A script tried to %s outside a behaviour, where no agent is bound", access);
+            return BlackboardKey{};
+        }
+
+        const BlackboardKey resolved =
+            key >= 1.0 ? BlackboardKey::FromPacked(static_cast<AZ::u32>(key) - 1u) : BlackboardKey{};
+
+        // The handle is reported because what it is says which mistake this was: zero means the
+        // script passed nothing at all -- a nil upvalue or a missing argument -- while any other
+        // value means it passed something ctx:Key did not produce.
+        AZ_Warning("GOAT", resolved.IsValid(),
+            "A script tried to %s through handle %.0f, which ctx:Key never gave it; look the variable up "
+            "once and keep what it returned",
+            access, key);
+        return resolved;
+    }
+
     void AgentScriptContext::Bind(AgentId agent, AZ::EntityId entity, IBlackboardSystem* blackboard)
     {
         AZ_Assert(blackboard != nullptr, "A script context is only bound to a running blackboard system");
         m_agent = agent;
         m_entity = entity;
         m_blackboard = blackboard;
-
-        AZ_Assert(m_blackboard == blackboard, "Binding must leave this context pointing at that blackboard");
     }
 
     void AgentScriptContext::Unbind()
@@ -53,154 +86,154 @@ namespace GOAT
         return m_blackboard != nullptr && m_blackboard->FindKey(AZ::Name(name)).IsValid();
     }
 
-    bool AgentScriptContext::GetBool(const AZStd::string& name) const
+    bool AgentScriptContext::GetBool(double key) const
     {
-        const BlackboardKey key = Resolve(name, "read boolean");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "read boolean");
+        if (!slot.IsValid())
         {
             return false;
         }
 
-        const bool* value = m_blackboard->Find<bool>(key, m_agent);
-        AZ_Warning("GOAT", value != nullptr, "'%s' is not a boolean for agent %u, so it reads as false",
-            name.c_str(), m_agent.GetIndex());
+        const bool* value = m_blackboard->Find<bool>(slot, m_agent);
+        AZ_Warning("GOAT", value != nullptr, "the slot is not a boolean for agent %u, so it reads as false",
+            m_agent.GetIndex());
         return value != nullptr && *value;
     }
 
-    void AgentScriptContext::SetBool(const AZStd::string& name, bool value)
+    void AgentScriptContext::SetBool(double key, bool value)
     {
-        const BlackboardKey key = Resolve(name, "write boolean");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "write boolean");
+        if (!slot.IsValid())
         {
             return;
         }
 
         // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
-        const bool written = m_blackboard->Set<bool>(key, value, m_agent);
-        AZ_Warning("GOAT", written, "Writing boolean '%s' for agent %u failed; it is declared as another type",
-            name.c_str(), m_agent.GetIndex());
+        const bool written = m_blackboard->Set<bool>(slot, value, m_agent);
+        AZ_Warning("GOAT", written, "Writing a boolean for agent %u failed; it is declared as another type",
+            m_agent.GetIndex());
     }
 
-    double AgentScriptContext::GetNumber(const AZStd::string& name) const
+    double AgentScriptContext::GetNumber(double key) const
     {
-        const BlackboardKey key = Resolve(name, "read number");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "read number");
+        if (!slot.IsValid())
         {
             return 0.0;
         }
 
-        if (key.GetType() == BlackboardType::Int)
+        if (slot.GetType() == BlackboardType::Int)
         {
-            const AZ::s64* value = m_blackboard->Find<AZ::s64>(key, m_agent);
+            const AZ::s64* value = m_blackboard->Find<AZ::s64>(slot, m_agent);
             return value != nullptr ? static_cast<double>(*value) : 0.0;
         }
 
-        AZ_Warning("GOAT", key.GetType() == BlackboardType::Float,
-            "'%s' is not a number, so it reads as zero", name.c_str());
+        AZ_Warning("GOAT", slot.GetType() == BlackboardType::Float,
+            "the slot is not a number, so it reads as zero");
 
-        const float* value = m_blackboard->Find<float>(key, m_agent);
+        const float* value = m_blackboard->Find<float>(slot, m_agent);
         return value != nullptr ? static_cast<double>(*value) : 0.0;
     }
 
-    void AgentScriptContext::SetNumber(const AZStd::string& name, double value)
+    void AgentScriptContext::SetNumber(double key, double value)
     {
         // Lua has one number type, so route it to whichever numeric slot was declared.
-        const BlackboardKey key = Resolve(name, "write number");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "write number");
+        if (!slot.IsValid())
         {
             return;
         }
 
-        const bool written = key.GetType() == BlackboardType::Int
-            ? m_blackboard->Set<AZ::s64>(key, static_cast<AZ::s64>(value), m_agent)
-            : m_blackboard->Set<float>(key, static_cast<float>(value), m_agent);
+        const bool written = slot.GetType() == BlackboardType::Int
+            ? m_blackboard->Set<AZ::s64>(slot, static_cast<AZ::s64>(value), m_agent)
+            : m_blackboard->Set<float>(slot, static_cast<float>(value), m_agent);
 
-        AZ_Warning("GOAT", written, "Writing number '%s' for agent %u failed; it is declared as a non numeric type",
-            name.c_str(), m_agent.GetIndex());
+        AZ_Warning("GOAT", written, "Writing a number for agent %u failed; it is declared as a non numeric type",
+            m_agent.GetIndex());
     }
 
-    AZ::Vector3 AgentScriptContext::GetVector3(const AZStd::string& name) const
+    AZ::Vector3 AgentScriptContext::GetVector3(double key) const
     {
-        const BlackboardKey key = Resolve(name, "read vector");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "read vector");
+        if (!slot.IsValid())
         {
             return AZ::Vector3::CreateZero();
         }
 
-        const AZ::Vector3* value = m_blackboard->Find<AZ::Vector3>(key, m_agent);
-        AZ_Warning("GOAT", value != nullptr, "'%s' is not a vector for agent %u, so it reads as zero",
-            name.c_str(), m_agent.GetIndex());
+        const AZ::Vector3* value = m_blackboard->Find<AZ::Vector3>(slot, m_agent);
+        AZ_Warning("GOAT", value != nullptr, "the slot is not a vector for agent %u, so it reads as zero",
+            m_agent.GetIndex());
         return value != nullptr ? *value : AZ::Vector3::CreateZero();
     }
 
-    void AgentScriptContext::SetVector3(const AZStd::string& name, const AZ::Vector3& value)
+    void AgentScriptContext::SetVector3(double key, const AZ::Vector3& value)
     {
-        const BlackboardKey key = Resolve(name, "write vector");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "write vector");
+        if (!slot.IsValid())
         {
             return;
         }
 
         // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
-        const bool written = m_blackboard->Set<AZ::Vector3>(key, value, m_agent);
-        AZ_Warning("GOAT", written, "Writing vector '%s' for agent %u failed; it is declared as another type",
-            name.c_str(), m_agent.GetIndex());
+        const bool written = m_blackboard->Set<AZ::Vector3>(slot, value, m_agent);
+        AZ_Warning("GOAT", written, "Writing a vector for agent %u failed; it is declared as another type",
+            m_agent.GetIndex());
     }
 
-    AZ::EntityId AgentScriptContext::GetEntity(const AZStd::string& name) const
+    AZ::EntityId AgentScriptContext::GetEntity(double key) const
     {
-        const BlackboardKey key = Resolve(name, "read entity");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "read entity");
+        if (!slot.IsValid())
         {
             return AZ::EntityId{};
         }
 
-        const AZ::EntityId* value = m_blackboard->Find<AZ::EntityId>(key, m_agent);
-        AZ_Warning("GOAT", value != nullptr, "'%s' is not an entity for agent %u, so it reads as invalid",
-            name.c_str(), m_agent.GetIndex());
+        const AZ::EntityId* value = m_blackboard->Find<AZ::EntityId>(slot, m_agent);
+        AZ_Warning("GOAT", value != nullptr, "the slot is not an entity for agent %u, so it reads as invalid",
+            m_agent.GetIndex());
         return value != nullptr ? *value : AZ::EntityId{};
     }
 
-    void AgentScriptContext::SetEntity(const AZStd::string& name, AZ::EntityId value)
+    void AgentScriptContext::SetEntity(double key, AZ::EntityId value)
     {
-        const BlackboardKey key = Resolve(name, "write entity");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "write entity");
+        if (!slot.IsValid())
         {
             return;
         }
 
         // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
-        const bool written = m_blackboard->Set<AZ::EntityId>(key, value, m_agent);
-        AZ_Warning("GOAT", written, "Writing entity '%s' for agent %u failed; it is declared as another type",
-            name.c_str(), m_agent.GetIndex());
+        const bool written = m_blackboard->Set<AZ::EntityId>(slot, value, m_agent);
+        AZ_Warning("GOAT", written, "Writing an entity for agent %u failed; it is declared as another type",
+            m_agent.GetIndex());
     }
 
-    AZStd::string AgentScriptContext::GetName(const AZStd::string& name) const
+    AZStd::string AgentScriptContext::GetName(double key) const
     {
-        const BlackboardKey key = Resolve(name, "read name");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "read name");
+        if (!slot.IsValid())
         {
             return {};
         }
 
-        const AZ::Name* value = m_blackboard->Find<AZ::Name>(key, m_agent);
-        AZ_Warning("GOAT", value != nullptr, "'%s' is not a name for agent %u, so it reads as empty",
-            name.c_str(), m_agent.GetIndex());
+        const AZ::Name* value = m_blackboard->Find<AZ::Name>(slot, m_agent);
+        AZ_Warning("GOAT", value != nullptr, "the slot is not a name for agent %u, so it reads as empty",
+            m_agent.GetIndex());
         return value != nullptr ? AZStd::string(value->GetStringView()) : AZStd::string{};
     }
 
-    void AgentScriptContext::SetName(const AZStd::string& name, const AZStd::string& value)
+    void AgentScriptContext::SetName(double key, const AZStd::string& value)
     {
-        const BlackboardKey key = Resolve(name, "write name");
-        if (!key.IsValid())
+        const BlackboardKey slot = FromLua(key, "write name");
+        if (!slot.IsValid())
         {
             return;
         }
 
         // Hoisted out of the warning on purpose: a trace macro's expression is not compiled in release.
-        const bool written = m_blackboard->Set<AZ::Name>(key, AZ::Name(value), m_agent);
-        AZ_Warning("GOAT", written, "Writing name '%s' for agent %u failed; it is declared as another type",
-            name.c_str(), m_agent.GetIndex());
+        const bool written = m_blackboard->Set<AZ::Name>(slot, AZ::Name(value), m_agent);
+        AZ_Warning("GOAT", written, "Writing a name for agent %u failed; it is declared as another type",
+            m_agent.GetIndex());
     }
 
     bool AgentScriptContext::SetTree(const AZStd::string& treeName)
@@ -308,7 +341,7 @@ namespace GOAT
         return found.IsNull() ? -1 : static_cast<int>(agents->GetAgentBand(found));
     }
 
-    double AgentScriptContext::GetNumberOf(AZ::EntityId entity, const AZStd::string& name) const
+    double AgentScriptContext::GetNumberOf(AZ::EntityId entity, double key) const
     {
         IAgentSystem* agents = AgentSystemInterface::Get();
         const AgentId found = agents != nullptr ? agents->FindAgent(entity) : AgentId{};
@@ -317,23 +350,25 @@ namespace GOAT
             return 0.0;
         }
 
-        const BlackboardKey key = m_blackboard->FindKey(AZ::Name(name));
-        if (!key.IsValid())
+        // The same handle answers for every agent: a variable's slot is fixed by the schema,
+        // not by whose blackboard is being read.
+        const BlackboardKey slot = FromLua(key, "read another agent's number");
+        if (!slot.IsValid())
         {
             return 0.0;
         }
 
-        if (key.GetType() == BlackboardType::Int)
+        if (slot.GetType() == BlackboardType::Int)
         {
-            const AZ::s64* value = m_blackboard->Find<AZ::s64>(key, found);
+            const AZ::s64* value = m_blackboard->Find<AZ::s64>(slot, found);
             return value != nullptr ? static_cast<double>(*value) : 0.0;
         }
 
-        const float* value = m_blackboard->Find<float>(key, found);
+        const float* value = m_blackboard->Find<float>(slot, found);
         return value != nullptr ? static_cast<double>(*value) : 0.0;
     }
 
-    bool AgentScriptContext::GetBoolOf(AZ::EntityId entity, const AZStd::string& name) const
+    bool AgentScriptContext::GetBoolOf(AZ::EntityId entity, double key) const
     {
         IAgentSystem* agents = AgentSystemInterface::Get();
         const AgentId found = agents != nullptr ? agents->FindAgent(entity) : AgentId{};
@@ -342,8 +377,8 @@ namespace GOAT
             return false;
         }
 
-        const BlackboardKey key = m_blackboard->FindKey(AZ::Name(name));
-        const bool* value = key.IsValid() ? m_blackboard->Find<bool>(key, found) : nullptr;
+        const BlackboardKey slot = FromLua(key, "read another agent's boolean");
+        const bool* value = slot.IsValid() ? m_blackboard->Find<bool>(slot, found) : nullptr;
         return value != nullptr && *value;
     }
 
@@ -361,6 +396,7 @@ namespace GOAT
             ->Attribute(AZ::Script::Attributes::Category, "GOAT")
             ->Method("GetSelf", &AgentScriptContext::GetSelf)
             ->Method("Has", &AgentScriptContext::Has)
+            ->Method("Key", &AgentScriptContext::Key)
             ->Method("GetBool", &AgentScriptContext::GetBool)
             ->Method("SetBool", &AgentScriptContext::SetBool)
             ->Method("GetNumber", &AgentScriptContext::GetNumber)

@@ -2,7 +2,7 @@
 
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
-#include <Core/Memory/HandleTable.h>
+#include <Core/Application/AgentStore.h>
 
 #include <AzCore/EBus/ScheduledEvent.h>
 #include <AzCore/Time/ITime.h>
@@ -28,18 +28,25 @@ namespace GOAT
 
         //! Registers an entity as an agent running a compiled tree.
         //! @param squad joined before the agent's guards are armed, so squad scoped ones work.
-        //! @param repertoire every tree this entity may be moved to. The starting tree is added
-        //! when it is missing, so an agent can always be left where it began.
+        //! @param archetype the trees this kind of agent may run. Slot zero is the one it starts
+        //! in, and a switch to anything outside it is refused.
         AgentId Register(
             AZ::EntityId entity,
-            const AZ::Name& treeName,
-            AZStd::shared_ptr<const DecisionProgram> program,
+            AZStd::shared_ptr<const AgentArchetype> archetype,
             size_t band,
-            const AZ::Name& squad = AZ::Name{},
-            AZStd::span<const AZ::Name> repertoire = {});
+            const AZ::Name& squad = AZ::Name{});
 
         //! Removes an agent, dropping its blackboard and its Lua scratch.
         void Unregister(AgentId agent);
+
+        //! Makes room for count more agents in the band given, so registering a crowd grows the
+        //! store, the entity index and the band's roster once between them rather than once each
+        //! per agent. Blackboard storage already grows in steps of its own.
+        void Reserve(size_t count, size_t band);
+
+        //! Runs every agent in one band. Public because it is the tick entry point: the band's
+        //! scheduled event calls it, and so does anything measuring or testing a whole tick.
+        void TickBand(size_t band);
 
         //! The record for an agent, or nullptr when the handle is stale.
         AgentRecord* Find(AgentId agent);
@@ -68,32 +75,39 @@ namespace GOAT
         //! Puts an agent onto another compiled tree, ending whatever it was running first.
         //! @param remember pushes the outgoing tree so a later pop returns to it.
         //! @return false when the agent is gone, or when its stack is already at its limit.
-        bool ApplyTree(
-            AgentId agent, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, bool remember);
+        bool ApplyTree(AgentId agent, TreeSlot tree, bool remember);
 
-        //! Names the tree an agent should return to, or an empty name when it has none.
-        AZ::Name PeekInterruptedTree(AgentId agent) const;
+        //! The tree an agent should return to, or InvalidTreeSlot when it interrupted nothing.
+        TreeSlot PeekInterruptedTree(AgentId agent) const;
 
         //! Drops the innermost remembered tree, which a pop does once it has switched.
         void ForgetInterruptedTree(AgentId agent);
 
-        //! How often each band runs.
-        void SetBandIntervals(const AZStd::array<AZ::TimeMs, BandCount>& intervals);
 
         size_t Size() const { return m_agents.Size(); }
 
         //! Every live agent handle, for console output.
         AZStd::vector<AgentId> GetAgents() const;
 
-    private:
-        //! Runs every agent in one band and records when it last ran.
-        void TickBand(size_t band);
+        //! Walks the roster without building a list of it. A director resolves its reach against
+        //! every agent on every one of its ticks, so handing it a fresh vector of the whole level
+        //! each time was an allocation per director per tick for a list nothing kept.
+        //! Slots may be holes, so a null handle means "skip", not "end".
+        size_t GetSlotCount() const;
+        AgentId GetAgentAtSlot(size_t slot) const;
 
+    private:
         //! Takes an agent out of whichever band currently lists it.
         void RemoveFromBand(AgentId agent, size_t band);
 
         //! Re-arms an agent's guards against the storages that exist now.
         void ReconnectObserver(AgentRecord& record);
+
+        //! Puts an agent on a band, or queues it when that band is mid tick.
+        void AddToBand(AgentId agent, size_t band);
+
+        //! Applies every membership change queued while a band was ticking.
+        void FlushBandChanges(size_t band);
 
         //! One pacing band: an interval, the agents on it, and its scheduler entry.
         struct Band final
@@ -102,12 +116,20 @@ namespace GOAT
             AZ::TimeMs m_lastTick{ 0 };
             AZStd::vector<AgentId> m_members;
             AZStd::unique_ptr<AZ::ScheduledEvent> m_event;
+
+            //! Membership changes asked for while this band was mid tick, applied once it ends.
+            //! Deferring them is what lets the tick walk the roster in place: a behaviour may
+            //! register or remove an agent, and doing that to the vector being walked would
+            //! invalidate it. Copying the roster every tick was the previous answer.
+            AZStd::vector<AgentId> m_joining;
+            AZStd::vector<AgentId> m_leaving;
+            bool m_ticking = false;
         };
 
         AgentRuntime& m_runtime;
         IBlackboardSystem& m_blackboard;
         LuaDispatch& m_dispatch;
-        HandleTable<AZStd::unique_ptr<AgentRecord>, AgentTag> m_agents;
+        AgentStore m_agents;
         AZStd::unordered_map<AZ::EntityId, AgentId> m_byEntity;
         AZStd::array<Band, BandCount> m_bands;
     };

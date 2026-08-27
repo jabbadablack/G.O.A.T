@@ -5,7 +5,7 @@
 
 namespace GOAT
 {
-    //! Generation checked reference to a slot in a HandleTable.
+    //! Generation checked reference to a slot in a store that owns the thing it addresses.
     //! The Tag parameter keeps handles of different kinds from being assigned to each other.
     template<typename Tag>
     class Handle final

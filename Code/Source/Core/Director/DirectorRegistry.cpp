@@ -61,8 +61,6 @@ namespace GOAT
         // Every cooldown this director owned goes with the record, which is the point of holding
         // them here rather than on the agents it was commanding.
         m_directors.erase(director);
-
-        AZ_Assert(FindProfile(director) == nullptr, "An unregistered director must no longer be findable");
     }
 
     const DirectorProfile* DirectorRegistry::FindProfile(AgentId director) const
@@ -138,8 +136,17 @@ namespace GOAT
 
         const float radiusSq = reach.m_radius * reach.m_radius;
 
-        for (const AgentId candidate : m_agents.GetAgents())
+        // Slots, not agents: a released slot stays as a hole so every per agent index keeps
+        // meaning the same thing, and a hole hands back a null handle to step over.
+        const size_t slotCount = m_agents.GetSlotCount();
+        for (size_t slot = 0; slot < slotCount; ++slot)
         {
+            const AgentId candidate = m_agents.GetAgentAtSlot(slot);
+            if (candidate.IsNull())
+            {
+                continue;
+            }
+
             // A director never governs itself: it would then be able to order itself onto
             // another tree, which is a loop with no way out.
             if (candidate == director)
@@ -158,7 +165,7 @@ namespace GOAT
                 continue;
             }
 
-            if (!reach.m_tree.IsEmpty() && agent->m_treeName != reach.m_tree)
+            if (!reach.m_tree.IsEmpty() && agent->GetTreeName() != reach.m_tree)
             {
                 continue;
             }

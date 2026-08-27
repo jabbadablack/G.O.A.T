@@ -24,6 +24,7 @@
 namespace AZ
 {
     class ScriptContext;
+    class ScriptDataContext;
 }
 
 namespace GOAT
@@ -76,8 +77,6 @@ namespace GOAT
         const ActionPlan* CallBackendPlan(
             const AZ::Name& backend, const AZ::Name& goal, AgentId agent, AgentScriptContext& context);
 
-        //! True when a backend of that name is defined in Lua.
-        bool HasLuaBackend(const AZ::Name& backend);
 
         //! Every backend name declared in Lua so far.
         AZStd::vector<AZ::Name> GetLuaBackendNames();
@@ -118,6 +117,14 @@ namespace GOAT
         bool DeclareNode(const AZ::Name& typeName, const AZ::Name& mainProperty);
 
     private:
+        //! Opens a call into the authoring vocabulary. False when scripting is not connected or
+        //! the function is not there; to a caller both mean the same thing, and what differs is
+        //! what it was trying to do -- which is why the message stays with the caller.
+        //!
+        //! Silent on purpose. A context that was never connected is a normal state for a host
+        //! running the gem without Lua, and for every test that does the same.
+        bool BeginCall(const char* function, AZ::ScriptDataContext& outCall);
+
         AZ::ScriptContext* m_scriptContext = nullptr;
 
         //! Assets already run, keyed the way the script system's own cache keys them, so a skip

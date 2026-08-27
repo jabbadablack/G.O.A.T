@@ -68,7 +68,5 @@ namespace GOAT
             }
         }
         m_assetHandlers.clear();
-
-        AZ_Assert(m_assetHandlers.empty(), "Deactivating must release every handler this component owns");
     }
 } // namespace GOAT

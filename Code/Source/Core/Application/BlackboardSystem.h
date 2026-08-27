@@ -6,7 +6,7 @@
 #include <GOAT/Interfaces/IBlackboardSystem.h>
 
 #include <AzCore/Memory/SystemAllocator.h>
-#include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/std/containers/vector.h>
 
 namespace GOAT
 {
@@ -38,16 +38,28 @@ namespace GOAT
         const BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) const override;
         ////////////////////////////////////////////////////////////////////////
 
-        //! Drops every declaration and every storage instance.
-        void Clear();
+
 
         //! The declared variables, for validation messages and console output.
         const BlackboardSchema& GetSchema() const { return m_schema; }
 
     private:
+        //! One agent's storage, in the slot its handle carries. Indexed rather than hashed
+        //! because a slot never moves while its agent lives, so reaching an agent's variables
+        //! is an array index. The generation is kept so a stale handle finds nothing rather
+        //! than finding whoever took the slot over.
+        struct AgentSlot final
+        {
+            BlackboardStorage m_storage;
+            //! Zero when the slot holds nobody.
+            AZ::u32 m_generation = 0;
+        };
+
         BlackboardSchema m_schema;
         BlackboardStorage m_global;
-        AZStd::unordered_map<AgentId, BlackboardStorage> m_agents;
+        //! Grows to the highest slot ever used and keeps the buffers of departed agents, so a
+        //! reused slot gets its storage back rather than allocating again.
+        AZStd::vector<AgentSlot> m_agents;
         SquadRegistry m_squads;
     };
 } // namespace GOAT

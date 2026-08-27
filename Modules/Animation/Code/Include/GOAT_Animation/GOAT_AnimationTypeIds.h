@@ -15,5 +15,4 @@ namespace GOAT_Animation
     inline constexpr const char* GOAT_AnimationEditorModuleTypeId = GOAT_AnimationModuleTypeId;
 
     // Interface TypeIds
-    inline constexpr const char* GOAT_AnimationRequestsTypeId = "{9A293B43-2F5C-4D85-B7C2-C8F748915D2E}";
 } // namespace GOAT_Animation

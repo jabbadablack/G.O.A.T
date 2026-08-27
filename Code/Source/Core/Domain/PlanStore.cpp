@@ -54,8 +54,6 @@ namespace GOAT
 
         m_baked.clear();
         m_bakedCount = 0;
-
-        AZ_Assert(m_bakedCount == 0, "Clearing must leave no baked steps behind");
     }
 
     PlanStore::Span PlanStore::Acquire(const ActionRequest* steps, AZ::u32 count)

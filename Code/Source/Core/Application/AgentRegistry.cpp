@@ -43,17 +43,24 @@ namespace GOAT
         }
     }
 
+    void AgentRegistry::Reserve(size_t count, size_t band)
+    {
+        band = AZStd::min(band, BandCount - 1);
+
+        m_agents.Reserve(count);
+        m_byEntity.reserve(m_byEntity.size() + count);
+        m_bands[band].m_members.reserve(m_bands[band].m_members.size() + count);
+    }
+
     AgentId AgentRegistry::Register(
         AZ::EntityId entity,
-        const AZ::Name& treeName,
-        AZStd::shared_ptr<const DecisionProgram> program,
+        AZStd::shared_ptr<const AgentArchetype> archetype,
         size_t band,
-        const AZ::Name& squad,
-        AZStd::span<const AZ::Name> repertoire)
+        const AZ::Name& squad)
     {
         AZ_Assert(entity.IsValid(), "An agent must be registered against a valid entity");
-        AZ_Assert(program != nullptr, "An agent must be registered with a compiled program");
 
+        const DecisionProgram* program = archetype != nullptr ? archetype->GetProgram(0) : nullptr;
         if (program == nullptr || program->IsEmpty())
         {
             AZ_Error("GOAT", false, "Entity %s cannot become an agent: its tree compiled to an empty program",
@@ -65,24 +72,20 @@ namespace GOAT
             band, entity.ToString().c_str());
         band = AZStd::min(band, BandCount - 1);
 
-        auto record = AZStd::make_unique<AgentRecord>();
-        AgentRecord* raw = record.get();
-        const AgentId id = m_agents.Acquire(AZStd::move(record));
+        // Written out rather than braced: AZ::EntityId's default constructor is explicit.
+        AgentRecord fresh;
+        const AgentId id = m_agents.Acquire(AZStd::move(fresh));
+        AgentRecord* raw = m_agents.Find(id);
+        AZ_Assert(raw != nullptr, "A slot just taken must hold the record it was taken for");
 
         raw->m_id = id;
         raw->m_entity = entity;
-        raw->m_program = AZStd::move(program);
-        raw->m_treeName = treeName;
-        raw->m_band = band;
+        raw->m_archetype = AZStd::move(archetype);
+        raw->m_tree = 0;
+        raw->m_program = program;
+        raw->m_band = static_cast<AZ::u8>(band);
         raw->m_cursor.Reset(*raw->m_program);
-
-        // The tree it starts in is always one it may run, whatever was declared. Without this an
-        // entity that listed nothing could never be returned to where it began.
-        raw->m_repertoire.assign(repertoire.begin(), repertoire.end());
-        if (!raw->MayRun(treeName))
-        {
-            raw->m_repertoire.push_back(treeName);
-        }
+        raw->m_wakeAt = 0.0f;
 
         m_blackboard.CreateAgentBlackboard(id);
 
@@ -96,17 +99,32 @@ namespace GOAT
 
         raw->m_observer.Connect(*raw->m_program, m_blackboard, id);
 
-        m_bands[band].m_members.push_back(id);
+        AddToBand(id, band);
         m_byEntity[entity] = id;
 
         AZ_Assert(Find(id) == raw, "A registered agent must be findable by the id it was given");
         AZ_Assert(FindByEntity(entity) == id, "A registered agent must be findable by its entity");
-        AZ_Assert(raw->m_band == band, "A registered agent must sit in the band it asked for");
-        AZ_Assert(raw->MayRun(treeName), "An agent must be allowed to run the tree it starts in");
-
         AZLOG(GoatAgent, "GOAT: entity %s became agent %u in band %zu",
             entity.ToString().c_str(), id.GetIndex(), band);
         return id;
+    }
+
+    void AgentRegistry::AddToBand(AgentId agent, size_t band)
+    {
+        AZ_Assert(band < BandCount, "An agent can only join a band that exists");
+        if (band >= BandCount)
+        {
+            return;
+        }
+
+        Band& entry = m_bands[band];
+        if (entry.m_ticking)
+        {
+            entry.m_joining.push_back(agent);
+            return;
+        }
+
+        entry.m_members.push_back(agent);
     }
 
     void AgentRegistry::RemoveFromBand(AgentId agent, size_t band)
@@ -117,11 +135,40 @@ namespace GOAT
             return;
         }
 
-        auto& members = m_bands[band].m_members;
+        Band& entry = m_bands[band];
+        if (entry.m_ticking)
+        {
+            entry.m_leaving.push_back(agent);
+            return;
+        }
+
+        auto& members = entry.m_members;
         members.erase(AZStd::remove(members.begin(), members.end(), agent), members.end());
 
         AZ_Assert(AZStd::find(members.begin(), members.end(), agent) == members.end(),
             "Removing an agent from a band must leave no copy of it there");
+    }
+
+    void AgentRegistry::FlushBandChanges(size_t band)
+    {
+        Band& entry = m_bands[band];
+        AZ_Assert(!entry.m_ticking, "Queued membership changes are applied once the band's tick has ended");
+
+        // Removals first, so an agent that left and rejoined in one tick ends up present rather
+        // than being erased by its own earlier departure.
+        for (const AgentId agent : entry.m_leaving)
+        {
+            auto& members = entry.m_members;
+            members.erase(AZStd::remove(members.begin(), members.end(), agent), members.end());
+        }
+
+        for (const AgentId agent : entry.m_joining)
+        {
+            entry.m_members.push_back(agent);
+        }
+
+        entry.m_leaving.clear();
+        entry.m_joining.clear();
     }
 
     void AgentRegistry::Unregister(AgentId agent)
@@ -140,6 +187,10 @@ namespace GOAT
         // the record without this strands every one of them.
         m_runtime.AbortAgent(*record);
 
+        // After the abort, so a backend is told the agent is gone only once its plan has been
+        // given back and nothing can still be running through it.
+        m_runtime.ReleaseAgent(*record);
+
         RemoveFromBand(agent, record->m_band);
         record->m_observer.Disconnect();
 
@@ -148,20 +199,16 @@ namespace GOAT
         m_byEntity.erase(record->m_entity);
         m_blackboard.DestroyAgentBlackboard(agent);
         m_agents.Release(agent);
-
-        AZ_Assert(Find(agent) == nullptr, "An unregistered agent must no longer be findable");
     }
 
     AgentRecord* AgentRegistry::Find(AgentId agent)
     {
-        AZStd::unique_ptr<AgentRecord>* found = m_agents.Find(agent);
-        return found != nullptr ? found->get() : nullptr;
+        return m_agents.Find(agent);
     }
 
     const AgentRecord* AgentRegistry::Find(AgentId agent) const
     {
-        const AZStd::unique_ptr<AgentRecord>* found = m_agents.Find(agent);
-        return found != nullptr ? found->get() : nullptr;
+        return m_agents.Find(agent);
     }
 
     AgentId AgentRegistry::FindByEntity(AZ::EntityId entity) const
@@ -193,21 +240,23 @@ namespace GOAT
         }
 
         RemoveFromBand(agent, record->m_band);
-        record->m_band = band;
-        m_bands[band].m_members.push_back(agent);
+        record->m_band = static_cast<AZ::u8>(band);
+        AddToBand(agent, band);
 
         AZ_Assert(record->m_band == band, "Changing band must record the band the agent moved to");
     }
 
-    bool AgentRegistry::ApplyTree(
-        AgentId agent, const AZ::Name& treeName, AZStd::shared_ptr<const DecisionProgram> program, bool remember)
+    bool AgentRegistry::ApplyTree(AgentId agent, TreeSlot tree, bool remember)
     {
-        AZ_Assert(!treeName.IsEmpty(), "An agent is only ever switched to a named tree");
-        AZ_Assert(program != nullptr, "Switching a tree needs the compiled program to switch to");
-
         AgentRecord* record = Find(agent);
         AZ_Assert(record != nullptr, "Switching the tree of an agent that is not registered");
-        if (record == nullptr || program == nullptr || program->IsEmpty())
+        if (record == nullptr)
+        {
+            return false;
+        }
+
+        const DecisionProgram* program = record->m_archetype->GetProgram(tree);
+        if (program == nullptr || program->IsEmpty())
         {
             return false;
         }
@@ -222,36 +271,42 @@ namespace GOAT
                     agent.GetIndex(), record->m_treeStack.size());
                 return false;
             }
-            record->m_treeStack.push_back(record->m_treeName);
+            record->m_treeStack.push_back(record->m_tree);
         }
 
         // Every step below is needed. Ending the running action is what gives back a pooled path
-        // slot or a smart object claim; the cursor arrays are sized to the program; the observed
-        // keys differ between programs; and the old intent names a node that no longer exists.
+        // slot or a smart object claim, and the cursor's slots mean different things in a
+        // different tree.
         m_runtime.AbortAgent(*record);
 
-        record->m_program = AZStd::move(program);
-        record->m_treeName = treeName;
+        // After the abort, so a backend is told the agent is gone only once its plan has been
+        // given back and nothing can still be running through it.
+        m_runtime.ReleaseAgent(*record);
+
+        record->m_tree = tree;
+        record->m_program = program;
         record->m_cursor.Reset(*record->m_program);
+
+        // A different tree is about to run, so whatever the previous one was waiting for says
+        // nothing about this one. Zero means walk it on the next tick.
+        record->m_wakeAt = 0.0f;
 
         record->m_observer.Disconnect();
         record->m_observer.Connect(*record->m_program, m_blackboard, agent);
 
         AZLOG(GoatAgent, "GOAT: agent %u is now running tree '%s' (%zu interrupted)",
-            agent.GetIndex(), treeName.GetCStr(), record->m_treeStack.size());
+            agent.GetIndex(), record->GetTreeName().GetCStr(), record->m_treeStack.size());
 
-        AZ_Assert(record->m_treeName == treeName, "Switching must leave the agent on the tree it asked for");
         AZ_Assert(!record->m_machine.HasPlan(), "Switching must leave the agent with no plan from the old tree");
         return true;
     }
 
-    AZ::Name AgentRegistry::PeekInterruptedTree(AgentId agent) const
+    TreeSlot AgentRegistry::PeekInterruptedTree(AgentId agent) const
     {
-        const auto* found = m_agents.Find(agent);
-        const AgentRecord* record = found != nullptr ? found->get() : nullptr;
+        const AgentRecord* record = m_agents.Find(agent);
         if (record == nullptr || record->m_treeStack.empty())
         {
-            return AZ::Name{};
+            return InvalidTreeSlot;
         }
         return record->m_treeStack.back();
     }
@@ -310,33 +365,30 @@ namespace GOAT
         record.m_observer.Connect(*record.m_program, m_blackboard, record.m_id);
     }
 
-    void AgentRegistry::SetBandIntervals(const AZStd::array<AZ::TimeMs, BandCount>& intervals)
-    {
-        for (size_t band = 0; band < BandCount; ++band)
-        {
-            AZ_Assert(intervals[band] > AZ::TimeMs{ 0 }, "An agent band interval must be positive");
-
-            m_bands[band].m_interval = intervals[band];
-            AZ_Assert(m_bands[band].m_event != nullptr, "Every agent band owns a scheduled event for its lifetime");
-            if (m_bands[band].m_event != nullptr)
-            {
-                m_bands[band].m_event->Requeue(intervals[band]);
-            }
-        }
-    }
-
     AZStd::vector<AgentId> AgentRegistry::GetAgents() const
     {
         AZStd::vector<AgentId> agents;
         agents.reserve(m_agents.Size());
-        const size_t expected = m_agents.Size();
-        for (size_t i = 0; i < m_agents.Size(); ++i)
+        for (size_t slot = 0; slot < m_agents.GetSlotCount(); ++slot)
         {
-            agents.push_back(m_agents.GetHandleAt(i));
+            const AgentId agent = m_agents.GetHandleAt(slot);
+            if (!agent.IsNull())
+            {
+                agents.push_back(agent);
+            }
         }
-
-        AZ_Assert(agents.size() == expected, "Listing agents must report exactly as many as are registered");
         return agents;
+    }
+
+    size_t AgentRegistry::GetSlotCount() const
+    {
+        return m_agents.GetSlotCount();
+    }
+
+    AgentId AgentRegistry::GetAgentAtSlot(size_t slot) const
+    {
+        AZ_Assert(slot < m_agents.GetSlotCount(), "A slot index must address a slot the store has");
+        return m_agents.GetHandleAt(slot);
     }
 
     void AgentRegistry::TickBand(size_t band)
@@ -352,14 +404,18 @@ namespace GOAT
 
         AZ_Assert(deltaTime >= 0.0f, "A band's delta time must never run backwards");
 
-        // Copy the roster: a behaviour may register or remove agents while it runs.
-        AZStd::vector<AgentId> roster = entry.m_members;
-        for (const AgentId agent : roster)
+        // Walked in place. A behaviour that registers or removes an agent has its change queued
+        // rather than applied, so the roster cannot move under this loop and nothing is copied.
+        entry.m_ticking = true;
+        for (size_t i = 0; i < entry.m_members.size(); ++i)
         {
-            if (AgentRecord* record = Find(agent))
+            if (AgentRecord* record = Find(entry.m_members[i]))
             {
                 m_runtime.Tick(*record, deltaTime);
             }
         }
+        entry.m_ticking = false;
+
+        FlushBandChanges(band);
     }
 } // namespace GOAT

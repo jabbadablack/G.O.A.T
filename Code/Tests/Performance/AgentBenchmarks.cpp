@@ -1,4 +1,16 @@
+#include <AzCore/Console/LoggerSystemComponent.h>
+#include <AzCore/EBus/EventSchedulerSystemComponent.h>
+#include <AzCore/Time/TimeSystem.h>
+
+#include <Core/Application/AgentArchetype.h>
+#include <Core/Application/AgentRegistry.h>
+#include <Core/Application/AgentRuntime.h>
+#include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
+#include <Core/Frontend/DirectBackend.h>
+#include <Core/Scripting/LuaNodeScripting.h>
+#include <Core/Application/AgentRecord.h>
+#include <Core/Application/GuardWatch.h>
 #include <Core/Frontend/DecisionCursor.h>
 #include <Core/Frontend/TreeWalker.h>
 
@@ -237,6 +249,9 @@ namespace GOAT::Benchmark
         for ([[maybe_unused]] auto _ : state)
         {
             state.PauseTiming();
+            // Destroyed before the replacement is built: only one blackboard system may exist,
+            // and assigning over it would construct the new one while the old still holds the slot.
+            m_blackboard.reset();
             m_blackboard = AZStd::make_unique<BlackboardSystem>();
             m_gate = m_blackboard->Declare(AZ::Name("gate"), BlackboardScope::Agent, BlackboardType::Bool)
                          .GetValue();
@@ -259,7 +274,46 @@ namespace GOAT::Benchmark
 
     BENCHMARK_REGISTER_F(AgentBenchmarkFixture, BM_SpawnAgents)->Arg(100)->Arg(1000)->Arg(10000);
 
-    //! One write to a slot every agent's tree observes. Today this is O(agents); it should not be.
+    //! One write to a Global slot that every agent's tree guards on. The number that matters is
+    //! not the absolute time but whether it grows with the agent count: a write that has to tell
+    //! each watcher is O(agents), and a write that bumps a counter they read for themselves is
+    //! O(1). Flatness across the three sizes is the whole claim.
+    BENCHMARK_DEFINE_F(AgentBenchmarkFixture, BM_GlobalWrite)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        BuildProgram(8);
+
+        const BlackboardKey alarm =
+            m_blackboard->Declare(AZ::Name("alarm"), BlackboardScope::Global, BlackboardType::Bool).GetValue();
+
+        auto watched = AZStd::make_unique<DecisionProgram>();
+        watched->m_name = AZ::Name("Watching");
+        watched->m_nodes = m_program->m_nodes;
+        watched->m_observedKeys.push_back(alarm);
+
+        SpawnAgents(agents);
+
+        AZStd::vector<GuardWatch> watches(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            watches[static_cast<size_t>(i)].Connect(*watched, *m_blackboard, m_agents[static_cast<size_t>(i)]);
+            watches[static_cast<size_t>(i)].Clear();
+        }
+
+        bool value = false;
+        for ([[maybe_unused]] auto _ : state)
+        {
+            value = !value;
+            m_blackboard->Set<bool>(alarm, value, AgentId{});
+        }
+
+        state.counters["bytes/AgentRecord"] = ::benchmark::Counter(static_cast<double>(sizeof(AgentRecord)));
+        watches.set_capacity(0);
+    }
+
+    BENCHMARK_REGISTER_F(AgentBenchmarkFixture, BM_GlobalWrite)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! One write to each agent's own slot.
     BENCHMARK_DEFINE_F(AgentBenchmarkFixture, BM_AgentWrite)(::benchmark::State& state)
     {
         const int agents = static_cast<int>(state.range(0));
@@ -280,6 +334,205 @@ namespace GOAT::Benchmark
     }
 
     BENCHMARK_REGISTER_F(AgentBenchmarkFixture, BM_AgentWrite)->Arg(100)->Arg(1000)->Arg(10000);
+    //! Registers agents through the real registry, which is where the per agent cost of joining
+    //! a level actually lives: a slot, a blackboard, a squad, a guard watch, a band and an
+    //! entity index entry. The fixture above measures only the blackboard.
+    class AgentRegistryBenchmarkFixture : public AgentBenchmarkFixture
+    {
+    public:
+        void SetUp(const ::benchmark::State& state) override
+        {
+            AgentBenchmarkFixture::SetUp(state);
+            Build();
+        }
+
+        void SetUp(::benchmark::State& state) override
+        {
+            AgentBenchmarkFixture::SetUp(state);
+            Build();
+        }
+
+        void TearDown(const ::benchmark::State& state) override
+        {
+            Teardown();
+            AgentBenchmarkFixture::TearDown(state);
+        }
+
+        void TearDown(::benchmark::State& state) override
+        {
+            Teardown();
+            AgentBenchmarkFixture::TearDown(state);
+        }
+
+    protected:
+        void Build()
+        {
+            // AgentRegistry enqueues a scheduled event per band the moment it is built, so a
+            // benchmark of it needs the clock and the scheduler those events live on.
+            m_logger = AZStd::make_unique<AZ::LoggerSystemComponent>();
+            m_time = AZStd::make_unique<AZ::TimeSystem>();
+            m_scheduler = AZStd::make_unique<AZ::EventSchedulerSystemComponent>();
+
+            m_blackboard.reset();
+            m_blackboard = AZStd::make_unique<BlackboardSystem>();
+            m_actions = AZStd::make_unique<ActionStateRegistry>();
+            m_backends = AZStd::make_unique<BackendRegistry>("backend");
+            m_backends->Register(AZStd::make_unique<DirectBackend>());
+            m_direct = AZStd::make_unique<DirectBackend>();
+            m_dispatch = AZStd::make_unique<LuaDispatch>();
+            m_luaContext = AZStd::make_unique<AgentScriptContext>();
+            m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_luaContext);
+            m_runtime = AZStd::make_unique<AgentRuntime>(
+                *m_blackboard, *m_actions, *m_backends, *m_direct, *m_dispatch, *m_luaContext, *m_scripting,
+                m_planStore);
+            m_registry = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboard, *m_dispatch);
+        }
+
+        void Teardown()
+        {
+            m_registry.reset();
+            m_runtime.reset();
+            m_scripting.reset();
+            m_luaContext.reset();
+            m_dispatch.reset();
+            m_direct.reset();
+            m_backends.reset();
+            m_actions.reset();
+            m_archetype.reset();
+            m_blackboard.reset();
+            m_scheduler.reset();
+            m_time.reset();
+            m_logger.reset();
+        }
+
+        //! A verb that never finishes, so an agent that starts one stays busy. Registering it
+        //! is what makes the benchmark measure working agents rather than dormant ones.
+        class BusyAction final : public IActionState
+        {
+        public:
+            AZ_RTTI(BusyAction, "{6D1F5B2E-4A77-4C09-9E33-70B5A5C1D482}", IActionState);
+            AZ::Name GetName() const override { return AZ::Name("busy"); }
+            ActionResult Step(const ActionContext&, float) override { return ActionResult::Running; }
+        };
+
+        void MakeArchetype()
+        {
+            BuildProgram(8);
+            // Every leaf runs the busy verb, so a walk that reaches one produces a plan the
+            // agent keeps running rather than a refusal.
+            const ActionStateId busy = m_actions->Register(AZStd::make_unique<BusyAction>());
+            for (DecisionNode& node : m_program->m_nodes)
+            {
+                if (node.m_op == NodeOp::Action)
+                {
+                    node.m_action.m_action = busy;
+                }
+            }
+
+            auto shared = AZStd::shared_ptr<DecisionProgram>(aznew DecisionProgram(*m_program));
+            auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
+            archetype->Add(AZ::Name("Bench"), AZStd::move(shared));
+            m_archetype = archetype;
+        }
+
+        AZStd::unique_ptr<AZ::LoggerSystemComponent> m_logger;
+        AZStd::unique_ptr<AZ::TimeSystem> m_time;
+        AZStd::unique_ptr<AZ::EventSchedulerSystemComponent> m_scheduler;
+        AZStd::shared_ptr<const AgentArchetype> m_archetype;
+        AZStd::unique_ptr<ActionStateRegistry> m_actions;
+        AZStd::unique_ptr<BackendRegistry> m_backends;
+        AZStd::unique_ptr<DirectBackend> m_direct;
+        AZStd::unique_ptr<LuaDispatch> m_dispatch;
+        AZStd::unique_ptr<AgentScriptContext> m_luaContext;
+        AZStd::unique_ptr<LuaNodeScripting> m_scripting;
+        AZStd::unique_ptr<AgentRuntime> m_runtime;
+        AZStd::unique_ptr<AgentRegistry> m_registry;
+    };
+
+    //! Every table grows on its own as agents arrive.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_RegisterAgents)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        for ([[maybe_unused]] auto _ : state)
+        {
+            state.PauseTiming();
+            Teardown();
+            Build();
+            MakeArchetype();
+            state.ResumeTiming();
+
+            for (int i = 0; i < agents; ++i)
+            {
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{});
+            }
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_RegisterAgents)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! A whole band tick through the registry: the loop, the lookups, and each agent's tick.
+    //! This is the number a parallel tick has to move, and the only one that measures the path
+    //! the engine actually drives.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_TickBand)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        MakeArchetype();
+        m_registry->Reserve(static_cast<size_t>(agents), 0);
+
+        AZStd::vector<AgentId> registered;
+        registered.reserve(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            registered.push_back(
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{}));
+        }
+
+        // Opened so the last branch of every agent's tree produces work: this measures a
+        // population that is running something, not one that has settled.
+        for (const AgentId agent : registered)
+        {
+            m_blackboard->Set<bool>(m_gate, true, agent);
+        }
+
+        // Two ticks to get everybody past starting a plan and into running one.
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+
+        for ([[maybe_unused]] auto _ : state)
+        {
+            m_registry->TickBand(0);
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickBand)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! The same, told up front how many are coming.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_RegisterAgentsReserved)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        for ([[maybe_unused]] auto _ : state)
+        {
+            state.PauseTiming();
+            Teardown();
+            Build();
+            MakeArchetype();
+            state.ResumeTiming();
+
+            m_registry->Reserve(static_cast<size_t>(agents), 0);
+            for (int i = 0; i < agents; ++i)
+            {
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{});
+            }
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_RegisterAgentsReserved)->Arg(100)->Arg(1000)->Arg(10000);
 } // namespace GOAT::Benchmark
 
 #endif // HAVE_BENCHMARK

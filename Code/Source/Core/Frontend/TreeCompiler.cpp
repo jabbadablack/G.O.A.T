@@ -594,10 +594,50 @@ namespace GOAT
         AZ_Assert(emitted.GetValue() == 0, "The root of a compiled program is always node zero");
         AZ_Assert(!program.m_nodes.empty(), "A successful compile always produces at least one node");
 
-        // Sorted and unique because AgentObserver binary searches this list on every write.
+        // Sorted only so the duplicates can be removed: the same slot guarded twice is one
+        // thing to watch, and the count reported below is what an author reads back.
         AZStd::sort(program.m_observedKeys.begin(), program.m_observedKeys.end());
         program.m_observedKeys.erase(
             AZStd::unique(program.m_observedKeys.begin(), program.m_observedKeys.end()), program.m_observedKeys.end());
+
+        // One slot per node that keeps something between ticks, then one per service. Assigning
+        // them here is what lets an agent's cursor be a fixed block: the compiler is the only
+        // thing that knows how much state a tree actually needs.
+        AZ::u16 nextSlot = 0;
+        for (DecisionNode& node : program.m_nodes)
+        {
+            const bool keepsState = node.m_op == NodeOp::Cooldown || node.m_op == NodeOp::TimeLimit ||
+                node.m_op == NodeOp::Loop || node.m_op == NodeOp::LuaComposite;
+            if (keepsState)
+            {
+                node.m_cursorSlot = nextSlot++;
+            }
+        }
+
+        program.m_serviceSlotBase = nextSlot;
+        nextSlot = static_cast<AZ::u16>(nextSlot + program.m_services.size());
+        program.m_cursorSlotCount = nextSlot;
+
+        if (program.m_cursorSlotCount > MaxCursorSlots)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "Tree '%s' needs %u cursor slots but an agent carries %u. Cooldowns, time limits, "
+                "loops, Lua composites and services each take one.",
+                name.GetCStr(), static_cast<AZ::u32>(program.m_cursorSlotCount),
+                static_cast<AZ::u32>(MaxCursorSlots)));
+        }
+
+        // A Lua composite or decorator decides in script, so what it does cannot be predicted
+        // from the blackboard and the clock. Noting it here is what lets every other tree be left
+        // dormant when nothing it reads has changed, without guessing which trees are safe.
+        for (const DecisionNode& node : program.m_nodes)
+        {
+            if (node.m_op == NodeOp::LuaComposite || node.m_op == NodeOp::LuaDecorator)
+            {
+                program.m_pollEveryTick = true;
+                break;
+            }
+        }
 
         AZ_Assert(program.m_nodes[0].m_subtreeEnd == program.m_nodes.size(),
             "The root's subtree must span the whole program");

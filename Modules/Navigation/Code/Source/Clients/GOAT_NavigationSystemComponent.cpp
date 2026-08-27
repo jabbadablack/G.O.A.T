@@ -68,67 +68,53 @@ namespace GOAT_Navigation
     void GOAT_NavigationSystemComponent::Init()
     {
     }
-
-    bool GOAT_NavigationSystemComponent::InstallVerb(
-        AZStd::unique_ptr<GOAT::IActionState> action,
-        const char* parameterName,
-        GOAT::BlackboardType parameterType,
-        const char* description)
+    namespace
     {
-        AZ_Assert(action != nullptr, "A verb must exist before it can be installed");
-        AZ_Assert(parameterName != nullptr, "A verb's main property must be named");
-
-        GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get();
-        AZ_Assert(agents != nullptr, "Installing a verb needs the GOAT agent system");
-        if (agents == nullptr || action == nullptr)
+        //! Installs a verb with the shape navigation verbs share: one target property, plus a
+        //! tolerance and a speed. What to register is this module's business; keeping hold of it
+        //! so it leaves again is the scope's.
+        bool InstallNavigationVerb(
+            GOAT::VocabularyScope& vocabulary,
+            AZStd::unique_ptr<GOAT::IActionState> action,
+            const char* parameterName,
+            GOAT::BlackboardType parameterType,
+            const char* description)
         {
-            return false;
+            AZ_Assert(action != nullptr, "A verb must exist before it can be installed");
+            AZ_Assert(parameterName != nullptr, "A verb's main property must be named");
+            if (action == nullptr)
+            {
+                return false;
+            }
+
+            // A leaf node type whose name matches a verb runs that verb, so both halves share one.
+            GOAT::NodeTypeDescriptor descriptor;
+            descriptor.m_name = action->GetName();
+            descriptor.m_kind = GOAT::NodeKind::Leaf;
+            descriptor.m_op = GOAT::NodeOp::Action;
+            descriptor.m_category = "Navigation";
+            descriptor.m_description = description;
+
+            GOAT::NodeParameter target;
+            target.m_name = AZ::Name(parameterName);
+            target.m_type = parameterType;
+            target.m_isBlackboardKey = parameterType == GOAT::BlackboardType::Vector3;
+            target.m_required = true;
+            descriptor.m_parameters.push_back(target);
+
+            GOAT::NodeParameter tolerance;
+            tolerance.m_name = AZ_NAME_LITERAL("tolerance");
+            tolerance.m_type = GOAT::BlackboardType::Float;
+            descriptor.m_parameters.push_back(tolerance);
+
+            GOAT::NodeParameter speed;
+            speed.m_name = AZ_NAME_LITERAL("speed");
+            speed.m_type = GOAT::BlackboardType::Float;
+            descriptor.m_parameters.push_back(speed);
+
+            return vocabulary.Install(AZStd::move(action), AZStd::move(descriptor));
         }
-
-        const AZ::Name name = action->GetName();
-
-        const GOAT::ActionStateId id = agents->RegisterAction(AZStd::move(action));
-        if (id == GOAT::CoreActions::Invalid)
-        {
-            AZ_Error("GOAT", false, "Navigation verb '%s' could not be registered", name.GetCStr());
-            return false;
-        }
-        m_installedActions.push_back(id);
-
-        // A leaf node type whose name matches a verb runs that verb, so both halves share a name.
-        GOAT::NodeTypeDescriptor descriptor;
-        descriptor.m_name = name;
-        descriptor.m_kind = GOAT::NodeKind::Leaf;
-        descriptor.m_op = GOAT::NodeOp::Action;
-        descriptor.m_category = "Navigation";
-        descriptor.m_description = description;
-
-        GOAT::NodeParameter target;
-        target.m_name = AZ::Name(parameterName);
-        target.m_type = parameterType;
-        target.m_isBlackboardKey = parameterType == GOAT::BlackboardType::Vector3;
-        target.m_required = true;
-        descriptor.m_parameters.push_back(target);
-
-        GOAT::NodeParameter tolerance;
-        tolerance.m_name = AZ_NAME_LITERAL("tolerance");
-        tolerance.m_type = GOAT::BlackboardType::Float;
-        descriptor.m_parameters.push_back(tolerance);
-
-        GOAT::NodeParameter speed;
-        speed.m_name = AZ_NAME_LITERAL("speed");
-        speed.m_type = GOAT::BlackboardType::Float;
-        descriptor.m_parameters.push_back(speed);
-
-        if (!agents->RegisterNodeType(AZStd::move(descriptor)))
-        {
-            return false;
-        }
-        m_installedNodeTypes.push_back(name);
-
-        AZLOG_INFO("GOAT: navigation registered verb '%s'", name.GetCStr());
-        return true;
-    }
+    } // namespace
 
     bool GOAT_NavigationSystemComponent::InstallVocabulary()
     {
@@ -153,14 +139,14 @@ namespace GOAT_Navigation
         }
 
         const bool installed =
-            InstallVerb(
-                AZStd::unique_ptr<GOAT::IActionState>(aznew MoveToAction(*m_service, *m_paths, m_keys)),
+            InstallNavigationVerb(
+                m_vocabulary, AZStd::unique_ptr<GOAT::IActionState>(aznew MoveToAction(*m_service, *m_paths, m_keys, *m_locomotion)),
                 "key", GOAT::BlackboardType::Vector3, "Walks to a position, publishing progress to the blackboard") &&
-            InstallVerb(
-                AZStd::unique_ptr<GOAT::IActionState>(aznew IsAtLocationAction()),
+            InstallNavigationVerb(
+                m_vocabulary, AZStd::unique_ptr<GOAT::IActionState>(aznew IsAtLocationAction()),
                 "key", GOAT::BlackboardType::Vector3, "Succeeds when the agent is already at a position") &&
-            InstallVerb(
-                AZStd::unique_ptr<GOAT::IActionState>(aznew DoesPathExistAction(*m_service)),
+            InstallNavigationVerb(
+                m_vocabulary, AZStd::unique_ptr<GOAT::IActionState>(aznew DoesPathExistAction(*m_service)),
                 "key", GOAT::BlackboardType::Vector3, "Succeeds when a walkable path to a position exists");
 
         // A director's reach can then narrow by something the core cannot judge: how far an agent
@@ -170,7 +156,7 @@ namespace GOAT_Navigation
             const AZ::Name name = filter->GetName();
             if (agents->RegisterReachFilter(AZStd::move(filter)))
             {
-                m_installedReachFilters.push_back(name);
+                m_vocabulary.Own(name);
             }
         };
 
@@ -180,44 +166,11 @@ namespace GOAT_Navigation
         AZ_Error("GOAT", installed, "The navigation module could not install its full vocabulary");
         return installed;
     }
-
-    void GOAT_NavigationSystemComponent::RemoveVocabulary()
-    {
-        GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get();
-        if (agents == nullptr)
-        {
-            // The core shut down first, which takes its registries with it.
-            m_installedActions.clear();
-            m_installedNodeTypes.clear();
-            m_installedReachFilters.clear();
-            return;
-        }
-
-        for (const AZ::Name& name : m_installedReachFilters)
-        {
-            agents->UnregisterReachFilter(name);
-        }
-        m_installedReachFilters.clear();
-
-        for (const AZ::Name& name : m_installedNodeTypes)
-        {
-            agents->UnregisterNodeType(name);
-        }
-        m_installedNodeTypes.clear();
-
-        for (const GOAT::ActionStateId id : m_installedActions)
-        {
-            agents->UnregisterAction(id);
-        }
-        m_installedActions.clear();
-
-        AZ_Assert(m_installedActions.empty(), "Removing the vocabulary must leave no verb installed");
-    }
-
     void GOAT_NavigationSystemComponent::Activate()
     {
         m_service = AZStd::make_unique<NavigationService>();
         m_paths = AZStd::make_unique<PathPool>();
+        m_locomotion = AZStd::make_unique<Locomotion>();
 
         GOAT_NavigationRequestBus::Handler::BusConnect();
         AZ::TickBus::Handler::BusConnect();
@@ -231,10 +184,11 @@ namespace GOAT_Navigation
         GOAT_NavigationRequestBus::Handler::BusDisconnect();
 
         // Verbs hold references to the service and the pool, so they go first.
-        RemoveVocabulary();
+        m_vocabulary.Clear();
 
         m_service.reset();
         m_paths.reset();
+        m_locomotion.reset();
 
         AZ_Assert(m_service == nullptr, "Deactivating must release the navigation service");
     }
@@ -262,12 +216,18 @@ namespace GOAT_Navigation
     }
 
     void GOAT_NavigationSystemComponent::OnTick(
-        [[maybe_unused]] float deltaTime, [[maybe_unused]] AZ::ScriptTimePoint time)
+        float deltaTime, [[maybe_unused]] AZ::ScriptTimePoint time)
     {
         AZ_Assert(m_service != nullptr, "The navigation service must exist while this component ticks");
         if (m_service != nullptr)
         {
             m_service->Update();
+        }
+
+        // Every frame, whatever band the agents themselves are on.
+        if (m_locomotion != nullptr)
+        {
+            m_locomotion->Advance(deltaTime);
         }
     }
 } // namespace GOAT_Navigation

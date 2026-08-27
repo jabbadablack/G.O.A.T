@@ -8,7 +8,6 @@ namespace GOAT
     void LuaNameCollector::Clear()
     {
         m_names.clear();
-        AZ_Assert(m_names.empty(), "Clearing must leave no name behind for the next collection");
     }
 
     void LuaNameCollector::Add(AZStd::string name)

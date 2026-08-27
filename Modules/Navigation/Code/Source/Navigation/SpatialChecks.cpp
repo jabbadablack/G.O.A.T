@@ -27,9 +27,6 @@ namespace GOAT_Navigation
         return AZ_NAME_LITERAL("is_at_location");
     }
 
-    void IsAtLocationAction::Begin([[maybe_unused]] const GOAT::ActionContext& context)
-    {
-    }
 
     GOAT::ActionResult IsAtLocationAction::Step(const GOAT::ActionContext& context, [[maybe_unused]] float deltaTime)
     {
@@ -47,9 +44,6 @@ namespace GOAT_Navigation
         return position.GetDistance(target) <= tolerance ? GOAT::ActionResult::Success : GOAT::ActionResult::Failure;
     }
 
-    void IsAtLocationAction::End([[maybe_unused]] const GOAT::ActionContext& context)
-    {
-    }
 
     DoesPathExistAction::DoesPathExistAction(NavigationService& service)
         : m_service(service)

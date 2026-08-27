@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Navigation/Locomotion.h>
 #include <Navigation/NavigationKeys.h>
 #include <Navigation/NavigationService.h>
 #include <Navigation/PathPool.h>
@@ -16,13 +17,16 @@ namespace GOAT_Navigation
     //! position. `nav_waypoint` and `nav_remaining` are written every step whether or not this
     //! verb also moves the entity, so a project with its own controller sets `nav_steer` false
     //! and drives movement from those two values instead.
+    //!
+    //! This verb chooses the waypoint; Locomotion carries the agent there frame by frame, so an
+    //! agent thinking once a second still walks smoothly.
     class MoveToAction final
         : public GOAT::IActionState
     {
     public:
         AZ_CLASS_ALLOCATOR(MoveToAction, AZ::SystemAllocator);
 
-        MoveToAction(NavigationService& service, PathPool& paths, const NavigationKeys& keys);
+        MoveToAction(NavigationService& service, PathPool& paths, const NavigationKeys& keys, Locomotion& locomotion);
 
         AZ::Name GetName() const override;
         void Begin(const GOAT::ActionContext& context) override;
@@ -43,5 +47,8 @@ namespace GOAT_Navigation
         NavigationService& m_service;
         PathPool& m_paths;
         const NavigationKeys& m_keys;
+        //! Where the moving happens. This verb decides the waypoint on the agent's band; the
+        //! frames in between are carried there.
+        Locomotion& m_locomotion;
     };
 } // namespace GOAT_Navigation

@@ -122,9 +122,28 @@ function GOAT_DeclareNode(typeName, mainProperty)
     _G[typeName] = nodeType(typeName)
 end
 
+--! Reports something wrong with what a script declared.
+--! Debug.Warning when the engine has reflected it, print otherwise, so this works the same in a
+--! bare Lua harness as it does in the editor.
+function GOAT._warn(message)
+    if Debug ~= nil and Debug.Warning ~= nil then
+        Debug.Warning(false, "GOAT: " .. message)
+    else
+        print("GOAT: " .. message)
+    end
+end
+
 --! Defines a leaf behaviour: `behavior "Patrol" { start = ..., tick = ..., stop = ... }`.
 function behavior(name)
     return function(body)
+        -- A behaviour name is global to the vocabulary, so a second script declaring one that
+        -- is taken silently replaces it -- and every tree already pointing at the first then
+        -- runs the second, closed over a different script's variables. Loud, because the
+        -- symptom otherwise appears in an agent that has nothing to do with the change.
+        if GOAT._behaviors[name] ~= nil then
+            GOAT._warn("behaviour '" .. name .. "' is declared more than once; the last one wins, "
+                .. "and every tree naming it runs that one")
+        end
         GOAT._behaviors[name] = body
         return body
     end
@@ -350,12 +369,19 @@ end
 GOAT._pushStep = pushStep
 
 --! True when an option's guard holds for this agent. An option with no guard is the fallback.
+--
+--! The handle is kept on the option the first time it is needed. A plan's guard is named at
+--! declaration and never changes, so looking it up once per option costs nothing after that --
+--! and unlike a behaviour, an option cannot hoist it into an upvalue because the name arrives
+--! with the plan rather than with the script.
 function GOAT._optionHolds(entry, ctx)
     if entry.when ~= nil then
-        return ctx:GetBool(entry.when)
+        if (entry.whenKey or 0) == 0 then entry.whenKey = ctx:Key(entry.when) end
+        return ctx:GetBool(entry.whenKey)
     end
     if entry.unless ~= nil then
-        return not ctx:GetBool(entry.unless)
+        if (entry.unlessKey or 0) == 0 then entry.unlessKey = ctx:Key(entry.unless) end
+        return not ctx:GetBool(entry.unlessKey)
     end
     return true
 end

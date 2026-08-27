@@ -5,7 +5,7 @@
 namespace GOAT
 {
     void ServiceTracker::CollectDue(
-        const DecisionProgram& program, DecisionCursor& cursor, AZStd::vector<AZ::u32>& outServices) const
+        const DecisionProgram& program, DecisionCursor& cursor, DueServices& outServices) const
     {
         outServices.clear();
         AZ_Assert(!program.m_nodes.empty(), "Services are only collected from a compiled program");
@@ -34,14 +34,16 @@ namespace GOAT
                 const AZ::u32 service = node.m_firstService + offset;
                 AZ_Assert(service < program.m_services.size(), "A service index must address a compiled service");
 
-                float& due = cursor.ServiceDue(service);
+                float& due = cursor.Slot(static_cast<AZ::u16>(program.m_serviceSlotBase + service));
                 if (due > now)
                 {
                     continue;
                 }
 
                 due = now + AZStd::max(program.m_services[service].m_interval, 0.0f);
-                outServices.push_back(service);
+                AZ_Assert(outServices.size() < outServices.capacity(),
+                "A tree cannot have more services due than it has slots for");
+            outServices.push_back(service);
 
                 AZ_Assert(due >= now, "A service's next due time must never be in the past");
             }

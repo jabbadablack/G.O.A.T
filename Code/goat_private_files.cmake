@@ -15,18 +15,21 @@ set(FILES
     Source/Core/Actions/WaitAction.h
     Source/Core/Application/ActionStateRegistry.cpp
     Source/Core/Application/ActionStateRegistry.h
-    Source/Core/Application/AgentObserver.cpp
-    Source/Core/Application/AgentObserver.h
+    Source/Core/Application/GuardWatch.cpp
+    Source/Core/Application/GuardWatch.h
     Source/Core/Application/AgentRecord.h
+    Source/Core/Application/AgentArchetype.cpp
+    Source/Core/Application/AgentArchetype.h
     Source/Core/Application/AgentRegistry.cpp
+    Source/Core/Application/AgentStore.cpp
+    Source/Core/Application/AgentStore.h
     Source/Core/Application/AgentRegistry.h
     Source/Core/Application/AgentRuntime.cpp
     Source/Core/Application/AgentRuntime.h
-    Source/Core/Application/BackendRegistry.cpp
     Source/Core/Application/BackendRegistry.h
+    Source/Core/Application/NamedRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
-    Source/Core/Application/ReachFilterRegistry.cpp
     Source/Core/Application/ReachFilterRegistry.h
     Source/Core/Director/DirectorActions.cpp
     Source/Core/Director/DirectorActions.h
@@ -69,7 +72,6 @@ set(FILES
     Source/Core/Frontend/TreeLibrary.cpp
     Source/Core/Frontend/TreeLibrary.h
     Source/Core/Frontend/TreeWalker.h
-    Source/Core/Memory/HandleTable.h
     Source/Core/Scripting/AgentScriptContext.cpp
     Source/Core/Scripting/AgentScriptContext.h
     Source/Core/Scripting/LuaBackend.cpp

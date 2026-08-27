@@ -21,8 +21,6 @@ namespace GOAT
         //! The authored root registered under a name, or nullptr when there is none.
         const BehaviorTreeNode* Find(const AZ::Name& name) const;
 
-        //! Removes a tree.
-        void Remove(const AZ::Name& name);
 
         //! Binds a named slot to a tree, which is how a subtree is swapped at runtime.
         //! Rebinding a slot means recompiling the trees that reference it.
@@ -34,7 +32,6 @@ namespace GOAT
         //! Every registered tree name, for console output.
         AZStd::vector<AZ::Name> GetNames() const;
 
-        void Clear();
 
     private:
         AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const BehaviorTreeNode>> m_trees;

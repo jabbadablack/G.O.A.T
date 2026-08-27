@@ -1,11 +1,13 @@
 #pragma once
 
+#include <Navigation/Locomotion.h>
 #include <Navigation/NavigationKeys.h>
 #include <Navigation/NavigationService.h>
 #include <Navigation/PathPool.h>
 
 #include <GOAT/Domain/NodeType.h>
 #include <GOAT/Interfaces/IActionState.h>
+#include <GOAT/VocabularyScope.h>
 
 #include <GOAT_Navigation/GOAT_NavigationBus.h>
 
@@ -58,24 +60,14 @@ namespace GOAT_Navigation
         //! produces tree compilation errors that point nowhere near the cause.
         bool InstallVocabulary();
 
-        //! Takes this module's verbs and words back out of GOAT.
-        void RemoveVocabulary();
-
-        //! Registers one verb together with the word that runs it.
-        //! @param parameterName the property a bare string argument fills.
-        bool InstallVerb(
-            AZStd::unique_ptr<GOAT::IActionState> action,
-            const char* parameterName,
-            GOAT::BlackboardType parameterType,
-            const char* description);
-
         AZStd::unique_ptr<NavigationService> m_service;
         AZStd::unique_ptr<PathPool> m_paths;
+        //! Carries moving agents between their ticks, so movement is frame smooth while
+        //! deciding stays on the band.
+        AZStd::unique_ptr<Locomotion> m_locomotion;
         NavigationKeys m_keys;
 
-        //! Verbs and reach filters installed by this module, so Deactivate removes exactly those.
-        AZStd::vector<GOAT::ActionStateId> m_installedActions;
-        AZStd::vector<AZ::Name> m_installedReachFilters;
-        AZStd::vector<AZ::Name> m_installedNodeTypes;
+        //! What this module added to the core, removed again when it is destroyed.
+        GOAT::VocabularyScope m_vocabulary{"navigation"};
     };
 } // namespace GOAT_Navigation

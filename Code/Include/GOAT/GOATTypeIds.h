@@ -15,7 +15,6 @@ namespace GOAT
     inline constexpr const char* GOATEditorModuleTypeId = GOATModuleTypeId;
 
     // Interface TypeIds
-    inline constexpr const char* GOATRequestsTypeId = "{ADB07321-B3CF-4405-9B88-7D0608C72F34}";
     // Domain value types
     inline constexpr const char* BlackboardKeyTypeId = "{A9DC5B9A-B0EB-4841-9964-483AC10DDBA1}";
     inline constexpr const char* ActionRequestTypeId = "{3B1E1CED-FF55-4E22-A37C-2A0420EE5278}";

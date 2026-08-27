@@ -3,7 +3,6 @@
 #include <GOAT/Domain/ActionPlan.h>
 #include <GOAT/Domain/PlanStore.h>
 #include <GOAT/Domain/AgentId.h>
-#include <GOAT/Domain/Guard.h>
 #include <GOAT/Domain/Intent.h>
 #include <GOAT/GOATTypeIds.h>
 
@@ -47,13 +46,6 @@ namespace GOAT
         //! Produces a plan for one intent. Returns false when this backend cannot satisfy it.
         virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
 
-        //! Reports the conditions that invalidate the plan while it runs.
-        virtual void CollectGuards(
-            [[maybe_unused]] const PlanContext& context,
-            [[maybe_unused]] const ActionPlan& plan,
-            [[maybe_unused]] GuardList& outGuards) const
-        {
-        }
 
         //! Releases any per agent state held for this agent.
         virtual void Release([[maybe_unused]] const PlanContext& context)

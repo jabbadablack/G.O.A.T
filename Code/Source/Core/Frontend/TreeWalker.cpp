@@ -14,11 +14,12 @@ namespace GOAT
     {
         //! Builds a step reporting that the tree finished.
         //! Written out rather than brace initialised because AZ::EntityId's default constructor is explicit.
-        WalkStep Finished(ActionResult result)
+        WalkStep Finished(ActionResult result, float wakeAt = AZStd::numeric_limits<float>::max())
         {
             WalkStep step;
             step.m_outcome = WalkOutcome::Finished;
             step.m_result = result;
+            step.m_wakeAt = wakeAt;
             return step;
         }
 
@@ -144,10 +145,11 @@ namespace GOAT
         NodeIndex parent = program.m_nodes[node].m_parent;
         while (parent != InvalidNodeIndex)
         {
-            const NodeOp op = program.m_nodes[parent].m_op;
-            if (op == NodeOp::Selector || op == NodeOp::Sequence)
+            // Only a Lua composite remembers which child it chose; a built in one finds its
+            // next sibling from the child it is leaving, so it has nothing to rebuild.
+            if (program.m_nodes[parent].m_op == NodeOp::LuaComposite)
             {
-                cursor.ChildIndex(parent) = ChildIndexOf(program, parent, child);
+                cursor.Slot(program.m_nodes[parent].m_cursorSlot) = static_cast<float>(ChildIndexOf(program, parent, child));
             }
             child = parent;
             parent = program.m_nodes[parent].m_parent;
@@ -168,6 +170,10 @@ namespace GOAT
         AZ_Assert(node == InvalidNodeIndex || node < program.m_nodes.size(),
             "A walk only ever starts at a node in the program");
 
+        // The soonest a cooldown turned this walk away. Carried out with the finished step so an
+        // agent that found no work knows whether waiting could ever change that.
+        float wakeAt = AZStd::numeric_limits<float>::max();
+
         while (node != InvalidNodeIndex)
         {
             AZ_Assert(node < program.m_nodes.size(), "The walk stepped outside the program");
@@ -179,7 +185,6 @@ namespace GOAT
                 {
                 case NodeOp::Selector:
                 case NodeOp::Sequence:
-                    cursor.ChildIndex(node) = 0;
                     node = current.m_firstChild;
                     continue;
 
@@ -194,7 +199,6 @@ namespace GOAT
                     // Only the main branch is ever walked. The background one is a predicate
                     // that GuardEvaluator re-checks; stepping into it would need a second
                     // action slot, and an agent's state machine has exactly one.
-                    cursor.ChildIndex(node) = 0;
                     node = current.m_firstChild;
                     continue;
 
@@ -205,8 +209,9 @@ namespace GOAT
 
                 case NodeOp::Cooldown:
                     // Still cooling down, so the guarded subtree is not entered at all.
-                    if (cursor.Deadline(node) > cursor.GetNow())
+                    if (cursor.GetSlot(current.m_cursorSlot) > cursor.GetNow())
                     {
+                        wakeAt = AZStd::min(wakeAt, cursor.GetSlot(current.m_cursorSlot));
                         result = ActionResult::Failure;
                         bubbling = true;
                         continue;
@@ -215,7 +220,7 @@ namespace GOAT
                     continue;
 
                 case NodeOp::Loop:
-                    cursor.Counter(node) = 0;
+                    cursor.Slot(current.m_cursorSlot) = 0.0f;
                     node = current.m_firstChild;
                     continue;
 
@@ -230,7 +235,7 @@ namespace GOAT
                     continue;
 
                 case NodeOp::TimeLimit:
-                    cursor.Deadline(node) = cursor.GetNow() + current.m_amount;
+                    cursor.Slot(current.m_cursorSlot) = cursor.GetNow() + current.m_amount;
                     node = current.m_firstChild;
                     continue;
 
@@ -256,7 +261,7 @@ namespace GOAT
                         continue;
                     }
 
-                    cursor.ChildIndex(node) = static_cast<AZ::u16>(child);
+                    cursor.Slot(current.m_cursorSlot) = static_cast<float>(child);
                     node = NthChild(program, node, static_cast<AZ::u16>(child));
                     AZ_Assert(node != InvalidNodeIndex, "A child index inside the child count must resolve to a node");
                     continue;
@@ -285,7 +290,7 @@ namespace GOAT
             const NodeIndex parentIndex = program.m_nodes[node].m_parent;
             if (parentIndex == InvalidNodeIndex)
             {
-                return Finished(result);
+                return Finished(result, wakeAt);
             }
 
             AZ_Assert(parentIndex < node, "A parent always precedes its children in pre-order");
@@ -303,12 +308,13 @@ namespace GOAT
                     continue;
                 }
 
-                AZ::u16& childIndex = cursor.ChildIndex(parentIndex);
-                ++childIndex;
-                if (childIndex < parent.m_childCount)
+                // The next sibling begins where this child's subtree ends, so stepping to it is
+                // one load. Counting children instead meant walking the sibling chain from the
+                // first one every time, which made a wide composite cost the square of its width.
+                const NodeIndex next = program.m_nodes[node].m_subtreeEnd;
+                if (next < parent.m_subtreeEnd)
                 {
-                    node = NthChild(program, parentIndex, childIndex);
-                    AZ_Assert(node != InvalidNodeIndex, "Stepping to the next sibling must land on a node");
+                    node = next;
                     bubbling = false;
                     continue;
                 }
@@ -326,12 +332,13 @@ namespace GOAT
                     continue;
                 }
 
-                AZ::u16& childIndex = cursor.ChildIndex(parentIndex);
-                ++childIndex;
-                if (childIndex < parent.m_childCount)
+                // The next sibling begins where this child's subtree ends, so stepping to it is
+                // one load. Counting children instead meant walking the sibling chain from the
+                // first one every time, which made a wide composite cost the square of its width.
+                const NodeIndex next = program.m_nodes[node].m_subtreeEnd;
+                if (next < parent.m_subtreeEnd)
                 {
-                    node = NthChild(program, parentIndex, childIndex);
-                    AZ_Assert(node != InvalidNodeIndex, "Stepping to the next sibling must land on a node");
+                    node = next;
                     bubbling = false;
                     continue;
                 }
@@ -359,14 +366,14 @@ namespace GOAT
 
             case NodeOp::Cooldown:
                 // The cooldown starts when the subtree finishes, not when it was entered.
-                cursor.Deadline(parentIndex) = cursor.GetNow() + parent.m_amount;
+                cursor.Slot(parent.m_cursorSlot) = cursor.GetNow() + parent.m_amount;
                 node = parentIndex;
                 continue;
 
             case NodeOp::Loop:
             {
-                AZ::u16& count = cursor.Counter(parentIndex);
-                ++count;
+                const AZ::u16 count = static_cast<AZ::u16>(cursor.GetSlot(parent.m_cursorSlot)) + 1;
+                cursor.Slot(parent.m_cursorSlot) = static_cast<float>(count);
 
                 const AZ::u16 limit = static_cast<AZ::u16>(parent.m_amount);
                 AZ_Warning("GOAT", limit > 0, "Node %u loops zero times, so its child runs exactly once", parentIndex);
@@ -391,7 +398,7 @@ namespace GOAT
                 continue;
 
             case NodeOp::TimeLimit:
-                if (cursor.GetNow() > cursor.Deadline(parentIndex))
+                if (cursor.GetNow() > cursor.GetSlot(parent.m_cursorSlot))
                 {
                     result = ActionResult::Failure;
                 }
@@ -411,7 +418,8 @@ namespace GOAT
 
                 ActionResult finished = result;
                 const int child = context.m_scripting->AdvanceComposite(
-                    parent.m_tag, context, parentIndex, cursor.ChildIndex(parentIndex), result, finished);
+                    parent.m_tag, context, parentIndex,
+                    static_cast<AZ::u16>(cursor.GetSlot(parent.m_cursorSlot)), result, finished);
 
                 if (child < 0 || child >= parent.m_childCount)
                 {
@@ -420,7 +428,7 @@ namespace GOAT
                     continue;
                 }
 
-                cursor.ChildIndex(parentIndex) = static_cast<AZ::u16>(child);
+                cursor.Slot(parent.m_cursorSlot) = static_cast<float>(child);
                 node = NthChild(program, parentIndex, static_cast<AZ::u16>(child));
                 AZ_Assert(node != InvalidNodeIndex, "A child index inside the child count must resolve to a node");
                 bubbling = false;
@@ -444,6 +452,6 @@ namespace GOAT
             }
         }
 
-        return Finished(result);
+        return Finished(result, wakeAt);
     }
 } // namespace GOAT

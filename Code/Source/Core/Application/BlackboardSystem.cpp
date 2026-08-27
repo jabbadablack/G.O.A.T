@@ -1,5 +1,7 @@
 #include <Core/Application/BlackboardSystem.h>
 
+#include <AzCore/std/algorithm.h>
+
 #include <AzCore/Console/ILogger.h>
 
 namespace GOAT
@@ -39,9 +41,12 @@ namespace GOAT
             m_global.EnsureCapacity(m_schema.GetLayout(BlackboardScope::Global));
             break;
         case BlackboardScope::Agent:
-            for (auto& [agent, storage] : m_agents)
+            for (AgentSlot& entry : m_agents)
             {
-                storage.EnsureCapacity(m_schema.GetLayout(BlackboardScope::Agent));
+                if (entry.m_generation != 0)
+                {
+                    entry.m_storage.EnsureCapacity(m_schema.GetLayout(BlackboardScope::Agent));
+                }
             }
             break;
         case BlackboardScope::Squad:
@@ -68,18 +73,37 @@ namespace GOAT
             return;
         }
 
-        m_agents[agent].Reset(m_schema.GetLayout(BlackboardScope::Agent));
+        const size_t slot = agent.GetIndex();
+        if (slot >= m_agents.size())
+        {
+            // Capacity doubles rather than fitting the slot exactly. Agents arrive one at a time,
+            // and resizing to fit each one reallocates and copies every storage already there --
+            // quadratic in the agent count, which at ten thousand is seconds rather than
+            // milliseconds. Measured before this line existed.
+            if (slot >= m_agents.capacity())
+            {
+                m_agents.reserve(AZStd::max(slot + 1, m_agents.capacity() * 2));
+            }
 
-        AZ_Assert(m_agents.find(agent) != m_agents.end(), "Creating agent storage must leave it findable");
+            m_agents.resize(slot + 1);
+        }
+
+        m_agents[slot].m_storage.Reset(m_schema.GetLayout(BlackboardScope::Agent));
+        m_agents[slot].m_generation = agent.GetGeneration();
     }
 
     void BlackboardSystem::DestroyAgentBlackboard(AgentId agent)
     {
         // Leaving first is what refcounts the squad down, so the order here is load bearing.
         m_squads.Leave(agent);
-        m_agents.erase(agent);
 
-        AZ_Assert(m_agents.find(agent) == m_agents.end(), "Destroying agent storage must leave nothing behind");
+        // The storage stays and only its claim is dropped, so the next agent in this slot reuses
+        // the buffers rather than allocating its own. Reset on create is what clears the values.
+        const size_t slot = agent.GetIndex();
+        if (slot < m_agents.size() && m_agents[slot].m_generation == agent.GetGeneration())
+        {
+            m_agents[slot].m_generation = 0;
+        }
         AZ_Assert(m_squads.Find(agent).IsEmpty(), "A destroyed agent must not still belong to a squad");
     }
 
@@ -134,27 +158,19 @@ namespace GOAT
             return &m_global;
         case BlackboardScope::Agent:
         {
-            const auto found = m_agents.find(agent);
-            return found != m_agents.end() ? &found->second : nullptr;
+            const size_t slot = agent.GetIndex();
+            if (agent.IsNull() || slot >= m_agents.size())
+            {
+                return nullptr;
+            }
+
+            const AgentSlot& entry = m_agents[slot];
+            return entry.m_generation == agent.GetGeneration() ? &entry.m_storage : nullptr;
         }
         case BlackboardScope::Squad:
             return m_squads.FindStorage(agent);
         default:
             return nullptr;
         }
-    }
-
-    void BlackboardSystem::Clear()
-    {
-        AZLOG_INFO("GOAT: clearing every blackboard, %zu agents included", m_agents.size());
-
-        m_squads.Clear();
-        m_agents.clear();
-        m_schema.Clear();
-        m_global.Reset(m_schema.GetLayout(BlackboardScope::Global));
-
-        AZ_Assert(m_agents.empty(), "Clearing must destroy every agent blackboard");
-        AZ_Assert(m_schema.GetLayout(BlackboardScope::Agent).m_defaults.empty(),
-            "Clearing must leave the schema holding no declared variables");
     }
 } // namespace GOAT

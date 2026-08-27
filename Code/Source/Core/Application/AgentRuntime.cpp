@@ -32,15 +32,26 @@ namespace GOAT
     {
     }
 
+    void AgentRuntime::ReleaseAgent(AgentRecord& agent)
+    {
+        const PlanContext context = MakePlanContext(agent);
+        m_backends.ForEach(
+            [&context](IBackend& backend)
+            {
+                backend.Release(context);
+            });
+    }
+
     void AgentRuntime::AbortAgent(AgentRecord& agent)
     {
         AZ_Assert(!agent.m_id.IsNull(), "Only a registered agent can be aborted");
 
         ActionContext actionContext = MakeActionContext(agent);
         agent.m_machine.Abort(m_actions, actionContext);
-        // Written out rather than braced: AZ::EntityId's default constructor is explicit.
-        Intent none;
-        agent.m_intent = none;
+
+        // Aborting drops the plan, so the tree has to be walked again rather than left waiting
+        // on whatever the last walk was blocked by.
+        agent.m_wakeAt = 0.0f;
 
         AZ_Assert(!agent.m_machine.HasPlan(), "Aborting must leave the agent with no plan to continue");
     }
@@ -94,6 +105,10 @@ namespace GOAT
         ActionContext actionContext = MakeActionContext(agent);
         agent.m_machine.Abort(m_actions, actionContext);
 
+        // Aborting drops the plan, so the tree has to be walked again rather than left waiting
+        // on whatever the last walk was blocked by.
+        agent.m_wakeAt = 0.0f;
+
         if (decision.m_action == AbortAction::Restart)
         {
             outStep = m_walker.Restart(*agent.m_program, agent.m_cursor, planContext, decision.m_node);
@@ -117,14 +132,17 @@ namespace GOAT
         AZ_Assert(agent.m_program != nullptr, "Services are only ticked for an agent that has a program");
         AZ_Assert(deltaTime >= 0.0f, "Services cannot be ticked backwards in time");
 
-        m_services.CollectDue(*agent.m_program, agent.m_cursor, agent.m_dueServices);
-        if (agent.m_dueServices.empty())
+        // A local: services are collected and run inside this call and never outlive it, so the
+        // agent had no reason to carry the list between ticks.
+        DueServices due;
+        m_services.CollectDue(*agent.m_program, agent.m_cursor, due);
+        if (due.empty())
         {
             return;
         }
 
         m_scriptContext.Bind(agent.m_id, agent.m_entity, &m_blackboard);
-        for (const AZ::u32 service : agent.m_dueServices)
+        for (const AZ::u32 service : due)
         {
             AZ_Assert(service < agent.m_program->m_services.size(),
                 "A due service index must address a compiled service");
@@ -162,7 +180,6 @@ namespace GOAT
         AZLOG(GoatAgent, "GOAT: agent %u node %u -> backend '%s' produced %zu step(s)",
             agent.m_id.GetIndex(), intent.m_node, backend->GetName().GetCStr(), plan.Size());
 
-        agent.m_intent = intent;
         agent.m_machine.SetPlan(m_planStore, plan);
 
         AZ_Assert(agent.m_machine.HasPlan(), "Starting a plan must leave the state machine holding one");
@@ -188,6 +205,17 @@ namespace GOAT
 
         AZ_Assert(deltaTime >= 0.0f, "An agent cannot be ticked backwards in time");
         agent.m_cursor.AdvanceClock(deltaTime);
+
+        // Dormant: the last walk of this tree found no work, and neither of the two things that
+        // could change that has happened. A predicate reads the blackboard and a cooldown reads
+        // the clock, so if no observed slot has changed and no cooldown has come due, walking
+        // again would evaluate the same conditions and reach the same answer.
+        if (!agent.m_machine.HasPlan() && !agent.m_observer.IsDirty() &&
+            !agent.m_program->m_pollEveryTick && agent.m_cursor.GetNow() < agent.m_wakeAt)
+        {
+            return;
+        }
+
         const PlanContext planContext = MakePlanContext(agent);
 
         WalkStep step;
@@ -195,6 +223,10 @@ namespace GOAT
         ApplyGuards(agent, planContext, step, haveStep);
 
         TickServices(agent, deltaTime);
+
+        // Tracks whether the step in hand came from a walk that started at the root, because a
+        // walk that started there and found nothing cannot find anything by starting again.
+        bool walkedFromRoot = false;
 
         if (!haveStep)
         {
@@ -211,6 +243,7 @@ namespace GOAT
             else
             {
                 step = m_walker.Begin(*agent.m_program, agent.m_cursor, planContext);
+                walkedFromRoot = true;
             }
             haveStep = true;
         }
@@ -221,10 +254,21 @@ namespace GOAT
         {
             if (step.m_outcome == WalkOutcome::Finished)
             {
+                // Nothing between two walks of the same tree in one tick can change what a
+                // predicate reads, so a root walk that already found nothing is the answer
+                // rather than something to ask again.
+                if (walkedFromRoot)
+                {
+                    agent.m_wakeAt = step.m_wakeAt;
+                    return;
+                }
+
                 // The tree ran out of work, so it starts again from the root.
                 step = m_walker.Begin(*agent.m_program, agent.m_cursor, planContext);
+                walkedFromRoot = true;
                 if (step.m_outcome == WalkOutcome::Finished)
                 {
+                    agent.m_wakeAt = step.m_wakeAt;
                     return;
                 }
             }

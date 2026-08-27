@@ -47,10 +47,12 @@ namespace GOAT_Navigation
 
     } // namespace
 
-    MoveToAction::MoveToAction(NavigationService& service, PathPool& paths, const NavigationKeys& keys)
+    MoveToAction::MoveToAction(
+        NavigationService& service, PathPool& paths, const NavigationKeys& keys, Locomotion& locomotion)
         : m_service(service)
         , m_paths(paths)
         , m_keys(keys)
+        , m_locomotion(locomotion)
     {
         AZ_Assert(m_keys.IsValid(), "move_to needs its blackboard variables declared before it runs");
     }
@@ -125,7 +127,7 @@ namespace GOAT_Navigation
         return GOAT::ActionResult::Running;
     }
 
-    GOAT::ActionResult MoveToAction::FollowPath(const GOAT::ActionContext& context, float deltaTime)
+    GOAT::ActionResult MoveToAction::FollowPath(const GOAT::ActionContext& context, [[maybe_unused]] float deltaTime)
     {
         MoveState& state = State(context);
         AZ_Assert(state.m_phase == Phase::Following, "Following a path outside the following phase");
@@ -173,13 +175,10 @@ namespace GOAT_Navigation
         const float speed = context.m_request->m_amount > 0.0f ? context.m_request->m_amount : goat_navDefaultSpeed;
         AZ_Assert(speed > 0.0f, "Movement speed must be positive");
 
-        const AZ::Vector3 toWaypoint = waypoint - position;
-        const float distance = toWaypoint.GetLength();
-        const float travel = speed * deltaTime;
-
-        // Never overshoot: a long frame would otherwise push the agent past the waypoint.
-        const AZ::Vector3 next = travel >= distance ? waypoint : position + toWaypoint.GetNormalized() * travel;
-        AZ::TransformBus::Event(context.m_entity, &AZ::TransformInterface::SetWorldTranslation, next);
+        // Named, not moved. Deciding happens here on the agent's band; carrying it there happens
+        // every frame, so a band that ticks four times a second does not make the agent jump a
+        // quarter second's worth of ground at a time.
+        m_locomotion.Steer(context.m_entity, waypoint, speed);
 
         return GOAT::ActionResult::Running;
     }
@@ -213,9 +212,11 @@ namespace GOAT_Navigation
     {
         MoveState& state = State(context);
 
-        // Aborting mid-query must not leave the service holding work nobody will collect.
+        // Aborting mid-query must not leave the service holding work nobody will collect, and an
+        // agent that has stopped moving must not keep being carried toward where it was going.
         m_service.CancelRequest(state.m_request);
         m_paths.Release(state.m_slot);
+        m_locomotion.Stop(context.m_entity);
 
         state = MoveState{};
     }

@@ -34,7 +34,7 @@ backend "Errand" {
             return { { action = "wait", seconds = 2.0 } }
         end
         return {
-            { action = "script", behavior = "Announce" },
+            { action = "script", behavior = "AnnounceChore" },
             { action = "wait", seconds = 0.5 },
         }
     end,
@@ -51,14 +51,24 @@ plan "Chores" {
         { action = "wait",   seconds = 0.25 },
     },
     option {
-        { action = "script", behavior = "Announce" },
+        { action = "script", behavior = "AnnounceChore" },
         { action = "wait",   seconds = 0.5 },
     },
 }
 
-behavior "Announce" {
+-- Resolved once, then kept: see ExampleAgent.lua for why a handle beats a name here, and why
+-- a failed lookup must be retried rather than cached.
+local announced
+
+local function keys(ctx)
+    if (announced or 0) ~= 0 then return end
+    announced = ctx:Key("announced")
+end
+
+behavior "AnnounceChore" {
     tick = function(me, ctx)
-        ctx:SetBool("announced", true)
+        keys(ctx)
+        ctx:SetBool(announced, true)
         return SUCCESS
     end,
 }

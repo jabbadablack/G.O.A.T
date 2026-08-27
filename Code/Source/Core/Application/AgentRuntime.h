@@ -30,6 +30,10 @@ namespace GOAT
             INodeScripting& scripting,
             PlanStore& planStore);
 
+        //! Tells every backend an agent is gone. Called when it unregisters, which is the one
+        //! moment per agent state can be dropped without guessing whether a plan will resume.
+        void ReleaseAgent(AgentRecord& agent);
+
         //! Advances one agent by a delta time.
         void Tick(AgentRecord& agent, float deltaTime);
 

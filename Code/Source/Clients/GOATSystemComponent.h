@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/Application/ActionStateRegistry.h>
+#include <Core/Application/AgentArchetype.h>
 #include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
@@ -14,7 +15,6 @@
 #include <Core/Scripting/LuaDispatch.h>
 #include <Core/Scripting/LuaNodeScripting.h>
 
-#include <GOAT/GOATBus.h>
 #include <GOAT/Interfaces/IAgentSystem.h>
 
 #include <AzCore/Asset/AssetCommon.h>
@@ -32,7 +32,6 @@ namespace GOAT
     class GOATSystemComponent
         : public AZ::Component
         , public IAgentSystem
-        , protected GOATRequestBus::Handler
         , protected AzFramework::AssetCatalogEventBus::Handler
     {
     public:
@@ -45,8 +44,6 @@ namespace GOAT
         static void GetRequiredServices(AZ::ComponentDescriptor::DependencyArrayType& required);
         static void GetDependentServices(AZ::ComponentDescriptor::DependencyArrayType& dependent);
 
-        GOATSystemComponent();
-        ~GOATSystemComponent();
 
         ////////////////////////////////////////////////////////////////////////
         // IAgentSystem
@@ -101,7 +98,6 @@ namespace GOAT
 
         ////////////////////////////////////////////////////////////////////////
         // AZ::Component
-        void Init() override;
         void Activate() override;
         void Deactivate() override;
         ////////////////////////////////////////////////////////////////////////
@@ -184,6 +180,14 @@ namespace GOAT
         //! Asks for a tree change, deferred to the agent's next tick because a request can
         //! arrive from Lua running inside that agent's current one.
         bool RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind, AZ::u8 priority);
+
+        //! The archetype for a list of trees, building it on first use. Entities that declare
+        //! the same trees share one, which is what makes a tree list cost per kind of agent
+        //! rather than per agent.
+        AZStd::shared_ptr<const AgentArchetype> AcquireArchetype(AZStd::span<const AZ::Name> trees);
+
+        //! Every archetype in use, kept alive for the agents that share it.
+        AZStd::vector<AZStd::shared_ptr<AgentArchetype>> m_archetypes;
 
         //! Refusals already reported, as the agent's slot paired with the tree it was refused.
         //! Diagnostics only: nothing reads it back, and an agent's entries go when it unregisters

@@ -130,9 +130,6 @@ namespace GOAT_Animation
         return GOAT::ActionResult::Success;
     }
 
-    void AnimateAction::End([[maybe_unused]] const GOAT::ActionContext& context)
-    {
-    }
 
     AZ::Name PlayMotionAction::GetName() const
     {
@@ -183,7 +180,4 @@ namespace GOAT_Animation
         return elapsed >= duration ? GOAT::ActionResult::Success : GOAT::ActionResult::Running;
     }
 
-    void PlayMotionAction::End([[maybe_unused]] const GOAT::ActionContext& context)
-    {
-    }
 } // namespace GOAT_Animation
