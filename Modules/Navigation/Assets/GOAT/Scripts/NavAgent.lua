@@ -15,17 +15,32 @@ local corners = {
     Vector3(0.0, 8.0, 0.0),
 }
 
+-- Variable handles, resolved on first use and kept: a name is a constant in a script, while
+-- looking one up is a dictionary hash and a map probe on every call.
+local navRemaining, patrolStop, moveTarget
+
+--! Resolves this script's handles, retrying until it succeeds. ctx:Key answers zero for a
+--! variable it could not resolve, and zero is truthy in Lua, so caching on "not nil" would
+--! freeze a failed lookup and leave every read here pointing at nothing.
+local function keys(ctx)
+    if (navRemaining or 0) ~= 0 then return end
+    navRemaining = ctx:Key("nav_remaining")
+    patrolStop = ctx:Key("patrol_stop")
+    moveTarget = ctx:Key("move_target")
+end
+
 -- A service turns polling into a blackboard write on a fixed interval. This one only picks a
 -- new corner once the last has been reached, which move_to reports through nav_remaining.
 behavior "PickTarget" {
     tick = function(me, ctx)
-        if ctx:GetFloat("nav_remaining") > 0.5 then
+        keys(ctx)
+        if ctx:GetFloat(navRemaining) > 0.5 then
             return
         end
 
-        local stop = (ctx:GetInt("patrol_stop") % #corners) + 1
-        ctx:SetInt("patrol_stop", stop)
-        ctx:SetVector3("move_target", corners[stop])
+        local stop = (ctx:GetInt(patrolStop) % #corners) + 1
+        ctx:SetInt(patrolStop, stop)
+        ctx:SetVector3(moveTarget, corners[stop])
     end,
 }
 
