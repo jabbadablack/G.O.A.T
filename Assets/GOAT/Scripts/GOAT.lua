@@ -37,6 +37,10 @@ local defaultProperty = {
     cooldown = "seconds",
     time_limit = "seconds",
     loop = "count",
+    task = "name",
+    primitive = "name",
+    subtask = "task",
+    effect = "key",
 }
 
 --! Lets a node be written as `name "x"`, as `name { ... }`, or as `name "x" { ... }`.
@@ -106,6 +110,13 @@ subtree = nodeType("subtree")
 
 -- Services attach to a composite rather than sitting in its child list.
 service = nodeType("service", true)
+
+-- Task networks. A domain is a node tree like any other, so it reaches C++ the same way.
+task = nodeType("task")
+method = nodeType("method")
+primitive = nodeType("primitive")
+subtask = nodeType("subtask")
+effect = nodeType("effect")
 
 --! Declares a node word contributed by a module gem, so `move_to "player_pos"` reads the same
 --! as a built-in. @mainProperty names the property the single string argument fills.
@@ -217,6 +228,19 @@ function backend(name)
 end
 
 --! Declares a tree: `tree "Guard" { selector { ... } }`.
+--! Declares a task network: `domain "Soldier" { task "Engage" { ... }, primitive "Slam" { ... } }`.
+--! Planning starts at the first task unless `root` names another.
+function domain(name)
+    return function(body)
+        assert(type(body) == "table", "a domain takes a table of tasks")
+        assert(GOAT._trees[name] == nil, "'" .. name .. "' is already declared")
+
+        local compiled = GOAT.Compile(name, nodeType("domain")(body))
+        GOAT._trees[name] = compiled
+        return compiled
+    end
+end
+
 function tree(name)
     return function(body)
         local root = body[1]

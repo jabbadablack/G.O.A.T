@@ -28,6 +28,13 @@ set(FILES
     Source/Core/Application/AgentRuntime.h
     Source/Core/Application/BackendRegistry.h
     Source/Core/Application/DecisionBackendRegistry.h
+    Source/Backends/Htn/HtnBackend.cpp
+    Source/Backends/Htn/HtnBackend.h
+    Source/Backends/Htn/HtnCompiler.cpp
+    Source/Backends/Htn/HtnCompiler.h
+    Source/Backends/Htn/HtnDomain.h
+    Source/Backends/Htn/HtnPlanner.cpp
+    Source/Backends/Htn/HtnPlanner.h
     Source/Backends/BehaviorTree/BehaviorTreeBackend.h
     Source/Backends/BehaviorTree/BehaviorTreeBackend.cpp
     Source/Backends/BehaviorTree/DecisionCursor.h
@@ -71,16 +78,8 @@ set(FILES
     Source/Core/Domain/Guard.cpp
     Source/Core/Domain/Intent.cpp
     Source/Core/Domain/NodeType.cpp
-    Source/Backends/BehaviorTree/BehaviorTreeBackend.h
-    Source/Backends/BehaviorTree/BehaviorTreeBackend.cpp
-    Source/Backends/BehaviorTree/DecisionCursor.h
-    Source/Backends/BehaviorTree/GuardEvaluator.h
-    Source/Backends/BehaviorTree/NodePredicate.h
-    Source/Backends/BehaviorTree/ServiceTracker.h
-    Source/Backends/BehaviorTree/TreeCompiler.h
     Source/Core/Frontend/TreeLibrary.cpp
     Source/Core/Frontend/TreeLibrary.h
-    Source/Backends/BehaviorTree/TreeWalker.h
     Source/Core/Scripting/AgentScriptContext.cpp
     Source/Core/Scripting/AgentScriptContext.h
     Source/Core/Scripting/LuaBackend.cpp

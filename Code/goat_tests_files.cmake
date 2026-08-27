@@ -1,6 +1,7 @@
 
 set(FILES
     Tests/Clients/GOATTest.cpp
+    Tests/Backends/HtnTests.cpp
     Tests/Domain/PlanStoreTests.cpp
     Tests/Frontend/TreeWalkerTests.cpp
     Tests/Application/AgentArchetypeTests.cpp
