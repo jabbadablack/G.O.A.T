@@ -140,7 +140,7 @@ namespace GOAT_Navigation
 
         const bool installed =
             InstallNavigationVerb(
-                m_vocabulary, AZStd::unique_ptr<GOAT::IActionState>(aznew MoveToAction(*m_service, *m_paths, m_keys)),
+                m_vocabulary, AZStd::unique_ptr<GOAT::IActionState>(aznew MoveToAction(*m_service, *m_paths, m_keys, *m_locomotion)),
                 "key", GOAT::BlackboardType::Vector3, "Walks to a position, publishing progress to the blackboard") &&
             InstallNavigationVerb(
                 m_vocabulary, AZStd::unique_ptr<GOAT::IActionState>(aznew IsAtLocationAction()),
@@ -170,6 +170,7 @@ namespace GOAT_Navigation
     {
         m_service = AZStd::make_unique<NavigationService>();
         m_paths = AZStd::make_unique<PathPool>();
+        m_locomotion = AZStd::make_unique<Locomotion>();
 
         GOAT_NavigationRequestBus::Handler::BusConnect();
         AZ::TickBus::Handler::BusConnect();
@@ -187,6 +188,7 @@ namespace GOAT_Navigation
 
         m_service.reset();
         m_paths.reset();
+        m_locomotion.reset();
 
         AZ_Assert(m_service == nullptr, "Deactivating must release the navigation service");
     }
@@ -214,12 +216,18 @@ namespace GOAT_Navigation
     }
 
     void GOAT_NavigationSystemComponent::OnTick(
-        [[maybe_unused]] float deltaTime, [[maybe_unused]] AZ::ScriptTimePoint time)
+        float deltaTime, [[maybe_unused]] AZ::ScriptTimePoint time)
     {
         AZ_Assert(m_service != nullptr, "The navigation service must exist while this component ticks");
         if (m_service != nullptr)
         {
             m_service->Update();
+        }
+
+        // Every frame, whatever band the agents themselves are on.
+        if (m_locomotion != nullptr)
+        {
+            m_locomotion->Advance(deltaTime);
         }
     }
 } // namespace GOAT_Navigation

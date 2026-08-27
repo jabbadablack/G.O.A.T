@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Navigation/Locomotion.h>
 #include <Navigation/NavigationKeys.h>
 #include <Navigation/NavigationService.h>
 #include <Navigation/PathPool.h>
@@ -61,6 +62,9 @@ namespace GOAT_Navigation
 
         AZStd::unique_ptr<NavigationService> m_service;
         AZStd::unique_ptr<PathPool> m_paths;
+        //! Carries moving agents between their ticks, so movement is frame smooth while
+        //! deciding stays on the band.
+        AZStd::unique_ptr<Locomotion> m_locomotion;
         NavigationKeys m_keys;
 
         //! What this module added to the core, removed again when it is destroyed.

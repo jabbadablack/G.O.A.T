@@ -6,6 +6,8 @@ set(FILES
     Source/Clients/GOAT_NavigationSystemComponent.h
     Source/Components/GOATNavMeshComponent.cpp
     Source/Components/GOATNavMeshComponent.h
+    Source/Navigation/Locomotion.cpp
+    Source/Navigation/Locomotion.h
     Source/Navigation/MoveToAction.cpp
     Source/Navigation/MoveToAction.h
     Source/Navigation/NavigationKeys.cpp
