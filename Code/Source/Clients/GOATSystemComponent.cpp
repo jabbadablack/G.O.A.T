@@ -139,13 +139,12 @@ namespace GOAT
 
         m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
 
-        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
-            *m_nodeTypes, *m_blackboardSystem, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_scriptContext);
+        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*this, *m_blackboardSystem, *m_trees);
         m_treeBackend = treeBackend.get();
         AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
         m_decisionBackends->Register(AZStd::move(installed));
 
-        auto htnBackend = AZStd::make_unique<HtnBackend>(*m_nodeTypes, *m_blackboardSystem, *m_actions);
+        auto htnBackend = AZStd::make_unique<HtnBackend>(*this, *m_blackboardSystem);
         AZStd::unique_ptr<IDecisionBackend> htn = AZStd::move(htnBackend);
         m_decisionBackends->Register(AZStd::move(htn));
 
@@ -984,6 +983,45 @@ namespace GOAT
         {
             m_agents->JoinSquad(agent, squad);
         }
+    }
+
+    AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> GOATSystemComponent::EmitProgram(
+        const AZ::Name& name)
+    {
+        if (m_dispatch == nullptr)
+        {
+            return AZ::Failure(AZStd::string("scripting is not running, so nothing can be emitted"));
+        }
+        return m_dispatch->EmitTree(name);
+    }
+
+    ActionStateId GOATSystemComponent::FindVerb(const AZ::Name& name) const
+    {
+        return m_actions != nullptr ? m_actions->FindId(name) : CoreActions::Invalid;
+    }
+
+    const NodeTypeDescriptor* GOATSystemComponent::FindNodeType(const AZ::Name& name) const
+    {
+        return m_nodeTypes != nullptr ? m_nodeTypes->Find(name) : nullptr;
+    }
+
+    IBackend* GOATSystemComponent::FindBackend(const AZ::Name& name) const
+    {
+        return m_backends != nullptr ? m_backends->Find(name) : nullptr;
+    }
+
+    ActionResult GOATSystemComponent::CallBehavior(
+        const AZ::Name& behavior, const char* phase, AgentId agent, float deltaTime)
+    {
+        if (m_dispatch == nullptr || m_scriptContext == nullptr)
+        {
+            return ActionResult::Failure;
+        }
+
+        m_scriptContext->Bind(agent, GetAgentEntity(agent), m_blackboardSystem.get());
+        const ActionResult result = m_dispatch->CallBehavior(behavior, phase, agent, *m_scriptContext, deltaTime);
+        m_scriptContext->Unbind();
+        return result;
     }
 
     void GOATSystemComponent::WakeAgents(AZStd::span<const AgentId> agents)

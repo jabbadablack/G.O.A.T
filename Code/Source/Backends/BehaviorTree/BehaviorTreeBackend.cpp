@@ -14,20 +14,10 @@ namespace GOAT
     } // namespace
 
     BehaviorTreeBackend::BehaviorTreeBackend(
-        const NodeTypeRegistry& nodeTypes,
-        IBlackboardSystem& blackboard,
-        const TreeLibrary& trees,
-        const ActionStateRegistry& actions,
-        const BackendRegistry& backends,
-        LuaDispatch& dispatch,
-        AgentScriptContext& scriptContext)
-        : m_nodeTypes(nodeTypes)
+        IAgentSystem& host, IBlackboardSystem& blackboard, const TreeLibrary& trees)
+        : m_host(host)
         , m_blackboard(blackboard)
         , m_trees(trees)
-        , m_actions(actions)
-        , m_backends(backends)
-        , m_dispatch(dispatch)
-        , m_scriptContext(scriptContext)
     {
     }
 
@@ -43,12 +33,11 @@ namespace GOAT
 
     AZStd::vector<AZ::Name> BehaviorTreeBackend::GetNodeTypes() const
     {
-        AZStd::vector<AZ::Name> names;
-        for (const NodeTypeDescriptor* descriptor : m_nodeTypes.GetAll())
-        {
-            names.push_back(descriptor->m_name);
-        }
-        return names;
+        return { AZ_NAME_LITERAL("selector"), AZ_NAME_LITERAL("sequence"), AZ_NAME_LITERAL("parallel"),
+                 AZ_NAME_LITERAL("invert"), AZ_NAME_LITERAL("force_success"), AZ_NAME_LITERAL("cooldown"),
+                 AZ_NAME_LITERAL("loop"), AZ_NAME_LITERAL("conditional_loop"), AZ_NAME_LITERAL("time_limit"),
+                 AZ_NAME_LITERAL("composite"), AZ_NAME_LITERAL("decorator"), AZ_NAME_LITERAL("service"),
+                 AZ_NAME_LITERAL("subtree") };
     }
 
     size_t BehaviorTreeBackend::GetStateSize() const
@@ -64,7 +53,7 @@ namespace GOAT
 
     CompileOutcome BehaviorTreeBackend::Compile(const AZ::Name& name, const AuthoredNode& root)
     {
-        const TreeCompiler compiler(m_nodeTypes, m_blackboard, m_trees, m_actions);
+        const TreeCompiler compiler(m_host, m_blackboard, m_trees);
         auto compiled = compiler.Compile(name, root);
         if (!compiled.IsSuccess())
         {
@@ -119,7 +108,6 @@ namespace GOAT
             return;
         }
 
-        m_scriptContext.Bind(context.m_agent, context.m_entity, context.m_blackboard);
         for (const AZ::u32 service : due)
         {
             AZ_Assert(service < program.m_services.size(), "A due service must address a compiled service");
@@ -127,11 +115,9 @@ namespace GOAT
             const DecisionService& declared = program.m_services[service];
             if (!declared.m_behavior.IsEmpty())
             {
-                m_dispatch.CallBehavior(declared.m_behavior, "tick", context.m_agent, m_scriptContext,
-                    declared.m_interval);
+                m_host.CallBehavior(declared.m_behavior, "tick", context.m_agent, declared.m_interval);
             }
         }
-        m_scriptContext.Unbind();
     }
 
     bool BehaviorTreeBackend::SatisfyIntent(
@@ -155,7 +141,7 @@ namespace GOAT
             return true;
         }
 
-        IBackend* backend = m_backends.Find(intent.m_backend);
+        IBackend* backend = m_host.FindBackend(intent.m_backend);
         if (backend == nullptr)
         {
             AZ_Warning("GOAT", false, "No backend named '%s' is installed", intent.m_backend.GetCStr());

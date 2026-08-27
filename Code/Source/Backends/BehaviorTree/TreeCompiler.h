@@ -1,11 +1,10 @@
 #pragma once
 
-#include <Core/Application/ActionStateRegistry.h>
-#include <Core/Application/NodeTypeRegistry.h>
 #include <Core/Frontend/TreeLibrary.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
 #include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT/Interfaces/IAgentSystem.h>
 #include <GOAT/Interfaces/IBlackboardSystem.h>
 
 #include <AzCore/Outcome/Outcome.h>
@@ -19,11 +18,7 @@ namespace GOAT
     class TreeCompiler final
     {
     public:
-        TreeCompiler(
-            const NodeTypeRegistry& types,
-            const IBlackboardSystem& blackboard,
-            const TreeLibrary& library,
-            const ActionStateRegistry& actions);
+        TreeCompiler(IAgentSystem& host, const IBlackboardSystem& blackboard, const TreeLibrary& library);
 
         //! Compiles an authored tree. On failure the message names the offending node.
         AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AZ::Name& name, const AuthoredNode& root) const;
@@ -53,9 +48,8 @@ namespace GOAT
         AZ::Outcome<void, AZStd::string> Validate(
             const AuthoredNode& authored, const NodeTypeDescriptor& descriptor) const;
 
-        const NodeTypeRegistry& m_types;
+        IAgentSystem& m_host;
         const IBlackboardSystem& m_blackboard;
         const TreeLibrary& m_library;
-        const ActionStateRegistry& m_actions;
     };
 } // namespace GOAT

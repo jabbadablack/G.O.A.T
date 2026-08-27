@@ -60,11 +60,9 @@ namespace GOAT
         return InvalidTask;
     }
 
-    HtnCompiler::HtnCompiler(
-        const NodeTypeRegistry& nodeTypes, const IBlackboardSystem& blackboard, const ActionStateRegistry& actions)
-        : m_nodeTypes(nodeTypes)
+    HtnCompiler::HtnCompiler(IAgentSystem& host, const IBlackboardSystem& blackboard)
+        : m_host(host)
         , m_blackboard(blackboard)
-        , m_actions(actions)
     {
     }
 
@@ -93,7 +91,7 @@ namespace GOAT
     {
         // Read through the word's own declared properties, the way a tree reads them, so a
         // primitive can run any verb a module contributed rather than the few named here.
-        const NodeTypeDescriptor* descriptor = m_nodeTypes.Find(AZ::Name(authored.m_type));
+        const NodeTypeDescriptor* descriptor = m_host.FindNodeType(AZ::Name(authored.m_type));
         if (descriptor == nullptr)
         {
             return AZ::Failure(AZStd::string::format("'%s' is not a word any backend registered",
@@ -160,7 +158,7 @@ namespace GOAT
 
         // `raw` spends its own name saying which verb to run, so its payload is what it carries.
         const AZ::Name verbName = isRaw ? tag : AZ::Name(authored.m_type);
-        const ActionStateId verb = m_actions.FindId(verbName);
+        const ActionStateId verb = m_host.FindVerb(verbName);
         if (verb == CoreActions::Invalid)
         {
             return AZ::Failure(AZStd::string::format("'%s' runs verb '%s', which no module has registered",

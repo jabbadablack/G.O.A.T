@@ -4,13 +4,9 @@
 #include <Backends/BehaviorTree/GuardEvaluator.h>
 #include <Backends/BehaviorTree/ServiceTracker.h>
 #include <Backends/BehaviorTree/TreeWalker.h>
-#include <Core/Application/ActionStateRegistry.h>
-#include <Core/Application/BackendRegistry.h>
-#include <Core/Application/NodeTypeRegistry.h>
 #include <Core/Frontend/TreeLibrary.h>
-#include <Core/Scripting/AgentScriptContext.h>
-#include <Core/Scripting/LuaDispatch.h>
 
+#include <GOAT/Interfaces/IAgentSystem.h>
 #include <GOAT/Interfaces/IDecisionBackend.h>
 
 namespace GOAT
@@ -23,14 +19,7 @@ namespace GOAT
         AZ_RTTI(BehaviorTreeBackend, "{2B7F49A1-63C8-4E5D-9A02-8F1D4C60E735}", IDecisionBackend);
         AZ_CLASS_ALLOCATOR(BehaviorTreeBackend, AZ::SystemAllocator);
 
-        BehaviorTreeBackend(
-            const NodeTypeRegistry& nodeTypes,
-            IBlackboardSystem& blackboard,
-            const TreeLibrary& trees,
-            const ActionStateRegistry& actions,
-            const BackendRegistry& backends,
-            LuaDispatch& dispatch,
-            AgentScriptContext& scriptContext);
+        BehaviorTreeBackend(IAgentSystem& host, IBlackboardSystem& blackboard, const TreeLibrary& trees);
 
         //! Name a tree agent is registered under.
         static AZ::Name GetBackendName();
@@ -56,13 +45,9 @@ namespace GOAT
         bool SatisfyIntent(const PlanContext& context, const DecisionProgram& program,
             const Intent& intent, ActionPlan& outPlan) const;
 
-        const NodeTypeRegistry& m_nodeTypes;
+        IAgentSystem& m_host;
         IBlackboardSystem& m_blackboard;
         const TreeLibrary& m_trees;
-        const ActionStateRegistry& m_actions;
-        const BackendRegistry& m_backends;
-        LuaDispatch& m_dispatch;
-        AgentScriptContext& m_scriptContext;
         TreeWalker m_walker;
         GuardEvaluator m_guards;
         ServiceTracker m_services;

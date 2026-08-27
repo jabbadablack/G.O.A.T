@@ -103,6 +103,16 @@ namespace GOAT
         void OnCatalogLoaded(const char* catalogFile) override;
         ////////////////////////////////////////////////////////////////////////
 
+        //! What a backend may reach of the core.
+        AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitProgram(
+            const AZ::Name& name) override;
+        ActionStateId FindVerb(const AZ::Name& name) const override;
+        const NodeTypeDescriptor* FindNodeType(const AZ::Name& name) const override;
+        IBackend* FindBackend(const AZ::Name& name) const override;
+        ActionResult CallBehavior(
+            const AZ::Name& behavior, const char* phase, AgentId agent, float deltaTime) override;
+        ////////////////////////////////////////////////////////////////////////
+
         ////////////////////////////////////////////////////////////////////////
         // GOATBackendRequestBus
         bool RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend) override;

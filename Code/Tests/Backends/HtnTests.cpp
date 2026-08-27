@@ -5,6 +5,7 @@
 #include <Backends/Htn/HtnPlanner.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
+#include <TestAgentSystem.h>
 
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/UnitTest/TestTypes.h>
@@ -44,6 +45,7 @@ namespace GOAT
 
             // `wait` is a built-in word; `shout` stands in for one a module contributed.
             m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
+            m_host = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions);
             NodeTypeDescriptor shout;
             shout.m_name = AZ_NAME_LITERAL("shout");
             shout.m_kind = NodeKind::Leaf;
@@ -56,6 +58,7 @@ namespace GOAT
 
         void TearDown() override
         {
+            m_host.reset();
             m_nodeTypes.reset();
             m_actions.reset();
             m_blackboard.reset();
@@ -123,7 +126,7 @@ namespace GOAT
 
         AZ::Outcome<HtnDomain, AZStd::string> Compile(const AuthoredNode& root) const
         {
-            const HtnCompiler compiler(*m_nodeTypes, *m_blackboard, *m_actions);
+            const HtnCompiler compiler(*m_host, *m_blackboard);
             return compiler.Compile(AZ::Name("Test"), root);
         }
 
@@ -164,6 +167,7 @@ namespace GOAT
         AZStd::unique_ptr<BlackboardSystem> m_blackboard;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
+        AZStd::unique_ptr<TestAgentSystem> m_host;
     };
 
     TEST_F(HtnFixture, Plan_DecomposesACompoundTaskIntoItsSubtasks)
@@ -377,7 +381,7 @@ namespace GOAT
         root.m_children.push_back(engage);
         root.m_children.push_back(Primitive("Shout", "shout"));
 
-        HtnBackend backend(*m_nodeTypes, *m_blackboard, *m_actions);
+        HtnBackend backend(*m_host, *m_blackboard);
         auto compiled = backend.Compile(AZ::Name("Soldier"), root);
         ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
 

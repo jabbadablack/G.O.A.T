@@ -118,15 +118,10 @@ namespace GOAT
         }
     } // namespace
 
-    TreeCompiler::TreeCompiler(
-        const NodeTypeRegistry& types,
-        const IBlackboardSystem& blackboard,
-        const TreeLibrary& library,
-        const ActionStateRegistry& actions)
-        : m_types(types)
+    TreeCompiler::TreeCompiler(IAgentSystem& host, const IBlackboardSystem& blackboard, const TreeLibrary& library)
+        : m_host(host)
         , m_blackboard(blackboard)
         , m_library(library)
-        , m_actions(actions)
     {
     }
 
@@ -313,7 +308,7 @@ namespace GOAT
         program.m_depth = AZStd::max(program.m_depth, depth + 1);
 
         const AZ::Name typeName(authored.m_type);
-        const NodeTypeDescriptor* descriptor = m_types.Find(typeName);
+        const NodeTypeDescriptor* descriptor = m_host.FindNodeType(typeName);
         if (descriptor == nullptr)
         {
             return AZ::Failure(AZStd::string::format("Unknown node type '%s'", authored.m_type.c_str()));
@@ -435,7 +430,7 @@ namespace GOAT
             const bool isRaw = typeName == AZ_NAME_LITERAL("raw");
             const AZ::Name verbName = isRaw ? node.m_tag : typeName;
 
-            const ActionStateId verb = m_actions.FindId(verbName);
+            const ActionStateId verb = m_host.FindVerb(verbName);
             if (verb == CoreActions::Invalid)
             {
                 return AZ::Failure(AZStd::string::format(
@@ -507,7 +502,7 @@ namespace GOAT
             const AZ::u32 firstService = aznumeric_cast<AZ::u32>(program.m_services.size());
             for (const AuthoredNode& authoredService : authored.m_services)
             {
-                const NodeTypeDescriptor* serviceType = m_types.Find(AZ::Name(authoredService.m_type));
+                const NodeTypeDescriptor* serviceType = m_host.FindNodeType(AZ::Name(authoredService.m_type));
                 if (serviceType == nullptr || serviceType->m_kind != NodeKind::Service)
                 {
                     return AZ::Failure(AZStd::string::format(
