@@ -75,6 +75,7 @@ namespace GOAT
         raw->m_treeName = treeName;
         raw->m_band = band;
         raw->m_cursor.Reset(*raw->m_program);
+        raw->m_wakeAt = 0.0f;
 
         // The tree it starts in is always one it may run, whatever was declared. Without this an
         // entity that listed nothing could never be returned to where it began.
@@ -280,6 +281,10 @@ namespace GOAT
         record->m_program = AZStd::move(program);
         record->m_treeName = treeName;
         record->m_cursor.Reset(*record->m_program);
+
+        // A different tree is about to run, so whatever the previous one was waiting for says
+        // nothing about this one. Zero means walk it on the next tick.
+        record->m_wakeAt = 0.0f;
 
         record->m_observer.Disconnect();
         record->m_observer.Connect(*record->m_program, m_blackboard, agent);

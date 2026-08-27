@@ -62,6 +62,11 @@ namespace GOAT
         //! not sanction. Set once at registration and read on every switch request.
         AZStd::vector<AZ::Name> m_repertoire;
 
+        //! Earliest time a cooldown that turned this agent's last walk away expires. Together
+        //! with the observer's dirty flag it is the whole wake condition: a tree that found no
+        //! work is not walked again until a slot it guards on changes or this comes due.
+        float m_wakeAt = 0.0f;
+
         //! Which pacing band this agent belongs to, which is its level of detail.
         size_t m_band = 0;
 

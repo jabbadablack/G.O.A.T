@@ -209,11 +209,11 @@ namespace GOAT
         EXPECT_EQ(m_blackboard->TakeLookups(), 1u);
     }
 
-    //! And it must keep costing that little on every later tick rather than creeping up.
-    TEST_F(AgentRuntimeFixture, Tick_CostsTheSameOnEveryIdleTick)
+    //! Ten idle ticks cost one walk between them, not one each. This is the number the whole
+    //! wake condition exists to hold down, so it is stated as a total rather than per tick.
+    TEST_F(AgentRuntimeFixture, Tick_CostsOneWalkAcrossManyIdleTicks)
     {
         BuildGuardedTree(false);
-        m_runtime->Tick(m_agent, 0.033f);
 
         m_blackboard->TakeLookups();
         for (int i = 0; i < 10; ++i)
@@ -221,7 +221,82 @@ namespace GOAT
             m_runtime->Tick(m_agent, 0.033f);
         }
 
-        EXPECT_EQ(m_blackboard->TakeLookups(), 10u);
+        EXPECT_EQ(m_blackboard->TakeLookups(), 1u);
+    }
+
+    //! Once a tree has found no work, walking it again cannot find any until something it
+    //! reads changes. So the second and later idle ticks must read nothing at all.
+    TEST_F(AgentRuntimeFixture, Tick_ReadsNothingWhileDormant)
+    {
+        BuildGuardedTree(false);
+        m_runtime->Tick(m_agent, 0.033f);
+
+        m_blackboard->TakeLookups();
+        for (int i = 0; i < 20; ++i)
+        {
+            m_runtime->Tick(m_agent, 0.033f);
+        }
+
+        EXPECT_EQ(m_blackboard->TakeLookups(), 0u);
+    }
+
+    //! Dormancy must not become deafness: a write to an observed slot has to wake the agent.
+    TEST_F(AgentRuntimeFixture, Tick_WakesWhenAnObservedSlotChanges)
+    {
+        BuildGuardedTree(false);
+        m_agent.m_observer.Connect(*m_agent.m_program, *m_blackboard, m_agent.m_id);
+
+        m_runtime->Tick(m_agent, 0.033f);
+        m_runtime->Tick(m_agent, 0.033f);
+        EXPECT_FALSE(m_agent.m_machine.HasPlan());
+
+        m_blackboard->Set<bool>(m_gate, true, m_agent.m_id);
+        m_runtime->Tick(m_agent, 0.033f);
+
+        EXPECT_TRUE(m_agent.m_machine.HasPlan());
+        m_agent.m_observer.Disconnect();
+    }
+
+    //! A cooldown is the one thing that makes an idle tree runnable again with no blackboard
+    //! write at all, so the agent has to come back by itself when it expires. Getting this
+    //! wrong is not a slow agent, it is one that never runs again.
+    TEST_F(AgentRuntimeFixture, Tick_WakesWhenACooldownExpires)
+    {
+        DecisionProgram* program = aznew DecisionProgram();
+        program->m_name = AZ::Name("Cooling");
+
+        DecisionNode root;
+        root.m_op = NodeOp::Cooldown;
+        root.m_parent = InvalidNodeIndex;
+        root.m_firstChild = 1;
+        root.m_childCount = 1;
+        root.m_subtreeEnd = 2;
+        root.m_amount = 1.0f;
+        program->m_nodes.push_back(root);
+
+        DecisionNode leaf;
+        leaf.m_op = NodeOp::Action;
+        leaf.m_parent = 0;
+        leaf.m_subtreeEnd = 2;
+        leaf.m_action.m_action = m_holdId;
+        program->m_nodes.push_back(leaf);
+
+        m_agent.m_program = AZStd::shared_ptr<const DecisionProgram>(program);
+        m_agent.m_cursor.Reset(*m_agent.m_program);
+
+        // Already cooling, with half a second left to run.
+        m_agent.m_cursor.Deadline(0) = 0.5f;
+
+        m_runtime->Tick(m_agent, 0.1f);
+        EXPECT_FALSE(m_agent.m_machine.HasPlan());
+
+        // Still cooling: the agent stays asleep rather than re-walking a tree that cannot move.
+        m_runtime->Tick(m_agent, 0.1f);
+        EXPECT_FALSE(m_agent.m_machine.HasPlan());
+
+        // Past the deadline, and nothing wrote to the blackboard to say so.
+        m_runtime->Tick(m_agent, 0.5f);
+        EXPECT_TRUE(m_agent.m_machine.HasPlan());
     }
 
     //! An open guard still has to produce work, so the saving above is not simply the agent

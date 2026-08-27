@@ -1,5 +1,7 @@
 #pragma once
 
+#include <AzCore/std/limits.h>
+
 #include <Core/Frontend/DecisionCursor.h>
 
 #include <GOAT/Domain/DecisionProgram.h>
@@ -23,6 +25,11 @@ namespace GOAT
         Intent m_intent;
         //! Valid only when the outcome is Finished.
         ActionResult m_result = ActionResult::Success;
+        //! Valid only when the outcome is Finished: the earliest time a cooldown this walk was
+        //! turned away by expires, or infinity when no cooldown blocked it. A finished tree can
+        //! only start deciding differently when a slot it guards on changes or one of these comes
+        //! due, because a predicate reads the blackboard and a cooldown reads the clock.
+        float m_wakeAt = AZStd::numeric_limits<float>::max();
     };
 
     //! Walks a compiled tree for one agent, producing one intent at a time.

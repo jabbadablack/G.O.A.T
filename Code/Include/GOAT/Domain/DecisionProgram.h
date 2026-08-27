@@ -98,6 +98,11 @@ namespace GOAT
         //! Recorded here because the compiler that resolved them is the only thing that knows,
         //! and a separate index would be a second invariant to keep in step with this one.
         AZStd::vector<AZ::Name> m_boundSlots;
+        //! True when this tree contains a composite or decorator whose control flow is written in
+        //! Lua. Such a node can read anything a script can reach, so a walk of this tree cannot be
+        //! predicted from the blackboard and the clock alone and the agent is never left dormant.
+        //! Recorded by the compiler, which is the only thing that knows what it emitted.
+        bool m_pollEveryTick = false;
         //! Deepest path in this tree, checked against MaxTreeDepth at compile time.
         AZ::u32 m_depth = 0;
     };

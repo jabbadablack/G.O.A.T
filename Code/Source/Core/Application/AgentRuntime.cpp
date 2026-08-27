@@ -39,6 +39,10 @@ namespace GOAT
         ActionContext actionContext = MakeActionContext(agent);
         agent.m_machine.Abort(m_actions, actionContext);
 
+        // Aborting drops the plan, so the tree has to be walked again rather than left waiting
+        // on whatever the last walk was blocked by.
+        agent.m_wakeAt = 0.0f;
+
         AZ_Assert(!agent.m_machine.HasPlan(), "Aborting must leave the agent with no plan to continue");
     }
 
@@ -90,6 +94,10 @@ namespace GOAT
         // The running action is interrupted either way, so end it before the walk moves.
         ActionContext actionContext = MakeActionContext(agent);
         agent.m_machine.Abort(m_actions, actionContext);
+
+        // Aborting drops the plan, so the tree has to be walked again rather than left waiting
+        // on whatever the last walk was blocked by.
+        agent.m_wakeAt = 0.0f;
 
         if (decision.m_action == AbortAction::Restart)
         {
@@ -184,6 +192,17 @@ namespace GOAT
 
         AZ_Assert(deltaTime >= 0.0f, "An agent cannot be ticked backwards in time");
         agent.m_cursor.AdvanceClock(deltaTime);
+
+        // Dormant: the last walk of this tree found no work, and neither of the two things that
+        // could change that has happened. A predicate reads the blackboard and a cooldown reads
+        // the clock, so if no observed slot has changed and no cooldown has come due, walking
+        // again would evaluate the same conditions and reach the same answer.
+        if (!agent.m_machine.HasPlan() && !agent.m_observer.IsDirty() &&
+            !agent.m_program->m_pollEveryTick && agent.m_cursor.GetNow() < agent.m_wakeAt)
+        {
+            return;
+        }
+
         const PlanContext planContext = MakePlanContext(agent);
 
         WalkStep step;
@@ -227,6 +246,7 @@ namespace GOAT
                 // rather than something to ask again.
                 if (walkedFromRoot)
                 {
+                    agent.m_wakeAt = step.m_wakeAt;
                     return;
                 }
 
@@ -235,6 +255,7 @@ namespace GOAT
                 walkedFromRoot = true;
                 if (step.m_outcome == WalkOutcome::Finished)
                 {
+                    agent.m_wakeAt = step.m_wakeAt;
                     return;
                 }
             }

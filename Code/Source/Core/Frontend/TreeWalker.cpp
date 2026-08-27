@@ -14,11 +14,12 @@ namespace GOAT
     {
         //! Builds a step reporting that the tree finished.
         //! Written out rather than brace initialised because AZ::EntityId's default constructor is explicit.
-        WalkStep Finished(ActionResult result)
+        WalkStep Finished(ActionResult result, float wakeAt = AZStd::numeric_limits<float>::max())
         {
             WalkStep step;
             step.m_outcome = WalkOutcome::Finished;
             step.m_result = result;
+            step.m_wakeAt = wakeAt;
             return step;
         }
 
@@ -168,6 +169,10 @@ namespace GOAT
         AZ_Assert(node == InvalidNodeIndex || node < program.m_nodes.size(),
             "A walk only ever starts at a node in the program");
 
+        // The soonest a cooldown turned this walk away. Carried out with the finished step so an
+        // agent that found no work knows whether waiting could ever change that.
+        float wakeAt = AZStd::numeric_limits<float>::max();
+
         while (node != InvalidNodeIndex)
         {
             AZ_Assert(node < program.m_nodes.size(), "The walk stepped outside the program");
@@ -207,6 +212,7 @@ namespace GOAT
                     // Still cooling down, so the guarded subtree is not entered at all.
                     if (cursor.Deadline(node) > cursor.GetNow())
                     {
+                        wakeAt = AZStd::min(wakeAt, cursor.Deadline(node));
                         result = ActionResult::Failure;
                         bubbling = true;
                         continue;
@@ -285,7 +291,7 @@ namespace GOAT
             const NodeIndex parentIndex = program.m_nodes[node].m_parent;
             if (parentIndex == InvalidNodeIndex)
             {
-                return Finished(result);
+                return Finished(result, wakeAt);
             }
 
             AZ_Assert(parentIndex < node, "A parent always precedes its children in pre-order");
@@ -444,6 +450,6 @@ namespace GOAT
             }
         }
 
-        return Finished(result);
+        return Finished(result, wakeAt);
     }
 } // namespace GOAT

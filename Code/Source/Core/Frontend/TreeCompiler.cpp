@@ -599,6 +599,18 @@ namespace GOAT
         program.m_observedKeys.erase(
             AZStd::unique(program.m_observedKeys.begin(), program.m_observedKeys.end()), program.m_observedKeys.end());
 
+        // A Lua composite or decorator decides in script, so what it does cannot be predicted
+        // from the blackboard and the clock. Noting it here is what lets every other tree be left
+        // dormant when nothing it reads has changed, without guessing which trees are safe.
+        for (const DecisionNode& node : program.m_nodes)
+        {
+            if (node.m_op == NodeOp::LuaComposite || node.m_op == NodeOp::LuaDecorator)
+            {
+                program.m_pollEveryTick = true;
+                break;
+            }
+        }
+
         AZ_Assert(program.m_nodes[0].m_subtreeEnd == program.m_nodes.size(),
             "The root's subtree must span the whole program");
 
