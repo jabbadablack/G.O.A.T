@@ -52,8 +52,9 @@ namespace GOAT
         //! Runs the services whose subtree the agent is currently inside.
         void TickServices(const PlanContext& context, const DecisionProgram& program, DecisionCursor& cursor);
 
-        //! Turns an intent into a plan, through whichever backend the leaf named.
-        bool SatisfyIntent(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) const;
+        //! Turns an intent into a plan: the leaf's own request, or whatever it delegated to.
+        bool SatisfyIntent(const PlanContext& context, const DecisionProgram& program,
+            const Intent& intent, ActionPlan& outPlan) const;
 
         const NodeTypeRegistry& m_nodeTypes;
         IBlackboardSystem& m_blackboard;

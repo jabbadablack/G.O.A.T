@@ -19,7 +19,7 @@ namespace GOAT
         AZ::EntityId m_entity;
         //! Shared data, the only thing a backend and the tree have in common.
         IBlackboardSystem* m_blackboard = nullptr;
-        //! User defined control flow, when any is installed. Backends do not use this.
+        //! User defined control flow, when any is installed.
         INodeScripting* m_scripting = nullptr;
         //! Where a backend puts the steps it produces. A plan is a span into this rather than a
         //! buffer of its own, which is what lets a plan be any length.

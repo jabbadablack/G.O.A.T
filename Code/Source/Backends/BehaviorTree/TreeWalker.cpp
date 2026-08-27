@@ -1,6 +1,5 @@
 #include <Backends/BehaviorTree/TreeWalker.h>
 
-#include <Core/Frontend/DirectBackend.h>
 #include <Backends/BehaviorTree/NodePredicate.h>
 
 #include <GOAT/Interfaces/INodeScripting.h>
@@ -62,26 +61,14 @@ namespace GOAT
         Intent intent;
         intent.m_node = index;
 
-        switch (node.m_op)
+        // Only a delegate names somebody else. An action or a script leaf already carries the
+        // request it wants run, so nothing has to be asked what it means.
+        if (node.m_op == NodeOp::Delegate)
         {
-        case NodeOp::Action:
-            intent.m_backend = DirectBackend::GetBackendName();
-            intent.m_direct = node.m_action;
-            break;
-        case NodeOp::Script:
-            intent.m_backend = DirectBackend::GetBackendName();
-            intent.m_direct.m_action = CoreActions::RunScript;
-            intent.m_direct.m_tag = node.m_tag;
-            break;
-        case NodeOp::Delegate:
             intent.m_backend = node.m_tag;
             intent.m_goal = node.m_goal;
-            break;
-        default:
-            break;
         }
 
-        AZ_Assert(!intent.m_backend.IsEmpty(), "Every intent names the backend that must satisfy it");
         return intent;
     }
 

@@ -330,16 +330,6 @@ function GOAT_EmitTree(treeName, builder)
     return true
 end
 
---! Names every tree declared so far, so C++ can discover what a file produced.
-function GOAT_TreeNames()
-    local names = {}
-    for name in pairs(GOAT._trees) do
-        table.insert(names, name)
-    end
-    table.sort(names)
-    return names
-end
-
 --! Hands every declared tree name to a C++ collector, whether or not it has compiled.
 --! Told apart from what the agent system lists, which is only the trees that compiled: a tree
 --! whose subtree slot was unbound failed, and rebinding that slot has to be able to find it again.

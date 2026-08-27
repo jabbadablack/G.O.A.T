@@ -53,9 +53,6 @@ namespace GOAT_SmartObject
         bool InstallVocabulary();
 
 
-        //! Registers one verb together with the word that runs it.
-        bool InstallVerb(AZStd::unique_ptr<GOAT::IActionState> action, GOAT::NodeTypeDescriptor descriptor);
-
         AZStd::unique_ptr<SmartObjectRegistry> m_registry;
         SmartObjectKeys m_keys;
 

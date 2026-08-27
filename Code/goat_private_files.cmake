@@ -71,8 +71,6 @@ set(FILES
     Source/Core/Domain/Guard.cpp
     Source/Core/Domain/Intent.cpp
     Source/Core/Domain/NodeType.cpp
-    Source/Core/Frontend/DirectBackend.cpp
-    Source/Core/Frontend/DirectBackend.h
     Source/Backends/BehaviorTree/BehaviorTreeBackend.h
     Source/Backends/BehaviorTree/BehaviorTreeBackend.cpp
     Source/Backends/BehaviorTree/DecisionCursor.h

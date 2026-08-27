@@ -6,7 +6,6 @@
 #include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
-#include <Core/Frontend/DirectBackend.h>
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
 #include <Core/Scripting/LuaNodeScripting.h>
@@ -100,12 +99,6 @@ namespace GOAT
             m_blackboard = AZStd::make_unique<CountingBlackboard>(*m_inner);
             m_actions = AZStd::make_unique<ActionStateRegistry>();
             m_backends = AZStd::make_unique<BackendRegistry>("backend");
-            m_directBackend = AZStd::make_unique<DirectBackend>();
-
-            // Registered as well as passed by reference, because a plainly authored leaf names
-            // the direct backend rather than leaving the name empty, so the runtime reaches it
-            // through the registry and never through the reference it also holds.
-            m_backends->Register(AZStd::make_unique<DirectBackend>());
             m_dispatch = AZStd::make_unique<LuaDispatch>();
             m_scriptContext = AZStd::make_unique<AgentScriptContext>();
             m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
@@ -137,7 +130,6 @@ namespace GOAT
             m_scripting.reset();
             m_scriptContext.reset();
             m_dispatch.reset();
-            m_directBackend.reset();
             m_backends.reset();
             m_actions.reset();
             m_blackboard.reset();
@@ -220,7 +212,6 @@ namespace GOAT
         AZStd::unique_ptr<CountingBlackboard> m_blackboard;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
-        AZStd::unique_ptr<DirectBackend> m_directBackend;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
         AZStd::unique_ptr<AgentScriptContext> m_scriptContext;
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;

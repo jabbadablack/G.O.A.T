@@ -33,7 +33,7 @@ namespace GOAT
 
     AZ::Name BehaviorTreeBackend::GetBackendName()
     {
-        return AZ_NAME_LITERAL("bt");
+        return AZ_NAME_LITERAL("tree");
     }
 
     AZ::Name BehaviorTreeBackend::GetName() const
@@ -135,8 +135,26 @@ namespace GOAT
     }
 
     bool BehaviorTreeBackend::SatisfyIntent(
-        const PlanContext& context, const Intent& intent, ActionPlan& outPlan) const
+        const PlanContext& context, const DecisionProgram& program, const Intent& intent, ActionPlan& outPlan) const
     {
+        AZ_Assert(context.m_planStore != nullptr, "Producing a plan needs somewhere to put its steps");
+        AZ_Assert(intent.m_node < program.m_nodes.size(), "An intent always comes from a node in the program");
+
+        // An inline leaf is the whole plan already. Handing it to a backend to be copied back
+        // out again was a round trip that decided nothing.
+        if (intent.m_backend.IsEmpty())
+        {
+            const ActionRequest& request = program.m_nodes[intent.m_node].m_action;
+            if (request.m_action == CoreActions::Invalid)
+            {
+                AZ_Error("GOAT", false, "Node %u names no registered verb", intent.m_node);
+                return false;
+            }
+
+            outPlan.m_span = context.m_planStore->Acquire(&request, 1);
+            return true;
+        }
+
         IBackend* backend = m_backends.Find(intent.m_backend);
         if (backend == nullptr)
         {
@@ -197,7 +215,7 @@ namespace GOAT
 
             AZ_Assert(step.m_outcome == WalkOutcome::Intent, "A walk that is not finished must carry an intent");
 
-            if (SatisfyIntent(context, step.m_intent, outPlan))
+            if (SatisfyIntent(context, tree, step.m_intent, outPlan))
             {
                 decision.m_planned = true;
                 return decision;

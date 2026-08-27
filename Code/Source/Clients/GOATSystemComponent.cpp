@@ -4,7 +4,6 @@
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
 #include <Core/Director/DirectorActions.h>
-#include <Core/Frontend/DirectBackend.h>
 #include <Core/Scripting/LuaBackend.h>
 #include <Core/Scripting/LuaNameCollector.h>
 #include <Core/Scripting/LuaPlanBuilder.h>
@@ -135,13 +134,6 @@ namespace GOAT
         m_dispatch = AZStd::make_unique<LuaDispatch>();
         m_scriptContext = AZStd::make_unique<AgentScriptContext>();
 
-        // The direct backend is frontend plumbing, not a backend algorithm: it is what lets a
-        // plainly authored leaf reach the state machine by the same route as a plan. It is
-        // registered like any other backend so a leaf naming it by name resolves normally.
-        auto direct = AZStd::make_unique<DirectBackend>();
-        m_directBackend = direct.get();
-        m_backends->Register(AZStd::move(direct));
-
         m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitAction>());
         m_actions->RegisterAt(CoreActions::RunScript, AZStd::make_unique<RunScriptAction>(*m_dispatch, *m_scriptContext));
 
@@ -182,7 +174,6 @@ namespace GOAT
         m_reachFilters.reset();
         m_agents.reset();
         m_runtime.reset();
-        m_directBackend = nullptr;
         m_scripting.reset();
         m_scriptContext.reset();
         if (m_dispatch != nullptr)

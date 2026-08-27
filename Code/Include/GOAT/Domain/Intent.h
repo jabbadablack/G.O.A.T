@@ -1,6 +1,5 @@
 #pragma once
 
-#include <GOAT/Domain/ActionState.h>
 #include <GOAT/GOATTypeIds.h>
 
 #include <AzCore/Name/Name.h>
@@ -25,8 +24,6 @@ namespace GOAT
         AZ::Name m_backend;
         //! What to achieve, interpreted by the backend. A goal name for a planner.
         AZ::Name m_goal;
-        //! Action the tree authored inline, used by the direct backend as a one step plan.
-        ActionRequest m_direct;
         //! Tree node this intent came from, for debugging and for resuming the walk.
         NodeIndex m_node = InvalidNodeIndex;
     };

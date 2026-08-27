@@ -8,7 +8,6 @@
 #include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
-#include <Core/Frontend/DirectBackend.h>
 #include <Core/Scripting/LuaNodeScripting.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/GuardWatch.h>
@@ -379,8 +378,6 @@ namespace GOAT::Benchmark
             m_blackboard = AZStd::make_unique<BlackboardSystem>();
             m_actions = AZStd::make_unique<ActionStateRegistry>();
             m_backends = AZStd::make_unique<BackendRegistry>("backend");
-            m_backends->Register(AZStd::make_unique<DirectBackend>());
-            m_direct = AZStd::make_unique<DirectBackend>();
             m_dispatch = AZStd::make_unique<LuaDispatch>();
             m_luaContext = AZStd::make_unique<AgentScriptContext>();
             m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_luaContext);
@@ -403,7 +400,6 @@ namespace GOAT::Benchmark
             m_scripting.reset();
             m_luaContext.reset();
             m_dispatch.reset();
-            m_direct.reset();
             m_backends.reset();
             m_actions.reset();
             m_archetype.reset();
@@ -451,7 +447,6 @@ namespace GOAT::Benchmark
         AZStd::shared_ptr<const AgentArchetype> m_archetype;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
-        AZStd::unique_ptr<DirectBackend> m_direct;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
         AZStd::unique_ptr<AgentScriptContext> m_luaContext;
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;

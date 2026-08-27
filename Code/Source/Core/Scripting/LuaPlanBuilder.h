@@ -49,10 +49,6 @@ namespace GOAT
         void SetTargetPosition(const AZ::Vector3& position);
         void SetTargetEntity(AZ::EntityId entity);
 
-        //! Records which authored plan and option produced this, purely so the trace can say so.
-        //! An imperative backend never calls it, which is how tracing tells the two apart.
-        void SetSource(AZStd::string plan, double option);
-
         //! Hands back a plan whose steps were baked when the vocabulary loaded, rather than
         //! rebuilding them. This is the fast path an authored plan takes every time it runs.
         bool ChooseBaked(AZStd::string plan, double option);

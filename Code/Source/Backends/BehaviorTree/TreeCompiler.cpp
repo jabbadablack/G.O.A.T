@@ -480,6 +480,14 @@ namespace GOAT
             }
         }
 
+        // A script leaf runs one verb with one name, both known here.
+        if (descriptor->m_op == NodeOp::Script)
+        {
+            DecisionNode& node = program.m_nodes[index];
+            node.m_action.m_action = CoreActions::RunScript;
+            node.m_action.m_tag = node.m_tag;
+        }
+
         // Guards are the only thing that needs observing, so collect just those keys.
         {
             const DecisionNode& node = program.m_nodes[index];
