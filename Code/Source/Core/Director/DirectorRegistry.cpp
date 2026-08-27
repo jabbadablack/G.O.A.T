@@ -136,10 +136,16 @@ namespace GOAT
 
         const float radiusSq = reach.m_radius * reach.m_radius;
 
-        const size_t candidateCount = m_agents.GetAgentCount();
-        for (size_t i = 0; i < candidateCount; ++i)
+        // Slots, not agents: a released slot stays as a hole so every per agent index keeps
+        // meaning the same thing, and a hole hands back a null handle to step over.
+        const size_t slotCount = m_agents.GetSlotCount();
+        for (size_t slot = 0; slot < slotCount; ++slot)
         {
-            const AgentId candidate = m_agents.GetAgentAt(i);
+            const AgentId candidate = m_agents.GetAgentAtSlot(slot);
+            if (candidate.IsNull())
+            {
+                continue;
+            }
 
             // A director never governs itself: it would then be able to order itself onto
             // another tree, which is a loop with no way out.

@@ -204,14 +204,12 @@ namespace GOAT
 
     AgentRecord* AgentRegistry::Find(AgentId agent)
     {
-        AZStd::unique_ptr<AgentRecord>* found = m_agents.Find(agent);
-        return found != nullptr ? found->get() : nullptr;
+        return m_agents.Find(agent);
     }
 
     const AgentRecord* AgentRegistry::Find(AgentId agent) const
     {
-        const AZStd::unique_ptr<AgentRecord>* found = m_agents.Find(agent);
-        return found != nullptr ? found->get() : nullptr;
+        return m_agents.Find(agent);
     }
 
     AgentId AgentRegistry::FindByEntity(AZ::EntityId entity) const
@@ -305,8 +303,7 @@ namespace GOAT
 
     AZ::Name AgentRegistry::PeekInterruptedTree(AgentId agent) const
     {
-        const auto* found = m_agents.Find(agent);
-        const AgentRecord* record = found != nullptr ? found->get() : nullptr;
+        const AgentRecord* record = m_agents.Find(agent);
         if (record == nullptr || record->m_treeStack.empty())
         {
             return AZ::Name{};
@@ -372,22 +369,26 @@ namespace GOAT
     {
         AZStd::vector<AgentId> agents;
         agents.reserve(m_agents.Size());
-        for (size_t i = 0; i < m_agents.Size(); ++i)
+        for (size_t slot = 0; slot < m_agents.GetSlotCount(); ++slot)
         {
-            agents.push_back(m_agents.GetHandleAt(i));
+            const AgentId agent = m_agents.GetHandleAt(slot);
+            if (!agent.IsNull())
+            {
+                agents.push_back(agent);
+            }
         }
         return agents;
     }
 
-    size_t AgentRegistry::GetAgentCount() const
+    size_t AgentRegistry::GetSlotCount() const
     {
-        return m_agents.Size();
+        return m_agents.GetSlotCount();
     }
 
-    AgentId AgentRegistry::GetAgentAt(size_t index) const
+    AgentId AgentRegistry::GetAgentAtSlot(size_t slot) const
     {
-        AZ_Assert(index < m_agents.Size(), "An agent index must address a registered agent");
-        return m_agents.GetHandleAt(index);
+        AZ_Assert(slot < m_agents.GetSlotCount(), "A slot index must address a slot the store has");
+        return m_agents.GetHandleAt(slot);
     }
 
     void AgentRegistry::TickBand(size_t band)

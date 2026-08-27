@@ -2,7 +2,7 @@
 
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
-#include <Core/Memory/HandleTable.h>
+#include <Core/Application/AgentStore.h>
 
 #include <AzCore/EBus/ScheduledEvent.h>
 #include <AzCore/Time/ITime.h>
@@ -86,8 +86,9 @@ namespace GOAT
         //! Walks the roster without building a list of it. A director resolves its reach against
         //! every agent on every one of its ticks, so handing it a fresh vector of the whole level
         //! each time was an allocation per director per tick for a list nothing kept.
-        size_t GetAgentCount() const;
-        AgentId GetAgentAt(size_t index) const;
+        //! Slots may be holes, so a null handle means "skip", not "end".
+        size_t GetSlotCount() const;
+        AgentId GetAgentAtSlot(size_t slot) const;
 
     private:
         //! Runs every agent in one band and records when it last ran.
@@ -125,7 +126,7 @@ namespace GOAT
         AgentRuntime& m_runtime;
         IBlackboardSystem& m_blackboard;
         LuaDispatch& m_dispatch;
-        HandleTable<AZStd::unique_ptr<AgentRecord>, AgentTag> m_agents;
+        AgentStore m_agents;
         AZStd::unordered_map<AZ::EntityId, AgentId> m_byEntity;
         AZStd::array<Band, BandCount> m_bands;
     };

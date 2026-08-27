@@ -4,5 +4,6 @@ set(FILES
     Tests/Domain/PlanStoreTests.cpp
     Tests/Frontend/TreeWalkerTests.cpp
     Tests/Application/AgentRuntimeTests.cpp
+    Tests/Application/AgentStoreTests.cpp
     Tests/Performance/AgentBenchmarks.cpp
 )

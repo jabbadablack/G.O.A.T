@@ -19,6 +19,8 @@ set(FILES
     Source/Core/Application/AgentObserver.h
     Source/Core/Application/AgentRecord.h
     Source/Core/Application/AgentRegistry.cpp
+    Source/Core/Application/AgentStore.cpp
+    Source/Core/Application/AgentStore.h
     Source/Core/Application/AgentRegistry.h
     Source/Core/Application/AgentRuntime.cpp
     Source/Core/Application/AgentRuntime.h
@@ -69,7 +71,6 @@ set(FILES
     Source/Core/Frontend/TreeLibrary.cpp
     Source/Core/Frontend/TreeLibrary.h
     Source/Core/Frontend/TreeWalker.h
-    Source/Core/Memory/HandleTable.h
     Source/Core/Scripting/AgentScriptContext.cpp
     Source/Core/Scripting/AgentScriptContext.h
     Source/Core/Scripting/LuaBackend.cpp
