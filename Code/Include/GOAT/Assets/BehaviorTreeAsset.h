@@ -12,9 +12,9 @@
 namespace GOAT
 {
     //! One authored property on a node, resolved against the node type at compile time.
-    struct BehaviorTreeProperty final
+    struct AuthoredProperty final
     {
-        AZ_TYPE_INFO(BehaviorTreeProperty, BehaviorTreePropertyTypeId);
+        AZ_TYPE_INFO(AuthoredProperty, AuthoredPropertyTypeId);
 
         static void Reflect(AZ::ReflectContext* context);
 
@@ -23,9 +23,9 @@ namespace GOAT
     };
 
     //! Editor only data a graph tool round trips. The runtime never reads it.
-    struct BehaviorTreeNodeMetadata final
+    struct AuthoredNodeMetadata final
     {
-        AZ_TYPE_INFO(BehaviorTreeNodeMetadata, BehaviorTreeNodeMetadataTypeId);
+        AZ_TYPE_INFO(AuthoredNodeMetadata, AuthoredNodeMetadataTypeId);
 
         static void Reflect(AZ::ReflectContext* context);
 
@@ -36,23 +36,23 @@ namespace GOAT
     };
 
     //! One authored node. Children are in execution order, left to right.
-    struct BehaviorTreeNode final
+    struct AuthoredNode final
     {
-        AZ_TYPE_INFO(BehaviorTreeNode, BehaviorTreeNodeTypeId);
-        AZ_CLASS_ALLOCATOR(BehaviorTreeNode, AZ::SystemAllocator);
+        AZ_TYPE_INFO(AuthoredNode, AuthoredNodeTypeId);
+        AZ_CLASS_ALLOCATOR(AuthoredNode, AZ::SystemAllocator);
 
         static void Reflect(AZ::ReflectContext* context);
 
         //! Node type name, resolved against the node type registry when compiled.
         AZStd::string m_type;
         //! Authored properties for this node.
-        AZStd::vector<BehaviorTreeProperty> m_properties;
+        AZStd::vector<AuthoredProperty> m_properties;
         //! Services attached to this node, valid only on composites.
-        AZStd::vector<BehaviorTreeNode> m_services;
+        AZStd::vector<AuthoredNode> m_services;
         //! Children, in execution order.
-        AZStd::vector<BehaviorTreeNode> m_children;
+        AZStd::vector<AuthoredNode> m_children;
         //! Ignored at runtime.
-        BehaviorTreeNodeMetadata m_metadata;
+        AuthoredNodeMetadata m_metadata;
     };
 
     //! A behavior tree as authored, before it is compiled for execution.
@@ -77,6 +77,6 @@ namespace GOAT
         //! Name agents refer to this tree by.
         AZStd::string m_name;
         //! The root of the tree.
-        BehaviorTreeNode m_root;
+        AuthoredNode m_root;
     };
 } // namespace GOAT

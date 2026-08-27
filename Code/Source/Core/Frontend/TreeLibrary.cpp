@@ -4,7 +4,7 @@
 
 namespace GOAT
 {
-    void TreeLibrary::Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeNode> root)
+    void TreeLibrary::Add(const AZ::Name& name, AZStd::shared_ptr<const AuthoredNode> root)
     {
         AZ_Assert(!name.IsEmpty(), "A tree must be stored under a name");
         AZ_Assert(root != nullptr, "A tree must be stored with a root node");
@@ -23,7 +23,7 @@ namespace GOAT
         AZ_Assert(Find(name) != nullptr, "A stored tree must be findable by its name");
     }
 
-    const BehaviorTreeNode* TreeLibrary::Find(const AZ::Name& name) const
+    const AuthoredNode* TreeLibrary::Find(const AZ::Name& name) const
     {
         const auto found = m_trees.find(name);
         return found != m_trees.end() ? found->second.get() : nullptr;

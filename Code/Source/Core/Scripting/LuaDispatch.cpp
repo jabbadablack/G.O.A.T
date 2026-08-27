@@ -109,7 +109,7 @@ namespace GOAT
         return true;
     }
 
-    AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> LuaDispatch::EmitTree(const AZ::Name& treeName)
+    AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> LuaDispatch::EmitTree(const AZ::Name& treeName)
     {
         AZ::ScriptDataContext call;
         if (!BeginCall("GOAT_EmitTree", call))
@@ -142,7 +142,7 @@ namespace GOAT
                 "Tree '%s' could not be assembled: %s", treeName.GetCStr(), m_builder.GetError().c_str()));
         }
 
-        return AZ::Success(AZStd::shared_ptr<const BehaviorTreeNode>(aznew BehaviorTreeNode(m_builder.GetRoot())));
+        return AZ::Success(AZStd::shared_ptr<const AuthoredNode>(aznew AuthoredNode(m_builder.GetRoot())));
     }
 
     ActionResult LuaDispatch::CallBehavior(

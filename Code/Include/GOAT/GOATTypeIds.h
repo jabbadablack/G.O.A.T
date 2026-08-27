@@ -29,9 +29,9 @@ namespace GOAT
     inline constexpr const char* BehaviorTreeAssetTypeId = "{471B8D29-2A2E-4E77-8C33-B8E054EDCA00}";
 
     // Behavior tree authoring and compiled forms
-    inline constexpr const char* BehaviorTreeNodeTypeId = "{0518D68E-CE23-4EBF-9DEB-5203B83E4912}";
-    inline constexpr const char* BehaviorTreePropertyTypeId = "{13C83E36-77A7-45C6-ACFC-AAE65676B2C0}";
-    inline constexpr const char* BehaviorTreeNodeMetadataTypeId = "{3E9CB59B-6545-46F2-8813-FB5F28C80670}";
+    inline constexpr const char* AuthoredNodeTypeId = "{0518D68E-CE23-4EBF-9DEB-5203B83E4912}";
+    inline constexpr const char* AuthoredPropertyTypeId = "{13C83E36-77A7-45C6-ACFC-AAE65676B2C0}";
+    inline constexpr const char* AuthoredNodeMetadataTypeId = "{3E9CB59B-6545-46F2-8813-FB5F28C80670}";
     inline constexpr const char* NodeTypeDescriptorTypeId = "{FAC84347-A95B-463E-B24D-CFAB1746C1E8}";
     inline constexpr const char* NodeParameterTypeId = "{7E97BE33-DCD2-4318-8557-4BF9A72E7FA3}";
     inline constexpr const char* DecisionNodeTypeId = "{F9AD7034-257F-488E-9695-73757A1E91AD}";

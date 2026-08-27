@@ -26,13 +26,13 @@ namespace GOAT
             const ActionStateRegistry& actions);
 
         //! Compiles an authored tree. On failure the message names the offending node.
-        AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AZ::Name& name, const BehaviorTreeNode& root) const;
+        AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AZ::Name& name, const AuthoredNode& root) const;
 
     private:
         //! Emits one node and its subtree, returning the index it was written to.
         //! m_inlining names the trees currently being expanded, which is how a cycle is caught.
         AZ::Outcome<NodeIndex, AZStd::string> Emit(
-            const BehaviorTreeNode& authored,
+            const AuthoredNode& authored,
             NodeIndex parent,
             AZ::u32 depth,
             DecisionProgram& program,
@@ -40,7 +40,7 @@ namespace GOAT
 
         //! Expands a subtree reference in place of the referencing node.
         AZ::Outcome<NodeIndex, AZStd::string> Inline(
-            const BehaviorTreeNode& authored,
+            const AuthoredNode& authored,
             NodeIndex parent,
             AZ::u32 depth,
             DecisionProgram& program,
@@ -51,7 +51,7 @@ namespace GOAT
         AZ::Outcome<void, AZStd::string> RegisterParallel(NodeIndex index, DecisionProgram& program) const;
 
         AZ::Outcome<void, AZStd::string> Validate(
-            const BehaviorTreeNode& authored, const NodeTypeDescriptor& descriptor) const;
+            const AuthoredNode& authored, const NodeTypeDescriptor& descriptor) const;
 
         const NodeTypeRegistry& m_types;
         const IBlackboardSystem& m_blackboard;

@@ -8,7 +8,7 @@ Authoring and execution are already separated:
 
 ```
   guard.lua  ─┐                                    ┌─► DecisionProgram  (runtime)
-              ├─►  BehaviorTreeNode  ──► TreeCompiler
+              ├─►  AuthoredNode  ──► TreeCompiler
   guard.bt   ─┘    (reflected, serializable)
   (this tool)
 ```
@@ -19,8 +19,8 @@ graph stay co-equal.
 
 ## Already in place
 
-- `BehaviorTreeAsset` / `BehaviorTreeNode` — reflected and serializable, with a
-  `BehaviorTreeNodeMetadata` field carrying node position and comment that the runtime ignores.
+- `BehaviorTreeAsset` / `AuthoredNode` — reflected and serializable, with a
+  `AuthoredNodeMetadata` field carrying node position and comment that the runtime ignores.
 - `NodeTypeRegistry` — a descriptor per node type: display name, category, child arity, and a typed
   parameter list. This is what a palette and a property panel need. It already drives authoring
   validation and `goat_listNodes`.
@@ -41,6 +41,6 @@ one file list, and `Model/Graph.h` includes `GraphCanvasMetadata.h`, which pulls
 GraphCanvas/Qt tree. Its own header notes it is *"designed with primarily editor processing in mind,
 rather than runtime processing"*.
 
-So the graph model belongs to the editor target only, and it bakes into `BehaviorTreeNode` for the
+So the graph model belongs to the editor target only, and it bakes into `AuthoredNode` for the
 runtime — the same split ScriptCanvas and Landscape Canvas already use. `GraphCanvas` should be
 added to `gem.json` dependencies only when this tool is actually built.
