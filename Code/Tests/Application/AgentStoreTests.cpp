@@ -111,6 +111,48 @@ namespace GOAT
         EXPECT_EQ(store.GetSlotCount(), 1u);
     }
 
+    //! A tick holds one record for its whole duration while a behaviour inside it may register
+    //! another agent. If growing the store moved records, that reference would dangle -- so
+    //! growing it past a chunk boundary must leave every address exactly where it was.
+    TEST_F(AgentStoreFixture, Acquire_NeverMovesARecordAlreadyHandedOut)
+    {
+        AgentStore store;
+        const AgentId held = store.Acquire(MakeRecord(42));
+        const AgentRecord* address = store.Find(held);
+        ASSERT_NE(address, nullptr);
+
+        // Well past the chunk size, so the store has had to grow several times.
+        AZStd::vector<AgentId> others;
+        for (AZ::u64 i = 0; i < 2000; ++i)
+        {
+            others.push_back(store.Acquire(MakeRecord(i)));
+        }
+
+        EXPECT_EQ(store.Find(held), address);
+        EXPECT_EQ(address->m_entity, AZ::EntityId(42));
+    }
+
+    //! Every earlier agent's address has to survive, not only the first one.
+    TEST_F(AgentStoreFixture, Acquire_KeepsEveryEarlierRecordWhereItWas)
+    {
+        AgentStore store;
+        AZStd::vector<AgentId> agents;
+        AZStd::vector<const AgentRecord*> addresses;
+
+        for (AZ::u64 i = 0; i < 600; ++i)
+        {
+            agents.push_back(store.Acquire(MakeRecord(i)));
+            addresses.push_back(store.Find(agents.back()));
+        }
+
+        for (size_t i = 0; i < agents.size(); ++i)
+        {
+            EXPECT_EQ(store.Find(agents[i]), addresses[i]);
+            ASSERT_NE(store.Find(agents[i]), nullptr);
+            EXPECT_EQ(store.Find(agents[i])->m_entity, AZ::EntityId(i));
+        }
+    }
+
     //! Iteration walks slots, so a hole answers with a null handle rather than ending the walk.
     TEST_F(AgentStoreFixture, GetHandleAt_ReportsHolesAsNull)
     {
