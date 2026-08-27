@@ -17,13 +17,7 @@ LoggerSystemComponent.EnableLog GoatAgent
 ```
 
 The bench is five agents — `Alpha 1`, `Alpha 2` (near), `Alpha 3` (far), `Beta 1`, `Beta 2` — each
-starting in `Standing` and also listing `Styled`, which is the tree with an unbound subtree slot,
-plus `Holding` and `Rallying`, which are the trees the directors order them onto.
-
-**An agent may only be moved to a tree its entity lists.** The list is the agent's repertoire, not
-just a hint about what to compile, so a director cannot put an agent somewhere its author did not
-sanction. A tree only a director names is compiled by nobody and declared by nobody, and an order
-naming it is refused twice over. `DumpAgent <entityId>` prints the list as `may run:`.
+starting in `Standing` and also listing `Styled`, which is the tree with an unbound subtree slot.
 
 ---
 
@@ -60,34 +54,13 @@ GOATSystemComponent.ListAgents
 The Alphas must be on **Rallying**, and `GoatDirector` must show the priority-1 command refused,
 naming both numbers.
 
-**Then swap which ticks first**, without leaving game mode:
+**Then swap which ticks first** — change the two directors' Detail sliders so their bands differ,
+and re-enter. `Rallying` must still win. That is what proves the incumbent holds ties: with `<`
+instead of `<=`, the winner would follow tick order instead of priority.
 
-```
-GOATSystemComponent.SetAgentBandCommand <entityId of Test Director (priority 9)> 3
-GOATSystemComponent.SetAgentBandCommand <entityId of Test Director (priority 1)> 0
-```
-
-`Rallying` must still win. That is what proves priority beats tick order: the priority-1 director
-now ticks far more often and gets there first, so a `<` comparison would let it hold the slot and
-refuse the priority-9 command that follows.
-
-`ListDirectors` prints the entity ids. This is also the only way `SetAgentBand` gets exercised at
-all — see mode 9.
-
-`Test Director (bad order)` also runs in this mode, against squad Beta, ordering `NoSuchTree`.
-That is refused for a tree the Betas never listed, and the point is what happens **after**: the
-Betas must still be commandable in mode 4. A refusal must leave nothing behind.
-
-Expect **one** error per Beta, not one per director tick. A repertoire cannot change once the
-agent has registered, so the answer cannot either; repeats go to `GoatDirector` as `refused ...
-again`. The "which is not compiled" refusal beside it is *not* deduplicated, and should not be --
-`RebindSubtree` can make a tree compile, so that answer can still change.
-
-Note this refusal happens in `RequestTreeSwitch`, so the order never becomes pending and never
-reaches `ApplyTreeSwitch`. The priority floor is therefore untouched here rather than cleared --
-`ApplyTreeSwitch` clears it first thing, before any early return, so no failure path can leave one
-behind by construction. This mode does not test that clear, and cannot: reaching it needs a tree
-that is compiled when ordered and gone by the time it is applied.
+`Test Director (bad order)` also runs in this mode, against squad Beta, ordering a tree that does
+not exist. What matters is what happens **after**: the Betas must still be commandable in mode 4.
+If the pending priority were not cleared when the failed switch was applied, they never would be.
 
 ## Mode 4 — idempotence and cooldown
 
