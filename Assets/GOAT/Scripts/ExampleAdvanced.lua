@@ -56,9 +56,13 @@ plan "Chores" {
     },
 }
 
+-- Resolved once, then kept: see ExampleAgent.lua for why a handle beats a name here.
+local announced
+
 behavior "Announce" {
     tick = function(me, ctx)
-        ctx:SetBool("announced", true)
+        announced = announced or ctx:Key("announced")
+        ctx:SetBool(announced, true)
         return SUCCESS
     end,
 }

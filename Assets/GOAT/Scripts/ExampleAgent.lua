@@ -1,6 +1,11 @@
 -- A worked example that runs with no modules and no backends installed.
 -- It uses only the genre neutral core vocabulary, so it is valid in any project.
 
+-- Variable handles, resolved the first time a behaviour runs and kept as upvalues afterwards.
+-- A name is a constant in a script; looking it up is a dictionary hash and a map probe, so
+-- ctx:Key turns that into a number once and every read and write below is then an array index.
+local patrolStop, alerted, targetSeen
+
 -- A leaf behaviour. `me` is this agent's own scratch table for this behaviour.
 behavior "Patrol" {
     start = function(me)
@@ -8,14 +13,16 @@ behavior "Patrol" {
     end,
     tick = function(me, ctx)
         me.stop = me.stop + 1
-        ctx:SetInt("patrol_stop", me.stop)
+        patrolStop = patrolStop or ctx:Key("patrol_stop")
+        ctx:SetInt(patrolStop, me.stop)
         return SUCCESS
     end,
 }
 
 behavior "Alert" {
     tick = function(me, ctx)
-        ctx:SetBool("alerted", true)
+        alerted = alerted or ctx:Key("alerted")
+        ctx:SetBool(alerted, true)
         return SUCCESS
     end,
 }
@@ -24,7 +31,9 @@ behavior "Alert" {
 -- Pairing one with an observing condition is how a tree reacts without checking every frame.
 behavior "Sense" {
     tick = function(me, ctx)
-        ctx:SetBool("target_seen", ctx:GetInt("patrol_stop") % 4 == 0)
+        targetSeen = targetSeen or ctx:Key("target_seen")
+        patrolStop = patrolStop or ctx:Key("patrol_stop")
+        ctx:SetBool(targetSeen, ctx:GetInt(patrolStop) % 4 == 0)
     end,
 }
 

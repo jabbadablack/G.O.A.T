@@ -41,6 +41,15 @@ namespace GOAT
                 (index & IndexMask);
         }
 
+        //! Rebuilds a key from what GetPacked returned. Only a value that came from there means
+        //! anything; any other answers as a slot that does not exist.
+        static BlackboardKey FromPacked(AZ::u32 packed)
+        {
+            BlackboardKey key;
+            key.m_packed = packed;
+            return key;
+        }
+
         //! True when this key refers to a real slot.
         bool IsValid() const { return m_packed != InvalidPacked; }
 

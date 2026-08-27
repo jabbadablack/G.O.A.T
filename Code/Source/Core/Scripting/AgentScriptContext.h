@@ -35,22 +35,29 @@ namespace GOAT
         //! True when a variable of that name is declared.
         bool Has(const AZStd::string& name) const;
 
-        bool GetBool(const AZStd::string& name) const;
-        void SetBool(const AZStd::string& name, bool value);
+        //! The handle a variable's reads and writes use.
+        //!
+        //! Resolved once and kept by the script, because a variable's name is a constant there
+        //! while looking it up is a name dictionary hash and a map probe -- which every accessor
+        //! was paying, per agent, per tick, to arrive at the same answer.
+        double Key(const AZStd::string& name) const;
+
+        bool GetBool(double key) const;
+        void SetBool(double key, bool value);
 
         //! Reads an int or float slot as Lua's single number type.
-        double GetNumber(const AZStd::string& name) const;
+        double GetNumber(double key) const;
         //! Writes an int or float slot, converting to whichever the slot holds.
-        void SetNumber(const AZStd::string& name, double value);
+        void SetNumber(double key, double value);
 
-        AZ::Vector3 GetVector3(const AZStd::string& name) const;
-        void SetVector3(const AZStd::string& name, const AZ::Vector3& value);
+        AZ::Vector3 GetVector3(double key) const;
+        void SetVector3(double key, const AZ::Vector3& value);
 
-        AZ::EntityId GetEntity(const AZStd::string& name) const;
-        void SetEntity(const AZStd::string& name, AZ::EntityId value);
+        AZ::EntityId GetEntity(double key) const;
+        void SetEntity(double key, AZ::EntityId value);
 
-        AZStd::string GetName(const AZStd::string& name) const;
-        void SetName(const AZStd::string& name, const AZStd::string& value);
+        AZStd::string GetName(double key) const;
+        void SetName(double key, const AZStd::string& value);
 
         //! Puts this agent onto another of its trees, ending what it is running first.
         //! The change lands on the agent's next tick, because this is reachable from a behaviour
@@ -89,13 +96,17 @@ namespace GOAT
 
         //! Reads another agent's blackboard. There is deliberately no write: order_value is the
         //! only write channel, and it is scope driven and lossy by construction.
-        double GetNumberOf(AZ::EntityId entity, const AZStd::string& name) const;
-        bool GetBoolOf(AZ::EntityId entity, const AZStd::string& name) const;
+        double GetNumberOf(AZ::EntityId entity, double key) const;
+        bool GetBoolOf(AZ::EntityId entity, double key) const;
 
     private:
         //! Resolves a name a script supplied, reporting an undeclared one rather than letting
         //! the read return a silent default. @param access what the script was trying to do.
         BlackboardKey Resolve(const AZStd::string& name, const char* access) const;
+
+        //! Turns a handle a script is holding back into a key, reporting one that never came
+        //! from Key in the first place. @param access what the script was trying to do.
+        BlackboardKey FromLua(double key, const char* access) const;
 
         AgentId m_agent;
         AZ::EntityId m_entity;

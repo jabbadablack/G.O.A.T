@@ -350,12 +350,19 @@ end
 GOAT._pushStep = pushStep
 
 --! True when an option's guard holds for this agent. An option with no guard is the fallback.
+--
+--! The handle is kept on the option the first time it is needed. A plan's guard is named at
+--! declaration and never changes, so looking it up once per option costs nothing after that --
+--! and unlike a behaviour, an option cannot hoist it into an upvalue because the name arrives
+--! with the plan rather than with the script.
 function GOAT._optionHolds(entry, ctx)
     if entry.when ~= nil then
-        return ctx:GetBool(entry.when)
+        entry.whenKey = entry.whenKey or ctx:Key(entry.when)
+        return ctx:GetBool(entry.whenKey)
     end
     if entry.unless ~= nil then
-        return not ctx:GetBool(entry.unless)
+        entry.unlessKey = entry.unlessKey or ctx:Key(entry.unless)
+        return not ctx:GetBool(entry.unlessKey)
     end
     return true
 end
