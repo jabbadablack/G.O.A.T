@@ -80,8 +80,6 @@ namespace GOAT
         //! next window and undo the winner one tick later.
         AZ::u8 m_pendingPriority = SelfSwitchPriority;
 
-        //! Scratch reused each tick when collecting due services.
-        AZStd::vector<AZ::u32> m_dueServices;
 
         //! True when a tree is one this entity declared it may run.
         bool MayRun(const AZ::Name& treeName) const

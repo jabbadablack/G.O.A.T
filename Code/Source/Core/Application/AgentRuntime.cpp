@@ -127,14 +127,17 @@ namespace GOAT
         AZ_Assert(agent.m_program != nullptr, "Services are only ticked for an agent that has a program");
         AZ_Assert(deltaTime >= 0.0f, "Services cannot be ticked backwards in time");
 
-        m_services.CollectDue(*agent.m_program, agent.m_cursor, agent.m_dueServices);
-        if (agent.m_dueServices.empty())
+        // A local: services are collected and run inside this call and never outlive it, so the
+        // agent had no reason to carry the list between ticks.
+        DueServices due;
+        m_services.CollectDue(*agent.m_program, agent.m_cursor, due);
+        if (due.empty())
         {
             return;
         }
 
         m_scriptContext.Bind(agent.m_id, agent.m_entity, &m_blackboard);
-        for (const AZ::u32 service : agent.m_dueServices)
+        for (const AZ::u32 service : due)
         {
             AZ_Assert(service < agent.m_program->m_services.size(),
                 "A due service index must address a compiled service");

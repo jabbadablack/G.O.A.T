@@ -149,7 +149,7 @@ namespace GOAT
             // next sibling from the child it is leaving, so it has nothing to rebuild.
             if (program.m_nodes[parent].m_op == NodeOp::LuaComposite)
             {
-                cursor.ChildIndex(parent) = ChildIndexOf(program, parent, child);
+                cursor.Slot(program.m_nodes[parent].m_cursorSlot) = static_cast<float>(ChildIndexOf(program, parent, child));
             }
             child = parent;
             parent = program.m_nodes[parent].m_parent;
@@ -209,9 +209,9 @@ namespace GOAT
 
                 case NodeOp::Cooldown:
                     // Still cooling down, so the guarded subtree is not entered at all.
-                    if (cursor.Deadline(node) > cursor.GetNow())
+                    if (cursor.GetSlot(current.m_cursorSlot) > cursor.GetNow())
                     {
-                        wakeAt = AZStd::min(wakeAt, cursor.Deadline(node));
+                        wakeAt = AZStd::min(wakeAt, cursor.GetSlot(current.m_cursorSlot));
                         result = ActionResult::Failure;
                         bubbling = true;
                         continue;
@@ -220,7 +220,7 @@ namespace GOAT
                     continue;
 
                 case NodeOp::Loop:
-                    cursor.Counter(node) = 0;
+                    cursor.Slot(current.m_cursorSlot) = 0.0f;
                     node = current.m_firstChild;
                     continue;
 
@@ -235,7 +235,7 @@ namespace GOAT
                     continue;
 
                 case NodeOp::TimeLimit:
-                    cursor.Deadline(node) = cursor.GetNow() + current.m_amount;
+                    cursor.Slot(current.m_cursorSlot) = cursor.GetNow() + current.m_amount;
                     node = current.m_firstChild;
                     continue;
 
@@ -261,7 +261,7 @@ namespace GOAT
                         continue;
                     }
 
-                    cursor.ChildIndex(node) = static_cast<AZ::u16>(child);
+                    cursor.Slot(current.m_cursorSlot) = static_cast<float>(child);
                     node = NthChild(program, node, static_cast<AZ::u16>(child));
                     AZ_Assert(node != InvalidNodeIndex, "A child index inside the child count must resolve to a node");
                     continue;
@@ -366,14 +366,14 @@ namespace GOAT
 
             case NodeOp::Cooldown:
                 // The cooldown starts when the subtree finishes, not when it was entered.
-                cursor.Deadline(parentIndex) = cursor.GetNow() + parent.m_amount;
+                cursor.Slot(parent.m_cursorSlot) = cursor.GetNow() + parent.m_amount;
                 node = parentIndex;
                 continue;
 
             case NodeOp::Loop:
             {
-                AZ::u16& count = cursor.Counter(parentIndex);
-                ++count;
+                const AZ::u16 count = static_cast<AZ::u16>(cursor.GetSlot(parent.m_cursorSlot)) + 1;
+                cursor.Slot(parent.m_cursorSlot) = static_cast<float>(count);
 
                 const AZ::u16 limit = static_cast<AZ::u16>(parent.m_amount);
                 AZ_Warning("GOAT", limit > 0, "Node %u loops zero times, so its child runs exactly once", parentIndex);
@@ -398,7 +398,7 @@ namespace GOAT
                 continue;
 
             case NodeOp::TimeLimit:
-                if (cursor.GetNow() > cursor.Deadline(parentIndex))
+                if (cursor.GetNow() > cursor.GetSlot(parent.m_cursorSlot))
                 {
                     result = ActionResult::Failure;
                 }
@@ -418,7 +418,8 @@ namespace GOAT
 
                 ActionResult finished = result;
                 const int child = context.m_scripting->AdvanceComposite(
-                    parent.m_tag, context, parentIndex, cursor.ChildIndex(parentIndex), result, finished);
+                    parent.m_tag, context, parentIndex,
+                    static_cast<AZ::u16>(cursor.GetSlot(parent.m_cursorSlot)), result, finished);
 
                 if (child < 0 || child >= parent.m_childCount)
                 {
@@ -427,7 +428,7 @@ namespace GOAT
                     continue;
                 }
 
-                cursor.ChildIndex(parentIndex) = static_cast<AZ::u16>(child);
+                cursor.Slot(parent.m_cursorSlot) = static_cast<float>(child);
                 node = NthChild(program, parentIndex, static_cast<AZ::u16>(child));
                 AZ_Assert(node != InvalidNodeIndex, "A child index inside the child count must resolve to a node");
                 bubbling = false;

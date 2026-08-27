@@ -16,6 +16,16 @@ namespace GOAT
     //! Deepest tree the walker will run, which bounds an agent's cursor.
     inline constexpr size_t MaxTreeDepth = 32;
 
+    //! How much per node state one tree may need an agent to carry. Only a node whose state has
+    //! to survive between ticks takes a slot -- a cooldown's expiry, a loop's count, a time
+    //! limit, a Lua composite's chosen child -- plus one per service. Authored trees use a
+    //! handful, so this is headroom rather than a budget, and the compiler names any tree that
+    //! exceeds it rather than letting an agent carry state it cannot address.
+    inline constexpr AZ::u16 MaxCursorSlots = 16;
+
+    //! A node that carries no state between ticks.
+    inline constexpr AZ::u16 InvalidCursorSlot = static_cast<AZ::u16>(-1);
+
     //! A service attached to a composite, ticked on its interval while that subtree is active.
     struct DecisionService final
     {
@@ -63,6 +73,10 @@ namespace GOAT
         float m_amount = 0.0f;
         //! How close counts as arrived, kept apart from m_amount so a node may carry both.
         float m_tolerance = 0.0f;
+        //! Where this node's state lives in an agent's cursor, or InvalidCursorSlot when it
+        //! keeps none. Assigned by the compiler, so an agent carries one value per node that
+        //! needs one rather than one per node in the tree.
+        AZ::u16 m_cursorSlot = InvalidCursorSlot;
         //! First service attached to this node, indexing the program's service table.
         AZ::u32 m_firstService = 0;
         //! How many services are attached to this node.
@@ -98,6 +112,9 @@ namespace GOAT
         //! Recorded here because the compiler that resolved them is the only thing that knows,
         //! and a separate index would be a second invariant to keep in step with this one.
         AZStd::vector<AZ::Name> m_boundSlots;
+        //! Cursor slots this tree needs, and where the run of one slot per service starts.
+        AZ::u16 m_cursorSlotCount = 0;
+        AZ::u16 m_serviceSlotBase = 0;
         //! True when this tree contains a composite or decorator whose control flow is written in
         //! Lua. Such a node can read anything a script can reach, so a walk of this tree cannot be
         //! predicted from the blackboard and the clock alone and the agent is never left dormant.

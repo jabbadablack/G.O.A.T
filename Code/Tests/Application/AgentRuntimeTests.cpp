@@ -272,6 +272,7 @@ namespace GOAT
         root.m_childCount = 1;
         root.m_subtreeEnd = 2;
         root.m_amount = 1.0f;
+        root.m_cursorSlot = 0;
         program->m_nodes.push_back(root);
 
         DecisionNode leaf;
@@ -281,11 +282,13 @@ namespace GOAT
         leaf.m_action.m_action = m_holdId;
         program->m_nodes.push_back(leaf);
 
+        program->m_cursorSlotCount = 1;
         m_agent.m_program = AZStd::shared_ptr<const DecisionProgram>(program);
         m_agent.m_cursor.Reset(*m_agent.m_program);
 
-        // Already cooling, with half a second left to run.
-        m_agent.m_cursor.Deadline(0) = 0.5f;
+        // Already cooling, with half a second left to run. Slot zero is the cooldown's, since
+        // it is the only node in this tree that keeps anything between ticks.
+        m_agent.m_cursor.Slot(0) = 0.5f;
 
         m_runtime->Tick(m_agent, 0.1f);
         EXPECT_FALSE(m_agent.m_machine.HasPlan());
