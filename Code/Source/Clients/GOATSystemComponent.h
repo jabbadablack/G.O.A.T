@@ -119,6 +119,7 @@ namespace GOAT
         void DumpPlan(const AZ::ConsoleCommandContainer& arguments);
         void ValidatePlans(const AZ::ConsoleCommandContainer& arguments);
         void SetAgentTreeCommand(const AZ::ConsoleCommandContainer& arguments);
+        void SetAgentBandCommand(const AZ::ConsoleCommandContainer& arguments);
         void ListDirectors(const AZ::ConsoleCommandContainer& arguments);
         void DumpDirector(const AZ::ConsoleCommandContainer& arguments);
         void ListReachFilters(const AZ::ConsoleCommandContainer& arguments);
@@ -149,6 +150,8 @@ namespace GOAT
             "Re-checks every declared plan against the registries and reports what is wrong");
         AZ_CONSOLEFUNC(GOATSystemComponent, SetAgentTreeCommand, AZ::ConsoleFunctorFlags::Null,
             "Puts one agent onto another of its trees, by entity id and tree name");
+        AZ_CONSOLEFUNC(GOATSystemComponent, SetAgentBandCommand, AZ::ConsoleFunctorFlags::Null,
+            "Moves one agent to another pacing band, by entity id and band index");
         AZ_CONSOLEFUNC(GOATSystemComponent, ListDirectors, AZ::ConsoleFunctorFlags::Null,
             "Lists every director, its reach and how many agents it governs");
         AZ_CONSOLEFUNC(GOATSystemComponent, DumpDirector, AZ::ConsoleFunctorFlags::Null,

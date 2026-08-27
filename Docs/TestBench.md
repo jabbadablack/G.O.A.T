@@ -60,9 +60,19 @@ GOATSystemComponent.ListAgents
 The Alphas must be on **Rallying**, and `GoatDirector` must show the priority-1 command refused,
 naming both numbers.
 
-**Then swap which ticks first** — change the two directors' Detail sliders so their bands differ,
-and re-enter. `Rallying` must still win. That is what proves the incumbent holds ties: with `<`
-instead of `<=`, the winner would follow tick order instead of priority.
+**Then swap which ticks first**, without leaving game mode:
+
+```
+GOATSystemComponent.SetAgentBandCommand <entityId of Test Director (priority 9)> 3
+GOATSystemComponent.SetAgentBandCommand <entityId of Test Director (priority 1)> 0
+```
+
+`Rallying` must still win. That is what proves priority beats tick order: the priority-1 director
+now ticks far more often and gets there first, so a `<` comparison would let it hold the slot and
+refuse the priority-9 command that follows.
+
+`ListDirectors` prints the entity ids. This is also the only way `SetAgentBand` gets exercised at
+all — see mode 9.
 
 `Test Director (bad order)` also runs in this mode, against squad Beta, ordering `NoSuchTree`.
 That is refused for a tree the Betas never listed, and the point is what happens **after**: the

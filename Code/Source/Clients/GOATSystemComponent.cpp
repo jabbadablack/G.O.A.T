@@ -1087,6 +1087,45 @@ namespace GOAT
         AZLOG_INFO("no agent is running on entity %s", wantedEntity.ToString().c_str());
     }
 
+    void GOATSystemComponent::SetAgentBandCommand(const AZ::ConsoleCommandContainer& arguments)
+    {
+        if (arguments.size() < 2 || m_agents == nullptr)
+        {
+            AZLOG_INFO("usage: GOATSystemComponent.SetAgentBandCommand <entityId> <band>");
+            return;
+        }
+
+        AZ::u64 rawEntityId = 0;
+        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
+        {
+            AZLOG_INFO("could not read '%.*s' as an entity id",
+                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
+            return;
+        }
+
+        AZ::u32 wantedBand = 0;
+        if (!AZ::ConsoleTypeHelpers::ToValue(wantedBand, arguments[1]))
+        {
+            AZLOG_INFO("could not read '%.*s' as a band",
+                aznumeric_cast<int>(arguments[1].size()), arguments[1].data());
+            return;
+        }
+
+        const AZ::EntityId wantedEntity(rawEntityId);
+        const AgentId agent = m_agents->FindByEntity(wantedEntity);
+        if (agent.IsNull())
+        {
+            AZLOG_INFO("no agent is running on entity %s", wantedEntity.ToString().c_str());
+            return;
+        }
+
+        // Band is a pacing lever rather than a decision, so it applies at once instead of being
+        // recorded like a tree switch: nothing is holding a reference to the band this tick.
+        AZLOG_INFO("%s agent %u to band %u",
+            SetAgentBand(agent, static_cast<size_t>(wantedBand)) ? "moving" : "could not move",
+            agent.GetIndex(), wantedBand);
+    }
+
     void GOATSystemComponent::ListDirectors([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
     {
         if (m_directors == nullptr)
