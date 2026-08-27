@@ -56,12 +56,18 @@ plan "Chores" {
     },
 }
 
--- Resolved once, then kept: see ExampleAgent.lua for why a handle beats a name here.
+-- Resolved once, then kept: see ExampleAgent.lua for why a handle beats a name here, and why
+-- a failed lookup must be retried rather than cached.
 local announced
+
+local function keys(ctx)
+    if (announced or 0) ~= 0 then return end
+    announced = ctx:Key("announced")
+end
 
 behavior "Announce" {
     tick = function(me, ctx)
-        announced = announced or ctx:Key("announced")
+        keys(ctx)
         ctx:SetBool(announced, true)
         return SUCCESS
     end,

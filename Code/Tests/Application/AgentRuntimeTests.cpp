@@ -271,6 +271,40 @@ namespace GOAT
         m_agent.m_observer.Disconnect();
     }
 
+    //! A handle from ctx:Key has to read back the slot it named. This is the contract the whole
+    //! script API now rests on, so it is worth stating on its own.
+    TEST_F(AgentRuntimeFixture, Key_ReadsBackTheSlotItNamed)
+    {
+        const auto declared =
+            m_blackboard->Declare(AZ::Name("speed"), BlackboardScope::Agent, BlackboardType::Float);
+        ASSERT_TRUE(declared.IsSuccess());
+
+        m_scriptContext->Bind(m_agent.m_id, m_agent.m_entity, m_blackboard.get());
+
+        const double handle = m_scriptContext->Key("speed");
+        m_scriptContext->SetNumber(handle, 2.5);
+
+        EXPECT_DOUBLE_EQ(m_scriptContext->GetNumber(handle), 2.5);
+        m_scriptContext->Unbind();
+    }
+
+    //! A handle Lua never got -- an absent argument arrives as zero -- must not resolve to a
+    //! real slot. Zero is a legal packed key, so it has to be kept out of the handle space.
+    TEST_F(AgentRuntimeFixture, Key_RefusesAHandleItNeverGaveOut)
+    {
+        const auto declared =
+            m_blackboard->Declare(AZ::Name("flag"), BlackboardScope::Global, BlackboardType::Bool);
+        ASSERT_TRUE(declared.IsSuccess());
+        ASSERT_EQ(declared.GetValue().GetPacked(), 0u) << "this test only means something if zero is a real key";
+
+        m_scriptContext->Bind(m_agent.m_id, m_agent.m_entity, m_blackboard.get());
+        m_scriptContext->SetBool(m_scriptContext->Key("flag"), true);
+
+        // What an absent Lua argument becomes.
+        EXPECT_FALSE(m_scriptContext->GetBool(0.0));
+        m_scriptContext->Unbind();
+    }
+
     //! A cooldown is the one thing that makes an idle tree runnable again with no blackboard
     //! write at all, so the agent has to come back by itself when it expires. Getting this
     //! wrong is not a slow agent, it is one that never runs again.

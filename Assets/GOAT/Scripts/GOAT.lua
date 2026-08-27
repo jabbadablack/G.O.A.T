@@ -357,11 +357,11 @@ GOAT._pushStep = pushStep
 --! with the plan rather than with the script.
 function GOAT._optionHolds(entry, ctx)
     if entry.when ~= nil then
-        entry.whenKey = entry.whenKey or ctx:Key(entry.when)
+        if (entry.whenKey or 0) == 0 then entry.whenKey = ctx:Key(entry.when) end
         return ctx:GetBool(entry.whenKey)
     end
     if entry.unless ~= nil then
-        entry.unlessKey = entry.unlessKey or ctx:Key(entry.unless)
+        if (entry.unlessKey or 0) == 0 then entry.unlessKey = ctx:Key(entry.unless) end
         return not ctx:GetBool(entry.unlessKey)
     end
     return true

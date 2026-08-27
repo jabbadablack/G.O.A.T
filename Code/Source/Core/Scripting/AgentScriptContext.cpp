@@ -31,7 +31,13 @@ namespace GOAT
 
     double AgentScriptContext::Key(const AZStd::string& name) const
     {
-        return static_cast<double>(Resolve(name, "look up").GetPacked());
+        const BlackboardKey key = Resolve(name, "look up");
+
+        // Offset by one so that zero is never a handle. A packed key of zero is a real slot --
+        // the first global bool -- while zero is also what an absent or nil Lua argument arrives
+        // as, and those two must not be the same thing. Without this a script that lost its
+        // handle reads someone else's variable and reports nothing.
+        return key.IsValid() ? static_cast<double>(key.GetPacked()) + 1.0 : 0.0;
     }
 
     BlackboardKey AgentScriptContext::FromLua(double key, const char* access) const
@@ -42,7 +48,8 @@ namespace GOAT
             return BlackboardKey{};
         }
 
-        const BlackboardKey resolved = BlackboardKey::FromPacked(static_cast<AZ::u32>(key));
+        const BlackboardKey resolved =
+            key >= 1.0 ? BlackboardKey::FromPacked(static_cast<AZ::u32>(key) - 1u) : BlackboardKey{};
         AZ_Warning("GOAT", resolved.IsValid(),
             "A script tried to %s through a handle ctx:Key never gave it; look the variable up once and keep that",
             access);
@@ -337,7 +344,7 @@ namespace GOAT
 
         // The same handle answers for every agent: a variable's slot is fixed by the schema,
         // not by whose blackboard is being read.
-        const BlackboardKey slot = BlackboardKey::FromPacked(static_cast<AZ::u32>(key));
+        const BlackboardKey slot = FromLua(key, "read another agent's number");
         if (!slot.IsValid())
         {
             return 0.0;
@@ -362,7 +369,7 @@ namespace GOAT
             return false;
         }
 
-        const BlackboardKey slot = BlackboardKey::FromPacked(static_cast<AZ::u32>(key));
+        const BlackboardKey slot = FromLua(key, "read another agent's boolean");
         const bool* value = slot.IsValid() ? m_blackboard->Find<bool>(slot, found) : nullptr;
         return value != nullptr && *value;
     }

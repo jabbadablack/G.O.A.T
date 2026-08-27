@@ -6,14 +6,24 @@
 -- ctx:Key turns that into a number once and every read and write below is then an array index.
 local patrolStop, alerted, targetSeen
 
+--! Resolves this script's handles, retrying until it succeeds. ctx:Key answers zero for a
+--! variable it could not resolve, and zero is truthy in Lua, so caching on "not nil" would
+--! freeze a failed lookup and leave every read here pointing at nothing.
+local function keys(ctx)
+    if (patrolStop or 0) ~= 0 then return end
+    patrolStop = ctx:Key("patrol_stop")
+    alerted = ctx:Key("alerted")
+    targetSeen = ctx:Key("target_seen")
+end
+
 -- A leaf behaviour. `me` is this agent's own scratch table for this behaviour.
 behavior "Patrol" {
     start = function(me)
         me.stop = 0
     end,
     tick = function(me, ctx)
+        keys(ctx)
         me.stop = me.stop + 1
-        patrolStop = patrolStop or ctx:Key("patrol_stop")
         ctx:SetInt(patrolStop, me.stop)
         return SUCCESS
     end,
@@ -21,7 +31,7 @@ behavior "Patrol" {
 
 behavior "Alert" {
     tick = function(me, ctx)
-        alerted = alerted or ctx:Key("alerted")
+        keys(ctx)
         ctx:SetBool(alerted, true)
         return SUCCESS
     end,
@@ -31,8 +41,7 @@ behavior "Alert" {
 -- Pairing one with an observing condition is how a tree reacts without checking every frame.
 behavior "Sense" {
     tick = function(me, ctx)
-        targetSeen = targetSeen or ctx:Key("target_seen")
-        patrolStop = patrolStop or ctx:Key("patrol_stop")
+        keys(ctx)
         ctx:SetBool(targetSeen, ctx:GetInt(patrolStop) % 4 == 0)
     end,
 }
