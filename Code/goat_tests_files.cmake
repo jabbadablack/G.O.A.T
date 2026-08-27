@@ -3,6 +3,7 @@ set(FILES
     Tests/Clients/GOATTest.cpp
     Tests/TestAgentSystem.h
     Tests/Backends/HtnTests.cpp
+    Tests/Backends/TreeCompilerTests.cpp
     Tests/Domain/PlanStoreTests.cpp
     Tests/Frontend/TreeWalkerTests.cpp
     Tests/Application/AgentArchetypeTests.cpp

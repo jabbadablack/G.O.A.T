@@ -28,8 +28,9 @@ namespace GOAT
         AZStd::fixed_vector<bool, MaxDomainKeys> m_values;
     };
 
-    //! The primitive steps one decomposition produced.
-    using HtnPlanBuffer = AZStd::fixed_vector<ActionRequest, MaxPlanTasks>;
+    //! The primitive tasks one decomposition produced, in order. The request each one runs
+    //! is on the task, so this is the plan and the record of how it was reached at once.
+    using HtnPlanBuffer = AZStd::fixed_vector<AZ::u16, MaxPlanTasks>;
 
     //! Decomposes a domain into a plan of primitive steps.
     //!
@@ -66,5 +67,12 @@ namespace GOAT
         //! True when every condition in a range holds in the working state.
         static bool Holds(
             const HtnDomain& domain, const WorkingState& state, AZ::u16 first, AZ::u16 count);
+
+    public:
+        //! True when a primitive could still run, given a working state.
+        static bool Allows(const HtnDomain& domain, const HtnTask& task, const WorkingState& state);
+
+        //! Applies a primitive's effects, as running it is assumed to.
+        static void ApplyEffects(const HtnDomain& domain, const HtnTask& task, WorkingState& state);
     };
 } // namespace GOAT

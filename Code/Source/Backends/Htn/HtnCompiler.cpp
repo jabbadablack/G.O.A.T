@@ -366,10 +366,11 @@ namespace GOAT
                 "hold %u", name.GetCStr(), domain.m_touchedKeys.size(), MaxDomainKeys));
         }
 
-        // A domain guards on whatever its conditions read, which is what wakes an agent running it.
-        for (const BlackboardKey key : domain.m_touchedKeys)
+        // Conditions only. An effect is what the planner assumes, never a write, so a domain
+        // must not wake itself on a scope it merely reasons about.
+        for (const HtnCondition& condition : domain.m_conditions)
         {
-            domain.m_watchedScopes[static_cast<size_t>(key.GetScope())] = true;
+            domain.m_watchedScopes[static_cast<size_t>(condition.m_key.GetScope())] = true;
         }
 
         const AZStd::string named = Text(root, "root");

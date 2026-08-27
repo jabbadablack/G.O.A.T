@@ -23,6 +23,9 @@ namespace GOAT
     //! A compiled program, or why it could not be compiled.
     using CompileOutcome = AZ::Outcome<AZStd::shared_ptr<const AgentProgram>, AZStd::string>;
 
+    //! The agent is running no plan, so there is nothing to re-check.
+    inline constexpr size_t NoRunningStep = static_cast<size_t>(-1);
+
     //! What a backend wants done with the plan an agent is running.
     enum class TickResult : AZ::u8
     {
@@ -67,9 +70,10 @@ namespace GOAT
 
         //! Re-checks whatever could interrupt the agent, and runs any periodic work it has.
         //! Only called when a watched slot changed or the program asked to be ticked.
+        //! @param runningStep which step of the plan is in flight, or NoRunningStep.
         virtual TickResult Advance([[maybe_unused]] const PlanContext& context,
             [[maybe_unused]] const AgentProgram& program, [[maybe_unused]] BrainState state,
-            [[maybe_unused]] float elapsed)
+            [[maybe_unused]] float elapsed, [[maybe_unused]] size_t runningStep)
         {
             return TickResult::Continue;
         }

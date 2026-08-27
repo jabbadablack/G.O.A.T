@@ -38,6 +38,20 @@ namespace GOAT
         }
     }
 
+    bool HtnPlanner::Allows(const HtnDomain& domain, const HtnTask& task, const WorkingState& state)
+    {
+        return Holds(domain, state, task.m_firstCondition, task.m_conditionCount);
+    }
+
+    void HtnPlanner::ApplyEffects(const HtnDomain& domain, const HtnTask& task, WorkingState& state)
+    {
+        for (AZ::u16 e = 0; e < task.m_effectCount; ++e)
+        {
+            const HtnEffect& effect = domain.m_effects[task.m_firstEffect + e];
+            state.Set(domain, effect.m_key, effect.m_value);
+        }
+    }
+
     bool HtnPlanner::Holds(const HtnDomain& domain, const WorkingState& state, AZ::u16 first, AZ::u16 count)
     {
         for (AZ::u16 i = 0; i < count; ++i)
@@ -118,13 +132,7 @@ namespace GOAT
                 history.pop_back();
 
                 toProcess.resize(record.m_toProcess);
-
-                // Popped rather than resized: ActionRequest holds an EntityId, whose default
-                // constructor is explicit, so it cannot be value initialised in place.
-                while (outPlan.size() > record.m_planned)
-                {
-                    outPlan.pop_back();
-                }
+                outPlan.resize(record.m_planned);
                 while (undo.size() > record.m_undone)
                 {
                     state.Set(domain, undo.back().m_key, undo.back().m_was);
@@ -160,7 +168,7 @@ namespace GOAT
                         state.Set(domain, effect.m_key, effect.m_value);
                     }
 
-                    outPlan.push_back(task.m_action);
+                    outPlan.push_back(taskIndex);
                     carried = true;
                 }
             }

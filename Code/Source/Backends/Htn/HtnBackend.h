@@ -7,6 +7,14 @@
 
 namespace GOAT
 {
+    //! The plan an agent is running, as the tasks it came from, so what is left of it can be
+    //! re-checked against the world without planning again.
+    struct HtnPlanRecord final
+    {
+        AZ::u16 m_count = 0;
+        AZ::u16 m_tasks[MaxPlanTasks]{};
+    };
+
     //! Runs agents by decomposing a task network into a plan of verbs.
     class HtnBackend final
         : public IDecisionBackend
@@ -24,10 +32,16 @@ namespace GOAT
         AZStd::vector<AZ::Name> GetNodeTypes() const override;
         size_t GetStateSize() const override;
         CompileOutcome Compile(const AZ::Name& name, const AuthoredNode& root) override;
+        void Attach(const PlanContext& context, const AgentProgram& program, BrainState state) override;
+        TickResult Advance(const PlanContext& context, const AgentProgram& program, BrainState state,
+            float elapsed, size_t runningStep) override;
         Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
             ActionResult lastResult, float elapsed, ActionPlan& outPlan) override;
 
     private:
+        //! The plan record an agent keeps inside its brain state.
+        static HtnPlanRecord& Record(BrainState state);
+
         IAgentSystem& m_host;
         IBlackboardSystem& m_blackboard;
         HtnPlanner m_planner;

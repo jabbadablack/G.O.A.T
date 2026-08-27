@@ -75,7 +75,8 @@ namespace GOAT
     }
 
     TickResult BehaviorTreeBackend::Advance(
-        const PlanContext& context, const AgentProgram& program, BrainState state, float elapsed)
+        const PlanContext& context, const AgentProgram& program, BrainState state, float elapsed,
+        [[maybe_unused]] size_t runningStep)
     {
         const DecisionProgram& tree = static_cast<const DecisionProgram&>(program);
         DecisionCursor& cursor = Cursor(state);

@@ -15,8 +15,9 @@ namespace GOAT
     //! How deep a decomposition may go before recursion is treated as a bug.
     inline constexpr AZ::u16 MaxDecomposeDepth = 16;
 
-    //! Primitive steps one plan may hold.
-    inline constexpr AZ::u16 MaxPlanTasks = 64;
+    //! Primitive steps one plan may hold. Bounded so the plan an agent is running fits in
+    //! the state its backend carries, which is what lets it be re-checked while it runs.
+    inline constexpr AZ::u16 MaxPlanTasks = 32;
 
     //! Blackboard slots one domain may reason about.
     inline constexpr AZ::u16 MaxDomainKeys = 32;

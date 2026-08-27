@@ -64,22 +64,30 @@ namespace GOAT
             return false;
         }
 
-        //! Turns an authored abort mode name into its enum, defaulting to none.
-        AbortMode ReadAbortMode(const AZ::Name& name)
+        //! Turns an authored abort mode name into its enum. False when it is not one of them.
+        bool ReadAbortMode(const AZ::Name& name, AbortMode& outMode)
         {
             if (name == AZ_NAME_LITERAL("self"))
             {
-                return AbortMode::Self;
+                outMode = AbortMode::Self;
+                return true;
             }
             if (name == AZ_NAME_LITERAL("lower_priority"))
             {
-                return AbortMode::LowerPriority;
+                outMode = AbortMode::LowerPriority;
+                return true;
             }
             if (name == AZ_NAME_LITERAL("both"))
             {
-                return AbortMode::Both;
+                outMode = AbortMode::Both;
+                return true;
             }
-            return AbortMode::None;
+            if (name == AZ_NAME_LITERAL("none"))
+            {
+                outMode = AbortMode::None;
+                return true;
+            }
+            return false;
         }
 
         //! How many children a node kind may have.
@@ -216,15 +224,17 @@ namespace GOAT
                     "anything that acts belongs in the main branch"));
             }
 
-            // An abort mode inside the background would register that node as a guard as well,
-            // scoped to a branch that never runs. The background is already a continuous check,
-            // so asking for one on top of it is a mistake worth naming.
-            if (program.m_nodes[i].m_abort != AbortMode::None)
+            // The background is already a continuous check, so a guard on top of it would be
+            // scoped to a branch that never runs. The default is dropped silently; anything
+            // louder was asked for on purpose and is a mistake worth naming.
+            if (program.m_nodes[i].m_abort == AbortMode::LowerPriority ||
+                program.m_nodes[i].m_abort == AbortMode::Both)
             {
                 return AZ::Failure(AZStd::string(
                     "a node inside a parallel's background branch cannot declare an abort mode; "
                     "the branch is already re-checked whenever a variable it reads changes"));
             }
+            program.m_nodes[i].m_abort = AbortMode::None;
 
             // The background is checked when a variable it reads changes, exactly like a guard,
             // so an agent whose blackboard is quiet still evaluates nothing at all.
@@ -377,10 +387,14 @@ namespace GOAT
             if (parameter.m_name == AZ_NAME_LITERAL("abort"))
             {
                 AZ::Name abortName;
-                if (ReadName(*value, abortName))
+                AbortMode mode = AbortMode::None;
+                if (!ReadName(*value, abortName) || !ReadAbortMode(abortName, mode))
                 {
-                    node.m_abort = ReadAbortMode(abortName);
+                    return AZ::Failure(AZStd::string::format(
+                        "'%s' declares abort '%s'; it is self, lower_priority, both or none",
+                        authored.m_type.c_str(), abortName.GetCStr()));
                 }
+                node.m_abort = mode;
                 continue;
             }
 
@@ -418,6 +432,16 @@ namespace GOAT
             else
             {
                 node.m_amount = static_cast<float>(number);
+            }
+        }
+
+        // A condition names what must hold. That is a dependency, so it is watched and it
+        // interrupts the branch it guards unless the author asked for something else.
+        if (descriptor->m_op == NodeOp::Condition || descriptor->m_op == NodeOp::Compare)
+        {
+            if (FindProperty(authored, AZ_NAME_LITERAL("abort")) == nullptr)
+            {
+                program.m_nodes[index].m_abort = AbortMode::Self;
             }
         }
 

@@ -30,7 +30,8 @@ namespace GOAT
         CompileOutcome Compile(const AZ::Name& name, const AuthoredNode& root) override;
         void Attach(const PlanContext& context, const AgentProgram& program, BrainState state) override;
         TickResult Advance(
-            const PlanContext& context, const AgentProgram& program, BrainState state, float elapsed) override;
+            const PlanContext& context, const AgentProgram& program, BrainState state, float elapsed,
+            size_t runningStep) override;
         Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
             ActionResult lastResult, float elapsed, ActionPlan& outPlan) override;
 

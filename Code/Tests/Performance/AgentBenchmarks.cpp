@@ -436,6 +436,42 @@ namespace GOAT::Benchmark
             }
         };
 
+        //! The same population, but every condition is watched and one of them reads a global
+        //! variable. This is what a tree costs now that writing a condition means observing it.
+        void MakeReactiveArchetype()
+        {
+            m_alarm = m_blackboard->Declare(AZ::Name("alarm"), BlackboardScope::Global, BlackboardType::Bool)
+                          .GetValue();
+            BuildProgram(8);
+
+            const ActionStateId busy = m_actions->Register(AZStd::make_unique<BusyAction>());
+            for (DecisionNode& node : m_program->m_nodes)
+            {
+                if (node.m_op == NodeOp::Action)
+                {
+                    node.m_action.m_action = busy;
+                }
+                if (node.m_op == NodeOp::Condition)
+                {
+                    node.m_abort = AbortMode::Self;
+                    m_program->m_guardNodes.push_back(
+                        static_cast<NodeIndex>(&node - m_program->m_nodes.data()));
+                }
+            }
+
+            // The first branch reads the global one, so a write to it is what wakes everybody.
+            m_program->m_nodes[2].m_key = m_alarm;
+            m_program->m_observedKeys.push_back(m_alarm);
+
+            auto shared = AZStd::shared_ptr<DecisionProgram>(aznew DecisionProgram(*m_program));
+            shared->m_backend = m_treeBackend.get();
+            shared->m_watchedScopes[static_cast<size_t>(BlackboardScope::Agent)] = true;
+            shared->m_watchedScopes[static_cast<size_t>(BlackboardScope::Global)] = true;
+            auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
+            archetype->Add(AZ::Name("Bench"), AZStd::move(shared));
+            m_archetype = archetype;
+        }
+
         void MakeArchetype(bool waiting = false)
         {
             BuildProgram(8);
@@ -474,6 +510,7 @@ namespace GOAT::Benchmark
         AZStd::unique_ptr<TestAgentSystem> m_host;
         AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
+        BlackboardKey m_alarm;
         AZStd::unique_ptr<AgentRegistry> m_registry;
     };
 
@@ -597,6 +634,43 @@ namespace GOAT::Benchmark
     }
 
     BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickWaiting)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! One global write against a population that reacts to it. This is what reactivity by
+    //! default costs: every agent watching the global scope wakes and rescans its guards.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_GlobalWriteReactive)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        MakeReactiveArchetype();
+        m_registry->Reserve(static_cast<size_t>(agents), 0);
+
+        AZStd::vector<AgentId> registered;
+        registered.reserve(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            registered.push_back(
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{}));
+        }
+
+        for (const AgentId agent : registered)
+        {
+            m_blackboard->Set<bool>(m_gate, true, agent);
+        }
+
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+
+        bool alarm = false;
+        for ([[maybe_unused]] auto _ : state)
+        {
+            alarm = !alarm;
+            m_blackboard->Set<bool>(m_alarm, alarm);
+            m_registry->TickBand(0);
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_GlobalWriteReactive)->Arg(100)->Arg(1000)->Arg(10000);
 
     //! The same, told up front how many are coming.
     BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_RegisterAgentsReserved)(::benchmark::State& state)

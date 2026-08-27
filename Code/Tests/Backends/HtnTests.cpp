@@ -156,9 +156,9 @@ namespace GOAT
                 return verbs;
             }
 
-            for (const ActionRequest& step : steps)
+            for (const AZ::u16 task : steps)
             {
-                verbs.push_back(m_actions->Find(step.m_action)->GetName());
+                verbs.push_back(m_actions->Find(domain.m_tasks[task].m_action.m_action)->GetName());
             }
             return verbs;
         }
@@ -455,8 +455,160 @@ namespace GOAT
 
         const HtnPlanBuffer steps = Steps(compiled.GetValue());
         ASSERT_EQ(steps.size(), 1u);
-        EXPECT_EQ(steps[0].m_action, verb);
-        EXPECT_EQ(steps[0].m_tag, AZ::Name("CrowdRally"));
-        EXPECT_FLOAT_EQ(steps[0].m_amount, 6.0f);
+
+        const ActionRequest& request = compiled.GetValue().m_tasks[steps[0]].m_action;
+        EXPECT_EQ(request.m_action, verb);
+        EXPECT_EQ(request.m_tag, AZ::Name("CrowdRally"));
+        EXPECT_FLOAT_EQ(request.m_amount, 6.0f);
+    }
+
+    //! Everything a running plan is re-checked against.
+    class HtnRunningFixture : public HtnFixture
+    {
+    protected:
+        //! Plans a domain and hands back the backend, its state and whether it planned.
+        bool Start(HtnBackend& backend, const HtnDomain& domain, BrainState state)
+        {
+            PlanContext context;
+            context.m_agent = m_agent;
+            context.m_blackboard = m_blackboard.get();
+            context.m_planStore = &m_planStore;
+
+            ActionPlan plan;
+            const Decision decision =
+                backend.Decide(context, domain, state, ActionResult::Success, 0.0f, plan);
+            m_plan = plan;
+            return decision.m_planned;
+        }
+
+        TickResult Recheck(HtnBackend& backend, const HtnDomain& domain, BrainState state, size_t step)
+        {
+            PlanContext context;
+            context.m_agent = m_agent;
+            context.m_blackboard = m_blackboard.get();
+            context.m_planStore = &m_planStore;
+            return backend.Advance(context, domain, state, 0.0f, step);
+        }
+
+        PlanStore m_planStore;
+        ActionPlan m_plan;
+    };
+
+    //! The point of the whole thing: another backend writes, and this one's plan stops being
+    //! worth running without anybody wiring the two together.
+    TEST_F(HtnRunningFixture, Advance_DropsThePlanWhenARemainingStepStopsBeingPossible)
+    {
+        DeclareBool("ready", true);
+
+        AuthoredNode root = Node("domain");
+        AuthoredNode go = Node("task");
+        Text(go, "name", "Go");
+        AuthoredNode method = Node("method");
+        method.m_children.push_back(Subtask("First"));
+        method.m_children.push_back(Subtask("Second"));
+        go.m_children.push_back(method);
+        root.m_children.push_back(go);
+        root.m_children.push_back(Primitive("First", "wait"));
+
+        AuthoredNode second = Primitive("Second", "shout");
+        second.m_children.push_back(Condition("ready"));
+        root.m_children.push_back(second);
+
+        HtnBackend backend(*m_host, *m_blackboard);
+        auto compiled = backend.Compile(AZ::Name("Go"), root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+        const auto& domain = static_cast<const HtnDomain&>(*compiled.GetValue());
+
+        AZStd::array<AZ::u8, 128> bytes{};
+        const BrainState state(bytes.data(), bytes.size());
+        ASSERT_TRUE(Start(backend, domain, state));
+
+        // Still fine while nothing has moved.
+        EXPECT_EQ(Recheck(backend, domain, state, 0), TickResult::Continue);
+
+        m_blackboard->Set<bool>(m_blackboard->FindKey(AZ::Name("ready")), false, m_agent);
+        EXPECT_EQ(Recheck(backend, domain, state, 0), TickResult::Abandon);
+
+        m_planStore.Release(m_plan.m_span);
+    }
+
+    //! And the trap: a plan whose own step writes the variable its method chose on must not
+    //! abandon itself. Only the steps left are re-checked, never the method that picked them.
+    TEST_F(HtnRunningFixture, Advance_KeepsThePlanWhenOnlyTheMethodsOwnConditionMoved)
+    {
+        DeclareBool("flag", true);
+
+        AuthoredNode root = Node("domain");
+        AuthoredNode marshal = Node("task");
+        Text(marshal, "name", "Marshal");
+
+        AuthoredNode acting = Node("method");
+        acting.m_children.push_back(Condition("flag"));
+        acting.m_children.push_back(Subtask("Act"));
+        acting.m_children.push_back(Subtask("Sense"));
+        marshal.m_children.push_back(acting);
+
+        AuthoredNode resting = Node("method");
+        resting.m_children.push_back(Subtask("Rest"));
+        marshal.m_children.push_back(resting);
+
+        root.m_children.push_back(marshal);
+        root.m_children.push_back(Primitive("Act", "shout"));
+        root.m_children.push_back(Primitive("Sense", "wait"));
+        root.m_children.push_back(Primitive("Rest", "wait"));
+
+        HtnBackend backend(*m_host, *m_blackboard);
+        auto compiled = backend.Compile(AZ::Name("Marshal"), root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+        const auto& domain = static_cast<const HtnDomain&>(*compiled.GetValue());
+
+        AZStd::array<AZ::u8, 128> bytes{};
+        const BrainState state(bytes.data(), bytes.size());
+        ASSERT_TRUE(Start(backend, domain, state));
+
+        // What Sense does. The method chose on this, and the plan must survive it.
+        m_blackboard->Set<bool>(m_blackboard->FindKey(AZ::Name("flag")), false, m_agent);
+        EXPECT_EQ(Recheck(backend, domain, state, 0), TickResult::Continue);
+
+        m_planStore.Release(m_plan.m_span);
+    }
+
+    //! A step that depends on an earlier step's effect is checked against the world that step
+    //! will have left, not the one on the blackboard now.
+    TEST_F(HtnRunningFixture, Advance_ReplaysWhatTheStepsBeforeItAssumed)
+    {
+        DeclareBool("warmed", false);
+
+        AuthoredNode root = Node("domain");
+        AuthoredNode go = Node("task");
+        Text(go, "name", "Go");
+        AuthoredNode method = Node("method");
+        method.m_children.push_back(Subtask("WarmUp"));
+        method.m_children.push_back(Subtask("Shout"));
+        go.m_children.push_back(method);
+        root.m_children.push_back(go);
+
+        AuthoredNode warm = Primitive("WarmUp", "wait");
+        warm.m_children.push_back(Effect("warmed", true));
+        root.m_children.push_back(warm);
+
+        AuthoredNode shout = Primitive("Shout", "shout");
+        shout.m_children.push_back(Condition("warmed"));
+        root.m_children.push_back(shout);
+
+        HtnBackend backend(*m_host, *m_blackboard);
+        auto compiled = backend.Compile(AZ::Name("Go"), root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+        const auto& domain = static_cast<const HtnDomain&>(*compiled.GetValue());
+
+        AZStd::array<AZ::u8, 128> bytes{};
+        const BrainState state(bytes.data(), bytes.size());
+        ASSERT_TRUE(Start(backend, domain, state));
+
+        // `warmed` is false on the blackboard and always will be: the effect is an assumption,
+        // never a write. Shout must still be judged runnable.
+        EXPECT_EQ(Recheck(backend, domain, state, 1), TickResult::Continue);
+
+        m_planStore.Release(m_plan.m_span);
     }
 } // namespace GOAT
