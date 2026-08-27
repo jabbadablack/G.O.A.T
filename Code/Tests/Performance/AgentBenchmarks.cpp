@@ -412,7 +412,6 @@ namespace GOAT::Benchmark
         public:
             AZ_RTTI(BusyAction, "{6D1F5B2E-4A77-4C09-9E33-70B5A5C1D482}", IActionState);
             AZ::Name GetName() const override { return AZ::Name("busy"); }
-            bool IsParallelSafe() const override { return true; }
             ActionResult Step(const ActionContext&, float) override { return ActionResult::Running; }
         };
 

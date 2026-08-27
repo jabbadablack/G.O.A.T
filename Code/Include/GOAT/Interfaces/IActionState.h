@@ -50,19 +50,6 @@ namespace GOAT
         {
         }
 
-        //! True when this verb touches nothing but its own context: its scratch, and the
-        //! blackboard of the agent it is running for.
-        //!
-        //! The default is no, because the honest constraint is wider than Lua. A verb that
-        //! reaches an EBus, an asset, a transform or a script is talking to something outside
-        //! the gem, and nothing out there promises to be reentrant -- MoveToAction writes a
-        //! transform, AnimateAction broadcasts on the asset catalog. Answering yes is a claim
-        //! the verb's author makes deliberately, not one inferred on their behalf.
-        virtual bool IsParallelSafe() const
-        {
-            return false;
-        }
-
         //! Advances the action. The agent stays in this state while it returns Running.
         virtual ActionResult Step(const ActionContext& context, float deltaTime) = 0;
 

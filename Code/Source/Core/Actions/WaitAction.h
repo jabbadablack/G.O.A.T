@@ -16,9 +16,6 @@ namespace GOAT
 
         AZ::Name GetName() const override;
 
-        //! Counting down a duration in the agent's own scratch reaches nothing else.
-        bool IsParallelSafe() const override { return true; }
-
         void Begin(const ActionContext& context) override;
         ActionResult Step(const ActionContext& context, float deltaTime) override;
     };
