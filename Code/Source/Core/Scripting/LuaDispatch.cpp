@@ -49,6 +49,11 @@ namespace GOAT
         m_ranScripts.clear();
     }
 
+    bool LuaDispatch::BeginCall(const char* function, AZ::ScriptDataContext& outCall)
+    {
+        return m_scriptContext != nullptr && m_scriptContext->Call(function, outCall);
+    }
+
     bool LuaDispatch::RunScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset)
     {
         AZ_Assert(m_scriptContext != nullptr, "Running a script needs a connected script context");
@@ -106,13 +111,8 @@ namespace GOAT
 
     AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> LuaDispatch::EmitTree(const AZ::Name& treeName)
     {
-        if (m_scriptContext == nullptr)
-        {
-            return AZ::Failure(AZStd::string("The Lua script context is not available"));
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_EmitTree", call))
+        if (!BeginCall("GOAT_EmitTree", call))
         {
             return AZ::Failure(AZStd::string("The GOAT Lua vocabulary is not loaded"));
         }
@@ -151,14 +151,8 @@ namespace GOAT
         AZ_Assert(!behavior.IsEmpty(), "A behaviour is always called by name");
         AZ_Assert(phase != nullptr, "A behaviour call always names a lifecycle phase");
 
-        if (m_scriptContext == nullptr)
-        {
-            AZ_Error("GOAT", false, "Behaviour '%s' cannot run: scripting is not connected", behavior.GetCStr());
-            return ActionResult::Failure;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_Dispatch", call))
+        if (!BeginCall("GOAT_Dispatch", call))
         {
             AZ_Error("GOAT", false, "GOAT_Dispatch is missing, so behaviour '%s' cannot run; the vocabulary did not load",
                 behavior.GetCStr());
@@ -199,13 +193,8 @@ namespace GOAT
 
     bool LuaDispatch::BakePlans()
     {
-        if (m_scriptContext == nullptr)
-        {
-            return false;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_BakePlans", call))
+        if (!BeginCall("GOAT_BakePlans", call))
         {
             AZ_Error("GOAT", false, "GOAT_BakePlans is missing, so no authored plan can run");
             return false;
@@ -222,13 +211,8 @@ namespace GOAT
     bool LuaDispatch::ValidatePlans()
     {
         m_planValidator.Reset();
-        if (m_scriptContext == nullptr)
-        {
-            return false;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_ValidatePlans", call))
+        if (!BeginCall("GOAT_ValidatePlans", call))
         {
             AZ_Error("GOAT", false, "GOAT_ValidatePlans is missing, so declared plans cannot be checked");
             return false;
@@ -245,13 +229,8 @@ namespace GOAT
     AZStd::vector<AZ::Name> LuaDispatch::GetLuaBackendNames()
     {
         m_nameCollector.Clear();
-        if (m_scriptContext == nullptr)
-        {
-            return {};
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_EmitBackendNames", call))
+        if (!BeginCall("GOAT_EmitBackendNames", call))
         {
             AZ_Error("GOAT", false, "GOAT_EmitBackendNames is missing, so Lua backends cannot be discovered");
             return {};
@@ -268,13 +247,8 @@ namespace GOAT
     AZStd::vector<AZ::Name> LuaDispatch::GetDeclaredTreeNames()
     {
         m_nameCollector.Clear();
-        if (m_scriptContext == nullptr)
-        {
-            return {};
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_EmitTreeNames", call))
+        if (!BeginCall("GOAT_EmitTreeNames", call))
         {
             AZ_Error("GOAT", false, "GOAT_EmitTreeNames is missing, so declared trees cannot be listed");
             return {};
@@ -293,14 +267,8 @@ namespace GOAT
     {
         AZ_Assert(!backend.IsEmpty(), "A backend is always asked to plan by name");
 
-        if (m_scriptContext == nullptr)
-        {
-            AZ_Error("GOAT", false, "Backend '%s' cannot plan: scripting is not connected", backend.GetCStr());
-            return nullptr;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_Plan", call))
+        if (!BeginCall("GOAT_Plan", call))
         {
             AZ_Error("GOAT", false, "GOAT_Plan is missing, so backend '%s' cannot plan", backend.GetCStr());
             return nullptr;
@@ -339,14 +307,8 @@ namespace GOAT
         AZ_Assert(!flow.IsEmpty(), "Lua control flow is always entered by name");
         AZ_Assert(childCount >= 0, "A composite cannot have a negative number of children");
 
-        if (m_scriptContext == nullptr)
-        {
-            AZ_Error("GOAT", false, "Flow '%s' cannot start: scripting is not connected", flow.GetCStr());
-            return NoChild;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_FlowBegin", call))
+        if (!BeginCall("GOAT_FlowBegin", call))
         {
             AZ_Error("GOAT", false, "GOAT_FlowBegin is missing, so flow '%s' cannot start", flow.GetCStr());
             return NoChild;
@@ -391,14 +353,8 @@ namespace GOAT
         AZ_Assert(!flow.IsEmpty(), "Lua control flow is always advanced by name");
         AZ_Assert(childIndex >= 0, "A composite always reports which child just finished");
 
-        if (m_scriptContext == nullptr)
-        {
-            AZ_Error("GOAT", false, "Flow '%s' cannot advance: scripting is not connected", flow.GetCStr());
-            return NoChild;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_FlowAdvance", call))
+        if (!BeginCall("GOAT_FlowAdvance", call))
         {
             AZ_Error("GOAT", false, "GOAT_FlowAdvance is missing, so flow '%s' cannot advance", flow.GetCStr());
             return NoChild;
@@ -432,14 +388,8 @@ namespace GOAT
     {
         AZ_Assert(!flow.IsEmpty(), "Lua control flow is always filtered by name");
 
-        if (m_scriptContext == nullptr)
-        {
-            AZ_Error("GOAT", false, "Flow '%s' cannot filter: scripting is not connected", flow.GetCStr());
-            return childResult;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_FlowFilter", call))
+        if (!BeginCall("GOAT_FlowFilter", call))
         {
             AZ_Error("GOAT", false, "GOAT_FlowFilter is missing, so flow '%s' cannot filter", flow.GetCStr());
             return childResult;
@@ -495,13 +445,8 @@ namespace GOAT
 
     void LuaDispatch::ForgetAgent(AgentId agent)
     {
-        if (m_scriptContext == nullptr)
-        {
-            return;
-        }
-
         AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_ForgetAgent", call))
+        if (!BeginCall("GOAT_ForgetAgent", call))
         {
             AZ_Error("GOAT", false, "GOAT_ForgetAgent is missing, so agent %u's Lua scratch will outlive it",
                 agent.GetIndex());

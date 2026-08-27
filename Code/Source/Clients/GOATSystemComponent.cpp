@@ -1069,6 +1069,27 @@ namespace GOAT
             record->m_machine.GetStepIndex(), record->m_machine.GetPlanSize(), record->m_machine.GetElapsed());
     }
 
+    namespace
+    {
+        //! Reads an entity id from a console argument, reporting what it could not read.
+        //! Five console commands were doing this letter for letter.
+        bool ReadEntity(const AZ::ConsoleCommandContainer& arguments, size_t index, AZ::EntityId& outEntity)
+        {
+            AZ::u64 rawEntityId = 0;
+            if (index >= arguments.size() || !AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments[index]))
+            {
+                AZLOG_INFO("could not read '%.*s' as an entity id",
+                    index < arguments.size() ? aznumeric_cast<int>(arguments[index].size()) : 0,
+                    index < arguments.size() ? arguments[index].data() : "");
+                return false;
+            }
+
+            outEntity = AZ::EntityId(rawEntityId);
+            return true;
+        }
+
+    } // namespace
+
     void GOATSystemComponent::SetAgentTreeCommand(const AZ::ConsoleCommandContainer& arguments)
     {
         if (arguments.size() < 2 || m_agents == nullptr)
@@ -1077,15 +1098,11 @@ namespace GOAT
             return;
         }
 
-        AZ::u64 rawEntityId = 0;
-        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
+        AZ::EntityId wantedEntity;
+        if (!ReadEntity(arguments, 0, wantedEntity))
         {
-            AZLOG_INFO("could not read '%.*s' as an entity id",
-                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
             return;
         }
-
-        const AZ::EntityId wantedEntity(rawEntityId);
 
         // Named on its own line: AZ::Name treeName(AZStd::string(...)) parses as a declaration.
         const AZStd::string wantedTree(arguments[1]);
@@ -1113,14 +1130,6 @@ namespace GOAT
             return;
         }
 
-        AZ::u64 rawEntityId = 0;
-        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
-        {
-            AZLOG_INFO("could not read '%.*s' as an entity id",
-                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
-            return;
-        }
-
         AZ::u32 wantedBand = 0;
         if (!AZ::ConsoleTypeHelpers::ToValue(wantedBand, arguments[1]))
         {
@@ -1129,7 +1138,12 @@ namespace GOAT
             return;
         }
 
-        const AZ::EntityId wantedEntity(rawEntityId);
+        AZ::EntityId wantedEntity;
+        if (!ReadEntity(arguments, 0, wantedEntity))
+        {
+            return;
+        }
+
         const AgentId agent = m_agents->FindByEntity(wantedEntity);
         if (agent.IsNull())
         {
@@ -1179,18 +1193,16 @@ namespace GOAT
             return;
         }
 
-        AZ::u64 rawEntityId = 0;
-        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
+        AZ::EntityId wantedEntity;
+        if (!ReadEntity(arguments, 0, wantedEntity))
         {
-            AZLOG_INFO("could not read '%.*s' as an entity id",
-                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
             return;
         }
 
-        const AgentId director = FindAgent(AZ::EntityId(rawEntityId));
+        const AgentId director = FindAgent(wantedEntity);
         if (director.IsNull() || m_directors->FindProfile(director) == nullptr)
         {
-            AZLOG_INFO("no director is running on entity %s", AZ::EntityId(rawEntityId).ToString().c_str());
+            AZLOG_INFO("no director is running on entity %s", wantedEntity.ToString().c_str());
             return;
         }
 
@@ -1514,15 +1526,12 @@ namespace GOAT
             return;
         }
 
-        AZ::u64 rawEntityId = 0;
-        if (!AZ::ConsoleTypeHelpers::ToValue(rawEntityId, arguments.front()))
+        AZ::EntityId wanted;
+        if (!ReadEntity(arguments, 0, wanted))
         {
-            AZLOG_INFO("could not read '%.*s' as an entity id",
-                aznumeric_cast<int>(arguments.front().size()), arguments.front().data());
             return;
         }
 
-        const AZ::EntityId wanted(rawEntityId);
         const AgentId agent = m_agents->FindByEntity(wanted);
         const AgentRecord* record = agent.IsNull() ? nullptr : m_agents->Find(agent);
         if (record == nullptr)
