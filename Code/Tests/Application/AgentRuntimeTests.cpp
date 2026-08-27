@@ -131,9 +131,8 @@ namespace GOAT
             m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
             m_planStore = AZStd::make_unique<PlanStore>();
             m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
-            m_trees = AZStd::make_unique<TreeLibrary>();
             m_host = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions, m_backends.get());
-            m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*m_host, *m_blackboard, *m_trees);
+            m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*m_host, *m_blackboard);
 
             m_runtime = AZStd::make_unique<AgentRuntime>(
                 *m_blackboard, *m_actions, *m_backends, *m_scripting, *m_planStore);
@@ -156,7 +155,6 @@ namespace GOAT
             m_runtime.reset();
             m_treeBackend.reset();
             m_host.reset();
-            m_trees.reset();
             m_nodeTypes.reset();
             m_planStore.reset();
             m_scripting.reset();
@@ -251,7 +249,6 @@ namespace GOAT
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;
         AZStd::unique_ptr<PlanStore> m_planStore;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
-        AZStd::unique_ptr<TreeLibrary> m_trees;
         AZStd::unique_ptr<TestAgentSystem> m_host;
         AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;

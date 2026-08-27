@@ -13,11 +13,9 @@ namespace GOAT
         constexpr int MaxIntentsPerDecision = 8;
     } // namespace
 
-    BehaviorTreeBackend::BehaviorTreeBackend(
-        IAgentSystem& host, IBlackboardSystem& blackboard, const TreeLibrary& trees)
+    BehaviorTreeBackend::BehaviorTreeBackend(IAgentSystem& host, IBlackboardSystem& blackboard)
         : m_host(host)
         , m_blackboard(blackboard)
-        , m_trees(trees)
     {
     }
 
@@ -53,7 +51,7 @@ namespace GOAT
 
     CompileOutcome BehaviorTreeBackend::Compile(const AZ::Name& name, const AuthoredNode& root)
     {
-        const TreeCompiler compiler(m_host, m_blackboard, m_trees);
+        const TreeCompiler compiler(m_host, m_blackboard);
         auto compiled = compiler.Compile(name, root);
         if (!compiled.IsSuccess())
         {

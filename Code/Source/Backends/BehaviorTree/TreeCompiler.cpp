@@ -126,10 +126,9 @@ namespace GOAT
         }
     } // namespace
 
-    TreeCompiler::TreeCompiler(IAgentSystem& host, const IBlackboardSystem& blackboard, const TreeLibrary& library)
+    TreeCompiler::TreeCompiler(IAgentSystem& host, const IBlackboardSystem& blackboard)
         : m_host(host)
         , m_blackboard(blackboard)
-        , m_library(library)
     {
     }
 
@@ -154,7 +153,7 @@ namespace GOAT
             AZ::Name slotName;
             if (ReadName(*slot, slotName))
             {
-                treeName = m_library.GetBinding(slotName);
+                treeName = m_host.GetSubtreeBinding(slotName);
 
                 // Remembered so a rebind of this slot can recompile exactly the trees that used
                 // it, rather than every tree in the project.
@@ -183,7 +182,10 @@ namespace GOAT
                 AZStd::string::format("Subtree '%s' refers to itself, directly or through another tree", treeName.GetCStr()));
         }
 
-        const AuthoredNode* referenced = m_library.Find(treeName);
+        // Asked for again rather than cached: the authored tree is what the core holds, and a
+        // rebound slot must reach the one bound now.
+        const auto declared = m_host.EmitProgram(treeName);
+        const AuthoredNode* referenced = declared.IsSuccess() ? declared.GetValue().get() : nullptr;
         if (referenced == nullptr)
         {
             return AZ::Failure(AZStd::string::format("Unknown subtree '%s'", treeName.GetCStr()));

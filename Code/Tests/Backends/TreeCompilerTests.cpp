@@ -2,7 +2,6 @@
 #include <Backends/BehaviorTree/TreeCompiler.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
-#include <Core/Frontend/TreeLibrary.h>
 #include <TestAgentSystem.h>
 
 #include <AzCore/Name/NameDictionary.h>
@@ -36,7 +35,6 @@ namespace GOAT
                 m_nodeTypes->Register(AZStd::move(word));
             }
             m_agents = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions);
-            m_library = AZStd::make_unique<TreeLibrary>();
 
             m_gate = m_blackboard->Declare(AZ::Name("gate"), BlackboardScope::Agent, BlackboardType::Bool)
                          .GetValue();
@@ -44,7 +42,6 @@ namespace GOAT
 
         void TearDown() override
         {
-            m_library.reset();
             m_agents.reset();
             m_nodeTypes.reset();
             m_actions.reset();
@@ -86,7 +83,7 @@ namespace GOAT
 
         AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AuthoredNode& root) const
         {
-            const TreeCompiler compiler(*m_agents, *m_blackboard, *m_library);
+            const TreeCompiler compiler(*m_agents, *m_blackboard);
             return compiler.Compile(AZ::Name("Test"), root);
         }
 
@@ -95,7 +92,6 @@ namespace GOAT
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TestAgentSystem> m_agents;
-        AZStd::unique_ptr<TreeLibrary> m_library;
     };
 
     //! Writing a condition is saying the branch needs it. Nothing else should be required to

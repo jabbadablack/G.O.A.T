@@ -107,6 +107,7 @@ namespace GOAT
         //! What a backend may reach of the core.
         AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitProgram(
             const AZ::Name& name) override;
+        AZ::Name GetSubtreeBinding(const AZ::Name& slot) const override;
         ActionStateId FindVerb(const AZ::Name& name) const override;
         const NodeTypeDescriptor* FindNodeType(const AZ::Name& name) const override;
         IBackend* FindBackend(const AZ::Name& name) const override;

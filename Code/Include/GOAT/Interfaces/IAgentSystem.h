@@ -129,6 +129,8 @@ namespace GOAT
         //! The authored node tree a program was declared as.
         virtual AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitProgram(
             const AZ::Name& name) = 0;
+        //! What a named slot currently points at, or an empty name when nothing is bound.
+        virtual AZ::Name GetSubtreeBinding(const AZ::Name& slot) const = 0;
         //! The verb a word runs, or Invalid when no module registered one.
         virtual ActionStateId FindVerb(const AZ::Name& name) const = 0;
         //! What a word declares it accepts, or nullptr.

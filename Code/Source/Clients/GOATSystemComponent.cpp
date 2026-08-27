@@ -141,7 +141,7 @@ namespace GOAT
 
         InstallBehaviorTreeWords(m_treeWords);
 
-        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*this, *m_blackboardSystem, *m_trees);
+        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*this, *m_blackboardSystem);
         m_treeBackend = treeBackend.get();
         AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
         m_decisionBackends->Register(AZStd::move(installed));
@@ -990,6 +990,11 @@ namespace GOAT
             return AZ::Failure(AZStd::string("scripting is not running, so nothing can be emitted"));
         }
         return m_dispatch->EmitTree(name);
+    }
+
+    AZ::Name GOATSystemComponent::GetSubtreeBinding(const AZ::Name& slot) const
+    {
+        return m_trees != nullptr ? m_trees->GetBinding(slot) : AZ::Name{};
     }
 
     ActionStateId GOATSystemComponent::FindVerb(const AZ::Name& name) const

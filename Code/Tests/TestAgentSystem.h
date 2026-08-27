@@ -28,6 +28,8 @@ namespace GOAT
             return AZ::Failure(AZStd::string("a test declares its programs in C++"));
         }
 
+        AZ::Name GetSubtreeBinding(const AZ::Name&) const override { return {}; }
+
         ActionStateId FindVerb(const AZ::Name& name) const override { return m_actions.FindId(name); }
 
         const NodeTypeDescriptor* FindNodeType(const AZ::Name& name) const override

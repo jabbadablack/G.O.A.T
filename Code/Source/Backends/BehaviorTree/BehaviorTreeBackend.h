@@ -4,8 +4,6 @@
 #include <Backends/BehaviorTree/GuardEvaluator.h>
 #include <Backends/BehaviorTree/ServiceTracker.h>
 #include <Backends/BehaviorTree/TreeWalker.h>
-#include <Core/Frontend/TreeLibrary.h>
-
 #include <GOAT/Interfaces/IAgentSystem.h>
 #include <GOAT/Interfaces/IDecisionBackend.h>
 
@@ -19,7 +17,7 @@ namespace GOAT
         AZ_RTTI(BehaviorTreeBackend, "{2B7F49A1-63C8-4E5D-9A02-8F1D4C60E735}", IDecisionBackend);
         AZ_CLASS_ALLOCATOR(BehaviorTreeBackend, AZ::SystemAllocator);
 
-        BehaviorTreeBackend(IAgentSystem& host, IBlackboardSystem& blackboard, const TreeLibrary& trees);
+        BehaviorTreeBackend(IAgentSystem& host, IBlackboardSystem& blackboard);
 
         //! Name a tree agent is registered under.
         static AZ::Name GetBackendName();
@@ -48,7 +46,6 @@ namespace GOAT
 
         IAgentSystem& m_host;
         IBlackboardSystem& m_blackboard;
-        const TreeLibrary& m_trees;
         TreeWalker m_walker;
         GuardEvaluator m_guards;
         ServiceTracker m_services;
