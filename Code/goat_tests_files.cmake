@@ -6,5 +6,6 @@ set(FILES
     Tests/Application/AgentRuntimeTests.cpp
     Tests/Application/AgentStoreTests.cpp
     Tests/Application/BlackboardSystemTests.cpp
+    Tests/Scripting/ScriptBoundaryTests.cpp
     Tests/Performance/AgentBenchmarks.cpp
 )
