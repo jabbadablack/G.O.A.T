@@ -7,7 +7,7 @@
     "origin": "JabbaDaBlack",
     "origin_url": "https://github.com/jabbadablack",
     "type": "Code",
-    "summary": "G.O.A.T is a Goal-Oriented Action Planning framework for AI flow.",
+    "summary": "G.O.A.T is a pluggable NPC AI framework: Lua-authored behavior trees drive a small action-state machine, with decoupled decision backends unified by blackboard variables.",
     "canonical_tags": [
         "Gem"
     ],
@@ -17,18 +17,23 @@
         "Gameplay"
     ],
     "platforms": [
-        "Windows","iOS","Android","Linux"
+        "Windows",
+        "iOS",
+        "Android",
+        "Linux"
     ],
     "icon_path": "",
     "requirements": "",
     "documentation_url": "",
     "dependencies": [
-        "RecastNavigation",
-        "GraphCanvas"
+        "LmbrCentral"
     ],
     "repo_uri": "https://github.com/jabbadablack/G.O.A.T",
-    "compatible_engines": [
-    ],
-    "engine_api_dependencies":[
+    "compatible_engines": [],
+    "engine_api_dependencies": [],
+    "external_subdirectories": [
+        "Modules/Navigation",
+        "Modules/Animation",
+        "Modules/SmartObject"
     ]
 }

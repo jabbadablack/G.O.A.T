@@ -24,6 +24,20 @@ namespace GOAT
         //! The squad an agent belongs to, or an empty name.
         AZ::Name Find(AgentId agent) const;
 
+        //! Every agent in a squad, appended to @out.
+        //! The reverse of Find, which a director governing a squad it is not a member of has no
+        //! other way to ask for. Walks the membership map rather than keeping a second index:
+        //! one map is one invariant, and the walk costs what the roster walk it replaces costs.
+        void FindMembers(const AZ::Name& squad, AZStd::vector<AgentId>& out) const;
+
+        //! Every squad that currently has a member, for console output.
+        AZStd::vector<AZ::Name> GetNames() const;
+
+        //! Storage for a named squad, or nullptr when no such squad exists.
+        //! Told apart from the agent keyed overload because a director writes to a squad it is
+        //! not a member of, and so has no agent in it to ask through.
+        BlackboardStorage* FindStorage(const AZ::Name& squad);
+
         //! Storage for the squad an agent belongs to, or nullptr when it is in none.
         BlackboardStorage* FindStorage(AgentId agent);
         const BlackboardStorage* FindStorage(AgentId agent) const;

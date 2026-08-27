@@ -6,6 +6,7 @@
 
 #include <AssetBuilderSDK/AssetBuilderSDK.h>
 #include <AzCore/Asset/AssetManager.h>
+#include <AzCore/Console/ILogger.h>
 #include <AzCore/Serialization/EditContext.h>
 #include <AzCore/Serialization/SerializeContext.h>
 #include <AzFramework/Asset/GenericAssetHandler.h>
@@ -39,15 +40,22 @@ namespace GOAT
 
     void GOATBuilderComponent::Activate()
     {
+        AZ_Assert(m_assetHandlers.empty(), "A builder component activates with no handler already registered");
+
         if (!AZ::Data::AssetManager::IsReady() ||
             AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<BlackboardAsset>()) != nullptr)
         {
+            // Either too early to register, or the game module already did it in this process.
             return;
         }
 
         auto handler = AZStd::make_unique<BlackboardAssetHandler>();
         handler->Register();
         m_assetHandlers.emplace_back(AZStd::move(handler));
+
+        AZ_Assert(AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<BlackboardAsset>()) != nullptr,
+            "Registering the blackboard handler must make it findable, or .bbx files never build");
+        AZLOG_INFO("GOAT: the blackboard asset handler is registered in this builder process");
     }
 
     void GOATBuilderComponent::Deactivate()
@@ -60,5 +68,7 @@ namespace GOAT
             }
         }
         m_assetHandlers.clear();
+
+        AZ_Assert(m_assetHandlers.empty(), "Deactivating must release every handler this component owns");
     }
 } // namespace GOAT

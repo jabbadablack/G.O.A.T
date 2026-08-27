@@ -47,6 +47,9 @@ namespace GOAT
             AZStd::vector<AZ::Name>& inlining) const;
 
         //! Checks an authored node's properties against what its type accepts.
+        //! Checks a parallel's background branch and registers what it observes.
+        AZ::Outcome<void, AZStd::string> RegisterParallel(NodeIndex index, DecisionProgram& program) const;
+
         AZ::Outcome<void, AZStd::string> Validate(
             const BehaviorTreeNode& authored, const NodeTypeDescriptor& descriptor) const;
 

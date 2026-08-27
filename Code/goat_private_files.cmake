@@ -1,7 +1,11 @@
 set(FILES
     Source/GOATModuleInterface.cpp
     Source/GOATModuleInterface.h
+    Source/Clients/AgentBootstrap.cpp
+    Source/Clients/AgentBootstrap.h
     Source/Clients/GOATAgentComponent.cpp
+    Source/Clients/GOATDirectorComponent.cpp
+    Source/Clients/GOATDirectorComponent.h
     Source/Clients/GOATAgentComponent.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
@@ -22,6 +26,14 @@ set(FILES
     Source/Core/Application/BackendRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
+    Source/Core/Application/ReachFilterRegistry.cpp
+    Source/Core/Application/ReachFilterRegistry.h
+    Source/Core/Director/DirectorActions.cpp
+    Source/Core/Director/DirectorActions.h
+    Source/Core/Director/DirectorKeys.cpp
+    Source/Core/Director/DirectorKeys.h
+    Source/Core/Director/DirectorRegistry.cpp
+    Source/Core/Director/DirectorRegistry.h
     Source/Core/Application/BlackboardSystem.cpp
     Source/Core/Application/BlackboardSystem.h
     Source/Core/Application/SquadRegistry.cpp
@@ -30,7 +42,7 @@ set(FILES
     Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Assets/BlackboardAssetHandler.cpp
     Source/Core/Assets/BlackboardAssetHandler.h
-    Source/Core/Domain/ActionPlan.cpp
+    Source/Core/Domain/PlanStore.cpp
     Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/AgentStateMachine.cpp
     Source/Core/Domain/BlackboardKey.cpp
@@ -70,6 +82,8 @@ set(FILES
     Source/Core/Scripting/LuaNodeScripting.h
     Source/Core/Scripting/LuaPlanBuilder.cpp
     Source/Core/Scripting/LuaPlanBuilder.h
+    Source/Core/Scripting/LuaPlanValidator.cpp
+    Source/Core/Scripting/LuaPlanValidator.h
     Source/Core/Scripting/LuaTreeBuilder.cpp
     Source/Core/Scripting/LuaTreeBuilder.h
 )

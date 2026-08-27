@@ -38,7 +38,14 @@ return tree "ExampleAgent" {
         },
         sequence {
             script "Patrol",
-            wait(0.5),
+
+            -- A parallel runs its main branch while its background branch of conditions is
+            -- re-checked. The wait below is cut short the moment Sense sees the target, without
+            -- the wait itself knowing anything about it.
+            parallel {
+                wait(0.5),
+                invert { condition "target_seen" },
+            },
         },
     },
 }

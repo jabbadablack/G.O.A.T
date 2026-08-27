@@ -49,8 +49,9 @@ namespace GOAT
         AZ::EntityId m_targetEntity;
         //! Names the thing to run: a script node, an animation clip, a bark line.
         AZ::Name m_tag;
-        //! Seconds this action should last, for time-based verbs.
-        float m_duration = 0.0f;
+        //! The one scalar a verb needs: seconds for `wait`, speed for a movement verb.
+        //! Authoring fills it from any numeric node property other than `tolerance`.
+        float m_amount = 0.0f;
         //! How close counts as arrived, for movement-like verbs.
         float m_tolerance = 0.0f;
     };

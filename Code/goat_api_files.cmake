@@ -4,6 +4,8 @@ set(FILES
     Include/GOAT/Assets/BehaviorTreeAsset.h
     Include/GOAT/Assets/BlackboardAsset.h
     Include/GOAT/Domain/ActionPlan.h
+    Include/GOAT/Domain/DirectorProfile.h
+    Include/GOAT/Domain/PlanStore.h
     Include/GOAT/Domain/ActionState.h
     Include/GOAT/Domain/AgentId.h
     Include/GOAT/Domain/AgentStateMachine.h
@@ -19,6 +21,7 @@ set(FILES
     Include/GOAT/Domain/NodeType.h
     Include/GOAT/Interfaces/IActionState.h
     Include/GOAT/Interfaces/IBackend.h
+    Include/GOAT/Interfaces/IReachFilter.h
     Include/GOAT/Interfaces/IAgentSystem.h
     Include/GOAT/Interfaces/IBlackboardSystem.h
     Include/GOAT/Interfaces/INodeScripting.h

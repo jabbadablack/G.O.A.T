@@ -1,5 +1,7 @@
 #include <Core/Application/ActionStateRegistry.h>
 
+#include <AzCore/Console/ILogger.h>
+
 namespace GOAT
 {
     void ActionStateRegistry::EnsureSlot(ActionStateId id)
@@ -8,10 +10,15 @@ namespace GOAT
         {
             m_states.resize(static_cast<size_t>(id) + 1);
         }
+
+        AZ_Assert(id < m_states.size(), "Ensuring a slot must make that id addressable");
     }
 
     bool ActionStateRegistry::RegisterAt(ActionStateId id, AZStd::unique_ptr<IActionState> state)
     {
+        AZ_Assert(state != nullptr, "A verb must exist to be registered");
+        AZ_Assert(id != CoreActions::Invalid, "The invalid id is reserved and cannot hold a verb");
+
         if (state == nullptr || id == CoreActions::Invalid)
         {
             return false;
@@ -25,17 +32,21 @@ namespace GOAT
         }
 
         m_states[id] = AZStd::move(state);
+
+        AZ_Assert(Find(id) != nullptr, "A registered verb must be findable by the id it took");
         return true;
     }
 
     ActionStateId ActionStateRegistry::Register(AZStd::unique_ptr<IActionState> state)
     {
+        AZ_Assert(state != nullptr, "A verb must exist to be registered");
         if (state == nullptr)
         {
             return CoreActions::Invalid;
         }
 
         const AZ::Name name = state->GetName();
+        AZ_Assert(!name.IsEmpty(), "A verb must be registered under a name, because trees reference it by one");
         if (FindId(name) != CoreActions::Invalid)
         {
             AZ_Warning("GOAT", false, "Action verb '%s' is already registered", name.GetCStr());
@@ -48,6 +59,7 @@ namespace GOAT
             if (m_states[id] == nullptr)
             {
                 m_states[id] = AZStd::move(state);
+                AZLOG_INFO("GOAT: verb '%s' registered as id %zu", name.GetCStr(), id);
                 return static_cast<ActionStateId>(id);
             }
         }
@@ -59,15 +71,20 @@ namespace GOAT
         }
 
         m_states.push_back(AZStd::move(state));
+
+        AZLOG_INFO("GOAT: verb '%s' registered as id %zu", name.GetCStr(), m_states.size() - 1);
         return static_cast<ActionStateId>(m_states.size() - 1);
     }
 
     void ActionStateRegistry::Unregister(ActionStateId id)
     {
+        AZ_Assert(id < m_states.size(), "Unregistering a verb id that was never registered");
         if (id < m_states.size())
         {
             m_states[id].reset();
         }
+
+        AZ_Assert(Find(id) == nullptr, "An unregistered verb must no longer be findable");
     }
 
     ActionStateId ActionStateRegistry::FindId(const AZ::Name& name) const

@@ -17,6 +17,10 @@ namespace GOAT
 
     void RunScriptAction::BindContext(const ActionContext& context)
     {
+        AZ_Assert(context.m_request != nullptr, "A script action always runs with a request");
+        AZ_Assert(context.m_blackboard != nullptr, "A script action always runs with a blackboard");
+        AZ_Assert(!context.m_request->m_tag.IsEmpty(), "A script leaf must name the behaviour it runs");
+
         m_scriptContext.Bind(context.m_agent, context.m_entity, context.m_blackboard);
     }
 

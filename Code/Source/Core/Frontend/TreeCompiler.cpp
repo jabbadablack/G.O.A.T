@@ -1,5 +1,6 @@
 #include <Core/Frontend/TreeCompiler.h>
 
+#include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/std/algorithm.h>
 #include <AzCore/std/sort.h>
@@ -82,6 +83,24 @@ namespace GOAT
         }
 
         //! How many children a node kind may have.
+        //! True when a node type may appear inside a parallel's background branch.
+        //! The branch is re-evaluated whole, so nothing in it may take time or emit an action.
+        bool IsInstantaneous(NodeOp op)
+        {
+            switch (op)
+            {
+            case NodeOp::Condition:
+            case NodeOp::Compare:
+            case NodeOp::Invert:
+            case NodeOp::ForceSuccess:
+            case NodeOp::Selector:
+            case NodeOp::Sequence:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         bool ChildCountIsLegal(NodeKind kind, size_t childCount)
         {
             switch (kind)
@@ -118,6 +137,9 @@ namespace GOAT
         DecisionProgram& program,
         AZStd::vector<AZ::Name>& inlining) const
     {
+        AZ_Assert(depth < MaxTreeDepth, "Inlining is only reached from a depth the caller already checked");
+        AZ_Assert(!inlining.empty(), "The inlining stack always holds at least the tree being compiled");
+
         // A subtree may be named directly, or reached through a slot a director can rebind.
         AZ::Name treeName;
         if (const AZStd::any* named = FindProperty(authored, AZ_NAME_LITERAL("tree")))
@@ -130,6 +152,15 @@ namespace GOAT
             if (ReadName(*slot, slotName))
             {
                 treeName = m_library.GetBinding(slotName);
+
+                // Remembered so a rebind of this slot can recompile exactly the trees that used
+                // it, rather than every tree in the project.
+                if (AZStd::find(program.m_boundSlots.begin(), program.m_boundSlots.end(), slotName) ==
+                    program.m_boundSlots.end())
+                {
+                    program.m_boundSlots.push_back(slotName);
+                }
+
                 if (treeName.IsEmpty())
                 {
                     return AZ::Failure(
@@ -156,15 +187,71 @@ namespace GOAT
         }
 
         // The subtree node itself leaves no trace: its referenced root takes its place.
+        const size_t depthBefore = inlining.size();
+
         inlining.push_back(treeName);
         auto emitted = Emit(*referenced, parent, depth, program, inlining);
         inlining.pop_back();
+
+        AZ_Assert(inlining.size() == depthBefore, "Inlining must leave the cycle detection stack as it found it");
         return emitted;
+    }
+
+    AZ::Outcome<void, AZStd::string> TreeCompiler::RegisterParallel(NodeIndex index, DecisionProgram& program) const
+    {
+        AZ_Assert(index < program.m_nodes.size(), "A parallel index must address a node in the program");
+        AZ_Assert(program.m_nodes[index].m_childCount == 2, "Arity was already checked before emitting");
+
+        const NodeIndex main = program.m_nodes[index].m_firstChild;
+        AZ_Assert(main != InvalidNodeIndex, "A parallel always has its two children by now");
+
+        const NodeIndex background = program.m_nodes[main].m_subtreeEnd;
+        const NodeIndex backgroundEnd = program.m_nodes[index].m_subtreeEnd;
+        AZ_Assert(background < backgroundEnd, "A parallel's background branch must be a real range");
+
+        // Nothing in the background may take time, because it is re-evaluated whole rather than
+        // resumed. Rejecting it here is what lets EvaluateSubtree be a plain recursive walk.
+        for (NodeIndex i = background; i < backgroundEnd; ++i)
+        {
+            if (!IsInstantaneous(program.m_nodes[i].m_op))
+            {
+                return AZ::Failure(AZStd::string(
+                    "a parallel's background branch may only contain conditions, comparisons and the "
+                    "composites over them, because it is re-checked rather than resumed; "
+                    "anything that acts belongs in the main branch"));
+            }
+
+            // An abort mode inside the background would register that node as a guard as well,
+            // scoped to a branch that never runs. The background is already a continuous check,
+            // so asking for one on top of it is a mistake worth naming.
+            if (program.m_nodes[i].m_abort != AbortMode::None)
+            {
+                return AZ::Failure(AZStd::string(
+                    "a node inside a parallel's background branch cannot declare an abort mode; "
+                    "the branch is already re-checked whenever a variable it reads changes"));
+            }
+
+            // The background is checked when a variable it reads changes, exactly like a guard,
+            // so an agent whose blackboard is quiet still evaluates nothing at all.
+            if (program.m_nodes[i].m_key.IsValid())
+            {
+                program.m_observedKeys.push_back(program.m_nodes[i].m_key);
+            }
+            if (program.m_nodes[i].m_otherKey.IsValid())
+            {
+                program.m_observedKeys.push_back(program.m_nodes[i].m_otherKey);
+            }
+        }
+
+        program.m_parallelNodes.push_back(index);
+        return AZ::Success();
     }
 
     AZ::Outcome<void, AZStd::string> TreeCompiler::Validate(
         const BehaviorTreeNode& authored, const NodeTypeDescriptor& descriptor) const
     {
+        AZ_Assert(!descriptor.m_name.IsEmpty(), "A node type descriptor is always registered under a name");
+
         // Reject properties the node type does not accept, so typos fail at author time.
         for (const BehaviorTreeProperty& property : authored.m_properties)
         {
@@ -198,6 +285,15 @@ namespace GOAT
                 "'%s' cannot have %zu children", descriptor.m_name.GetCStr(), authored.m_children.size()));
         }
 
+        // A parallel is a main branch and a background branch, in that order, so its arity is
+        // exact rather than "one or more" like every other composite.
+        if (descriptor.m_op == NodeOp::Parallel && authored.m_children.size() != 2)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "'parallel' takes exactly two children, a main branch then a background branch, but has %zu",
+                authored.m_children.size()));
+        }
+
         return AZ::Success();
     }
 
@@ -208,6 +304,8 @@ namespace GOAT
         DecisionProgram& program,
         AZStd::vector<AZ::Name>& inlining) const
     {
+        AZ_Assert(!authored.m_type.empty(), "Every authored node names a type");
+
         if (depth >= MaxTreeDepth)
         {
             return AZ::Failure(AZStd::string::format("Tree is deeper than the %zu node limit", MaxTreeDepth));
@@ -230,6 +328,8 @@ namespace GOAT
         {
             return Inline(authored, parent, depth, program, inlining);
         }
+
+        AZ_Assert(program.m_nodes.size() < InvalidNodeIndex, "A program cannot hold more nodes than an index can address");
 
         const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
         program.m_nodes.emplace_back();
@@ -332,7 +432,8 @@ namespace GOAT
         if (descriptor->m_op == NodeOp::Action)
         {
             DecisionNode& node = program.m_nodes[index];
-            const AZ::Name verbName = typeName == AZ_NAME_LITERAL("raw") ? node.m_tag : typeName;
+            const bool isRaw = typeName == AZ_NAME_LITERAL("raw");
+            const AZ::Name verbName = isRaw ? node.m_tag : typeName;
 
             const ActionStateId verb = m_actions.FindId(verbName);
             if (verb == CoreActions::Invalid)
@@ -343,10 +444,40 @@ namespace GOAT
             }
 
             node.m_action.m_action = verb;
-            node.m_action.m_duration = node.m_amount;
+            node.m_action.m_amount = node.m_amount;
             node.m_action.m_tolerance = node.m_tolerance;
             node.m_action.m_targetKey = node.m_key;
-            node.m_action.m_tag = node.m_goal;
+
+            // An action request carries one name, so authoring has to pick which property fills
+            // it. `raw` spends its own tag naming the verb, so its payload arrives in m_goal;
+            // every other leaf puts its authored name straight in the tag. Reading only m_goal
+            // here was invisible while `wait` and `raw` were the only action leaves in the
+            // world, and silently emptied the name for every verb a module contributed.
+            node.m_action.m_tag = isRaw || node.m_tag.IsEmpty() ? node.m_goal : node.m_tag;
+
+            AZ_Assert(node.m_action.m_action != CoreActions::Invalid,
+                "A compiled action leaf must name a registered verb");
+
+            // Validate proved the property was authored; this proves it survived the mapping
+            // above and actually reached the verb. Without it a name can go missing between
+            // the two and only show up as a verb failing at tick time.
+            const bool needsName = AZStd::any_of(
+                descriptor->m_parameters.begin(), descriptor->m_parameters.end(),
+                [](const NodeParameter& parameter)
+                {
+                    return parameter.m_required && parameter.m_type == BlackboardType::Name &&
+                        !parameter.m_isBlackboardKey;
+                });
+
+            // `raw` is exempt: its required name is the verb to run, which the lookup above
+            // already proved, and its payload is genuinely optional.
+            if (!isRaw && needsName && node.m_action.m_tag.IsEmpty())
+            {
+                return AZ::Failure(AZStd::string::format(
+                    "'%s' requires a name but none reached the verb; the property it was authored "
+                    "with does not map to an action request",
+                    authored.m_type.c_str()));
+            }
         }
 
         // Guards are the only thing that needs observing, so collect just those keys.
@@ -421,12 +552,29 @@ namespace GOAT
         DecisionNode& node = program.m_nodes[index];
         node.m_firstChild = authored.m_children.empty() ? InvalidNodeIndex : firstChild;
         node.m_subtreeEnd = aznumeric_cast<NodeIndex>(program.m_nodes.size());
+
+        // The walker steps between siblings with m_subtreeEnd and scopes guards and services
+        // with the range [index, m_subtreeEnd), so both must hold for every node it emits.
+        AZ_Assert(node.m_subtreeEnd > index, "A node's subtree must end after the node itself");
+        AZ_Assert(node.m_firstChild == InvalidNodeIndex || node.m_firstChild == index + 1,
+            "A node's first child must immediately follow it in pre-order");
+
+        if (node.m_op == NodeOp::Parallel)
+        {
+            if (auto checked = RegisterParallel(index, program); !checked.IsSuccess())
+            {
+                return AZ::Failure(checked.TakeError());
+            }
+        }
+
         return AZ::Success(index);
     }
 
     AZ::Outcome<DecisionProgram, AZStd::string> TreeCompiler::Compile(
         const AZ::Name& name, const BehaviorTreeNode& root) const
     {
+        AZ_Assert(!name.IsEmpty(), "A tree is always compiled under a name");
+
         DecisionProgram program;
         program.m_name = name;
 
@@ -443,9 +591,20 @@ namespace GOAT
             return AZ::Failure(AZStd::string::format("Tree '%s': %s", name.GetCStr(), emitted.GetError().c_str()));
         }
 
+        AZ_Assert(emitted.GetValue() == 0, "The root of a compiled program is always node zero");
+        AZ_Assert(!program.m_nodes.empty(), "A successful compile always produces at least one node");
+
+        // Sorted and unique because AgentObserver binary searches this list on every write.
         AZStd::sort(program.m_observedKeys.begin(), program.m_observedKeys.end());
         program.m_observedKeys.erase(
             AZStd::unique(program.m_observedKeys.begin(), program.m_observedKeys.end()), program.m_observedKeys.end());
+
+        AZ_Assert(program.m_nodes[0].m_subtreeEnd == program.m_nodes.size(),
+            "The root's subtree must span the whole program");
+
+        AZLOG_INFO("GOAT: tree '%s' compiled to %zu nodes, %zu guards, %zu services and %zu observed variables",
+            name.GetCStr(), program.m_nodes.size(), program.m_guardNodes.size(), program.m_services.size(),
+            program.m_observedKeys.size());
 
         return AZ::Success(AZStd::move(program));
     }

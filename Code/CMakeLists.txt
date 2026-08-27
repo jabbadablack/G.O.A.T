@@ -18,41 +18,6 @@ if(NOT PAL_TRAIT_GOAT_SUPPORTED)
 endif()
 
 
-# Optional modules contribute action verbs only when the gem they need is available, so the
-# core builds and runs for a project that enables neither.
-#
-# Note that a target existing means the gem is present in the build tree, not that the project
-# enabled it. That is the right test for linking; a module still degrades gracefully at runtime
-# when the gem it talks to was not enabled. Force either choice with
-# -DGOAT_WITH_NAVIGATION=ON/OFF or -DGOAT_WITH_ANIMATION=ON/OFF.
-if(NOT DEFINED GOAT_WITH_NAVIGATION)
-    if(TARGET Gem::RecastNavigation.API)
-        set(GOAT_WITH_NAVIGATION ON)
-    else()
-        set(GOAT_WITH_NAVIGATION OFF)
-    endif()
-endif()
-
-if(NOT DEFINED GOAT_WITH_ANIMATION)
-    if(TARGET Gem::EMotionFX.API OR TARGET Gem::EMotionFX.Static)
-        set(GOAT_WITH_ANIMATION ON)
-    else()
-        set(GOAT_WITH_ANIMATION OFF)
-    endif()
-endif()
-
-set(goat_module_files_cmake)
-set(goat_module_dependencies)
-
-if(GOAT_WITH_NAVIGATION AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/goat_navigation_files.cmake)
-    list(APPEND goat_module_files_cmake goat_navigation_files.cmake)
-    list(APPEND goat_module_dependencies Gem::RecastNavigation.API)
-else()
-    set(GOAT_WITH_NAVIGATION OFF)
-endif()
-
-message(STATUS "GOAT modules: navigation=${GOAT_WITH_NAVIGATION} animation=${GOAT_WITH_ANIMATION}")
-
 # The ${gem_name}.API target declares the common interface that users of this gem should depend on in their targets
 ly_add_target(
     NAME ${gem_name}.API INTERFACE
@@ -76,7 +41,6 @@ ly_add_target(
     FILES_CMAKE
         goat_private_files.cmake
         ${pal_dir}/goat_private_files.cmake
-        ${goat_module_files_cmake}
     TARGET_PROPERTIES
         O3DE_PRIVATE_TARGET TRUE
     INCLUDE_DIRECTORIES
@@ -87,7 +51,6 @@ ly_add_target(
         PUBLIC
             AZ::AzCore
             AZ::AzFramework
-            ${goat_module_dependencies}
 )
 
 # Here add ${gem_name} target, it depends on the Private Object library and Public API interface
@@ -250,6 +213,13 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
         # Add ${gem_name}.Tests to googletest
         ly_add_googletest(
             NAME Gem::${gem_name}.Tests
+        )
+
+        # The same target carries the benchmarks: AZ_UNIT_TEST_HOOK already expands to the
+        # benchmark hook, so they need no target of their own.
+        ly_add_googlebenchmark(
+            NAME Gem::${gem_name}.Benchmarks
+            TARGET Gem::${gem_name}.Tests
         )
     endif()
 

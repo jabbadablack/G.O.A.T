@@ -92,6 +92,12 @@ namespace GOAT
         AZStd::vector<NodeIndex> m_guardNodes;
         //! Nodes that carry services, so due checks scan only those.
         AZStd::vector<NodeIndex> m_serviceNodes;
+        //! Parallel nodes, so re-checking their background branches scans only those.
+        AZStd::vector<NodeIndex> m_parallelNodes;
+        //! Subtree slots this program was compiled against, deduplicated.
+        //! Recorded here because the compiler that resolved them is the only thing that knows,
+        //! and a separate index would be a second invariant to keep in step with this one.
+        AZStd::vector<AZ::Name> m_boundSlots;
         //! Deepest path in this tree, checked against MaxTreeDepth at compile time.
         AZ::u32 m_depth = 0;
     };

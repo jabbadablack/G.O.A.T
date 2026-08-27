@@ -1,7 +1,9 @@
 -- GOAT behaviour tree authoring vocabulary.
 -- Executed once into the script context at startup, so tree files need no require.
 
-GOAT = GOAT or {}
+-- rawget avoids O3DE's "access to undeclared global variable" warning, which fires on the
+-- read half of `GOAT = GOAT or {}` the first time this file runs.
+GOAT = rawget(_G, "GOAT") or {}
 
 -- Status values a behaviour tick returns. These mirror the C++ ActionResult order.
 RUNNING, SUCCESS, FAILURE = 0, 1, 2
@@ -13,6 +15,8 @@ GOAT._backends = GOAT._backends or {}
 GOAT._flow = GOAT._flow or {}
 -- Trees the user has declared, keyed by name, so C++ can ask for one after loading a file.
 GOAT._trees = GOAT._trees or {}
+-- Declarative plans, keyed by goal name. A plan is an ordered list of guarded step lists.
+GOAT._plans = GOAT._plans or {}
 -- Per agent, per behaviour scratch tables, so one behaviour can serve many agents.
 GOAT._state = GOAT._state or {}
 
@@ -80,6 +84,7 @@ end
 selector = nodeType("selector")
 sequence = nodeType("sequence")
 composite = nodeType("composite")
+parallel = nodeType("parallel")
 
 -- Decorators.
 invert = nodeType("invert")
@@ -102,6 +107,21 @@ subtree = nodeType("subtree")
 -- Services attach to a composite rather than sitting in its child list.
 service = nodeType("service", true)
 
+--! Declares a node word contributed by a module gem, so `move_to "player_pos"` reads the same
+--! as a built-in. @mainProperty names the property the single string argument fills.
+--! Called from C++ for every node type a module registers; the core never names one itself.
+--! A word this file already defines is left alone, because the built-ins carry forms this
+--! cannot reproduce -- `service` attaches to a composite rather than becoming a child.
+function GOAT_DeclareNode(typeName, mainProperty)
+    if rawget(_G, typeName) ~= nil then
+        return
+    end
+    if mainProperty and mainProperty ~= "" then
+        defaultProperty[typeName] = mainProperty
+    end
+    _G[typeName] = nodeType(typeName)
+end
+
 --! Defines a leaf behaviour: `behavior "Patrol" { start = ..., tick = ..., stop = ... }`.
 function behavior(name)
     return function(body)
@@ -119,6 +139,53 @@ function flow(name)
     return function(body)
         GOAT._flow[name] = body
         return body
+    end
+end
+
+--! One alternative inside a plan: a guard and the steps to run when it holds.
+--!
+--! `when` names a blackboard bool that must be true, `unless` one that must be false, and an
+--! option with neither is the fallback. Guards are variable names rather than functions on
+--! purpose: a name can be checked when the file loads, a closure can only be checked by calling
+--! it, which needs an agent that does not exist yet. Anyone needing a real expression writes an
+--! imperative `backend` instead, which has always been able to do anything.
+function option(body)
+    assert(type(body) == "table", "option takes a table")
+    assert(body.when == nil or body.unless == nil, "an option has one guard, not both")
+
+    local steps = {}
+    for _, step in ipairs(body) do
+        assert(type(step) == "table", "a plan step is a table, as in { action = \"wait\", seconds = 1 }")
+        table.insert(steps, step)
+    end
+
+    return { __goat_option = true, when = body.when, unless = body.unless, steps = steps }
+end
+
+--! Declares a plan the `bt` backend can satisfy: `plan "Goal" { option { ... }, option { ... } }`.
+--! Options are tried in order and the first whose guard holds contributes all of its steps.
+function plan(name)
+    return function(body)
+        assert(type(body) == "table", "a plan takes a table of options")
+        assert(GOAT._plans[name] == nil, "plan '" .. name .. "' is already declared")
+        assert(GOAT._backends[name] == nil, "'" .. name .. "' is already a backend")
+
+        local options = {}
+        for _, entry in ipairs(body) do
+            assert(type(entry) == "table" and entry.__goat_option,
+                "a plan holds options, as in plan \"X\" { option { ... } }")
+            table.insert(options, entry)
+        end
+        assert(#options > 0, "plan '" .. name .. "' has no options")
+
+        -- Recorded where it was written, not where it is validated: validation may run much
+        -- later, or from the console, and the useful location is always the declaration.
+        local where = debug.getinfo(2, "Sl")
+        GOAT._plans[name] = {
+            options = options,
+            source = (where and where.short_src or "?") .. ":" .. (where and where.currentline or 0),
+        }
+        return GOAT._plans[name]
     end
 end
 
@@ -254,15 +321,65 @@ function GOAT_TreeNames()
     return names
 end
 
+--! Hands every declared tree name to a C++ collector, whether or not it has compiled.
+--! Told apart from what the agent system lists, which is only the trees that compiled: a tree
+--! whose subtree slot was unbound failed, and rebinding that slot has to be able to find it again.
+function GOAT_EmitTreeNames(collector)
+    local names = {}
+    for name in pairs(GOAT._trees) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+    for _, name in ipairs(names) do
+        collector:Add(name)
+    end
+end
+
+--! Pushes one step into a C++ builder. Both the declarative and the imperative shape go
+--! through here, so a step means exactly the same thing whichever wrote it.
+local function pushStep(builder, step)
+    builder:AddStep(step.action or "script")
+    if step.behavior ~= nil then builder:SetTag(step.behavior) end
+    if step.tag ~= nil then builder:SetTag(step.tag) end
+    if step.seconds ~= nil then builder:SetDuration(step.seconds) end
+    if step.tolerance ~= nil then builder:SetTolerance(step.tolerance) end
+    if step.key ~= nil then builder:SetTargetKey(step.key) end
+    if step.at ~= nil then builder:SetTargetPosition(step.at) end
+    if step.entity ~= nil then builder:SetTargetEntity(step.entity) end
+end
+GOAT._pushStep = pushStep
+
+--! True when an option's guard holds for this agent. An option with no guard is the fallback.
+function GOAT._optionHolds(entry, ctx)
+    if entry.when ~= nil then
+        return ctx:GetBool(entry.when)
+    end
+    if entry.unless ~= nil then
+        return not ctx:GetBool(entry.unless)
+    end
+    return true
+end
+
 --! Runs a Lua backend and pushes the plan it returns into a C++ builder.
 --! Each step is a table naming a verb, as in { action = "wait", seconds = 0.5 }.
 function GOAT_Plan(backendName, agentKey, ctx, goal, builder)
     local body = GOAT._backends[backendName]
-    if body == nil or body.plan == nil then
+    if body == nil then
         return false
     end
 
     local state = GOAT._stateFor(agentKey, "backend:" .. backendName)
+
+    -- A backend may hand back a list of steps, or drive the builder itself. The second form is
+    -- what lets a backend whose steps are already baked name one instead of pushing it again.
+    if body.choose ~= nil then
+        return body.choose(state, ctx, goal, builder) and true or false
+    end
+
+    if body.plan == nil then
+        return false
+    end
+
     local steps = body.plan(state, ctx, goal)
     if type(steps) ~= "table" or #steps == 0 then
         return false
@@ -270,14 +387,70 @@ function GOAT_Plan(backendName, agentKey, ctx, goal, builder)
 
     builder:BeginPlan()
     for _, step in ipairs(steps) do
-        builder:AddStep(step.action or "script")
-        if step.behavior ~= nil then builder:SetTag(step.behavior) end
-        if step.tag ~= nil then builder:SetTag(step.tag) end
-        if step.seconds ~= nil then builder:SetDuration(step.seconds) end
-        if step.tolerance ~= nil then builder:SetTolerance(step.tolerance) end
-        if step.key ~= nil then builder:SetTargetKey(step.key) end
+        pushStep(builder, step)
     end
     return builder:EndPlan()
+end
+
+--! Bakes every declared plan's steps into C++ once, when the vocabulary loads.
+--! After this a plan costs nothing to run: the backend names an option and C++ hands back the
+--! steps it already holds, so no step ever crosses this boundary again.
+function GOAT_BakePlans(builder)
+    local names = {}
+    for name in pairs(GOAT._plans) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+
+    for _, name in ipairs(names) do
+        for index, entry in ipairs(GOAT._plans[name].options) do
+            builder:BeginPlan()
+            for _, step in ipairs(entry.steps) do
+                pushStep(builder, step)
+            end
+            builder:BakeOption(name, index)
+        end
+    end
+end
+
+--! Hands every declared plan to a C++ validator, which checks it against the registries.
+--! Lua walks its own tables and formats the display lines; C++ only ever receives strings.
+function GOAT_ValidatePlans(validator)
+    local names = {}
+    for name in pairs(GOAT._plans) do
+        table.insert(names, name)
+    end
+    table.sort(names)
+
+    for _, name in ipairs(names) do
+        local declared = GOAT._plans[name]
+        validator:BeginPlan(name, declared.source)
+
+        for _, entry in ipairs(declared.options) do
+            validator:BeginOption(entry.when or entry.unless or "", entry.unless ~= nil)
+            for _, step in ipairs(entry.steps) do
+                validator:CheckStep(step.action or "script")
+                if step.key ~= nil then validator:CheckKey(step.key) end
+                validator:Describe(GOAT._describeStep(step))
+            end
+            validator:EndOption()
+        end
+
+        validator:EndPlan()
+    end
+end
+
+--! A one line rendering of a step, for the console. Formatted here because Lua holds the table.
+function GOAT._describeStep(step)
+    local parts = { step.action or "script" }
+    if step.behavior ~= nil then table.insert(parts, step.behavior) end
+    if step.tag ~= nil then table.insert(parts, step.tag) end
+    if step.key ~= nil then table.insert(parts, "key=" .. step.key) end
+    if step.seconds ~= nil then table.insert(parts, string.format("%.2fs", step.seconds)) end
+    if step.tolerance ~= nil then table.insert(parts, string.format("tolerance=%.2f", step.tolerance)) end
+    if step.at ~= nil then table.insert(parts, "at=literal") end
+    if step.entity ~= nil then table.insert(parts, "entity=literal") end
+    return table.concat(parts, " ")
 end
 
 --! True when a backend of that name was defined in Lua.

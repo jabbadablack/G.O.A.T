@@ -1,0 +1,35 @@
+{
+    "gem_name": "GOAT_Navigation",
+    "version": "1.0.0",
+    "display_name": "GOAT Navigation",
+    "license": "Apache-2.0 or MIT",
+    "license_url": "https://github.com/o3de/o3de/blob/development/LICENSE.txt",
+    "origin": "JabbaDaBlack",
+    "origin_url": "https://github.com/jabbadablack",
+    "type": "Code",
+    "summary": "Navigation verbs for the GOAT AI gem: pathfinding and movement over a Recast navigation mesh.",
+    "canonical_tags": [
+        "Gem"
+    ],
+    "user_tags": [
+        "AI",
+        "Gameplay",
+        "Simulation"
+    ],
+    "platforms": [
+        "Windows",
+        "iOS",
+        "Android",
+        "Linux"
+    ],
+    "icon_path": "",
+    "requirements": "Requires the GOAT gem and the RecastNavigation gem.",
+    "documentation_url": "",
+    "dependencies": [
+        "GOAT",
+        "RecastNavigation"
+    ],
+    "repo_uri": "",
+    "compatible_engines": [],
+    "engine_api_dependencies": []
+}

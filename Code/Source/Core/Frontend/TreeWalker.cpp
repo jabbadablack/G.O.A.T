@@ -5,6 +5,8 @@
 
 #include <GOAT/Interfaces/INodeScripting.h>
 
+#include <AzCore/Console/ILogger.h>
+
 
 namespace GOAT
 {
@@ -33,6 +35,10 @@ namespace GOAT
         //! Which child of a composite leads to a given descendant.
         AZ::u16 ChildIndexOf(const DecisionProgram& program, NodeIndex parent, NodeIndex child)
         {
+            AZ_Assert(parent < program.m_nodes.size(), "A composite index must address a node in the program");
+            AZ_Assert(child > parent && child < program.m_nodes[parent].m_subtreeEnd,
+                "A child must sit inside its parent's subtree, which pre-order indices encode as a range");
+
             NodeIndex candidate = program.m_nodes[parent].m_firstChild;
             for (AZ::u16 i = 0; i < program.m_nodes[parent].m_childCount; ++i)
             {
@@ -42,12 +48,16 @@ namespace GOAT
                 }
                 candidate = program.m_nodes[candidate].m_subtreeEnd;
             }
+
+            AZ_Assert(false, "A descendant of a composite must be reachable through one of its children");
             return 0;
         }
 
         //! Index of a composite's nth child, reached by following each earlier sibling's subtree end.
         NodeIndex NthChild(const DecisionProgram& program, NodeIndex parent, AZ::u16 n)
         {
+            AZ_Assert(parent < program.m_nodes.size(), "A composite index must address a node in the program");
+
             const DecisionNode& node = program.m_nodes[parent];
             if (n >= node.m_childCount)
             {
@@ -66,6 +76,9 @@ namespace GOAT
 
     Intent TreeWalker::MakeIntent(const DecisionNode& node, NodeIndex index) const
     {
+        AZ_Assert(node.m_op == NodeOp::Action || node.m_op == NodeOp::Script || node.m_op == NodeOp::Delegate,
+            "Only an action, script or delegate leaf emits an intent");
+
         Intent intent;
         intent.m_node = index;
 
@@ -88,14 +101,17 @@ namespace GOAT
             break;
         }
 
+        AZ_Assert(!intent.m_backend.IsEmpty(), "Every intent names the backend that must satisfy it");
         return intent;
     }
 
     WalkStep TreeWalker::Begin(
         const DecisionProgram& program, DecisionCursor& cursor, const PlanContext& context) const
     {
+        AZ_Assert(!program.IsEmpty(), "A walk only ever begins on a compiled program");
         if (program.IsEmpty())
         {
+            AZ_Error("GOAT", false, "An agent cannot start: its decision program is empty");
             return Finished(ActionResult::Failure);
         }
 
@@ -112,6 +128,7 @@ namespace GOAT
             return Begin(program, cursor, context);
         }
 
+        AZ_Assert(leaf < program.m_nodes.size(), "The active leaf must address a node in the program");
         cursor.SetActiveLeaf(InvalidNodeIndex);
         return Run(program, cursor, context, leaf, true, lastResult);
     }
@@ -121,6 +138,8 @@ namespace GOAT
     {
         // Point every composite above the node at the branch that reaches it, so the walk
         // resumes there instead of where the abandoned branch left off.
+        AZ_Assert(node < program.m_nodes.size(), "A restart target must address a node in the program");
+
         NodeIndex child = node;
         NodeIndex parent = program.m_nodes[node].m_parent;
         while (parent != InvalidNodeIndex)
@@ -146,8 +165,13 @@ namespace GOAT
         bool bubbling,
         ActionResult result) const
     {
+        AZ_Assert(node == InvalidNodeIndex || node < program.m_nodes.size(),
+            "A walk only ever starts at a node in the program");
+
         while (node != InvalidNodeIndex)
         {
+            AZ_Assert(node < program.m_nodes.size(), "The walk stepped outside the program");
+
             if (!bubbling)
             {
                 const DecisionNode& current = program.m_nodes[node];
@@ -161,12 +185,16 @@ namespace GOAT
 
                 case NodeOp::Condition:
                 case NodeOp::Compare:
-                    if (!EvaluateNodePredicate(current, context))
-                    {
-                        result = ActionResult::Failure;
-                        bubbling = true;
-                        continue;
-                    }
+                    // A leaf: evaluate and report straight back to the parent composite.
+                    result = EvaluateNodePredicate(current, context) ? ActionResult::Success : ActionResult::Failure;
+                    bubbling = true;
+                    continue;
+
+                case NodeOp::Parallel:
+                    // Only the main branch is ever walked. The background one is a predicate
+                    // that GuardEvaluator re-checks; stepping into it would need a second
+                    // action slot, and an agent's state machine has exactly one.
+                    cursor.ChildIndex(node) = 0;
                     node = current.m_firstChild;
                     continue;
 
@@ -211,6 +239,8 @@ namespace GOAT
                     // The user's own control flow chooses which child runs first.
                     if (context.m_scripting == nullptr)
                     {
+                        AZ_Error("GOAT", false,
+                            "Node %u is a Lua composite but scripting is not available, so its branch fails", node);
                         result = ActionResult::Failure;
                         bubbling = true;
                         continue;
@@ -228,6 +258,7 @@ namespace GOAT
 
                     cursor.ChildIndex(node) = static_cast<AZ::u16>(child);
                     node = NthChild(program, node, static_cast<AZ::u16>(child));
+                    AZ_Assert(node != InvalidNodeIndex, "A child index inside the child count must resolve to a node");
                     continue;
                 }
 
@@ -243,6 +274,8 @@ namespace GOAT
 
                 default:
                     // A node type with no walker support fails rather than stalling the agent.
+                    AZ_Error("GOAT", false, "Node %u has op %u, which the walker does not implement",
+                        node, static_cast<AZ::u32>(current.m_op));
                     result = ActionResult::Failure;
                     bubbling = true;
                     continue;
@@ -255,7 +288,11 @@ namespace GOAT
                 return Finished(result);
             }
 
+            AZ_Assert(parentIndex < node, "A parent always precedes its children in pre-order");
+
             const DecisionNode& parent = program.m_nodes[parentIndex];
+            AZ_Assert(parent.m_childCount > 0, "A node that has a child cannot report a zero child count");
+
             switch (parent.m_op)
             {
             case NodeOp::Selector:
@@ -271,6 +308,7 @@ namespace GOAT
                 if (childIndex < parent.m_childCount)
                 {
                     node = NthChild(program, parentIndex, childIndex);
+                    AZ_Assert(node != InvalidNodeIndex, "Stepping to the next sibling must land on a node");
                     bubbling = false;
                     continue;
                 }
@@ -293,6 +331,7 @@ namespace GOAT
                 if (childIndex < parent.m_childCount)
                 {
                     node = NthChild(program, parentIndex, childIndex);
+                    AZ_Assert(node != InvalidNodeIndex, "Stepping to the next sibling must land on a node");
                     bubbling = false;
                     continue;
                 }
@@ -301,6 +340,12 @@ namespace GOAT
                 result = ActionResult::Success;
                 continue;
             }
+
+            case NodeOp::Parallel:
+                // The main branch finishing finishes the parallel, carrying its result up.
+                AZ_Assert(parent.m_childCount == 2, "A compiled parallel always has two branches");
+                node = parentIndex;
+                continue;
 
             case NodeOp::Invert:
                 result = result == ActionResult::Success ? ActionResult::Failure : ActionResult::Success;
@@ -322,7 +367,9 @@ namespace GOAT
             {
                 AZ::u16& count = cursor.Counter(parentIndex);
                 ++count;
+
                 const AZ::u16 limit = static_cast<AZ::u16>(parent.m_amount);
+                AZ_Warning("GOAT", limit > 0, "Node %u loops zero times, so its child runs exactly once", parentIndex);
                 if (result == ActionResult::Success && count < limit)
                 {
                     node = parent.m_firstChild;
@@ -355,6 +402,9 @@ namespace GOAT
             {
                 if (context.m_scripting == nullptr)
                 {
+                    AZ_Error("GOAT", false,
+                        "Node %u is a Lua composite but scripting is not available, so its result passes through",
+                        parentIndex);
                     node = parentIndex;
                     continue;
                 }
@@ -372,11 +422,15 @@ namespace GOAT
 
                 cursor.ChildIndex(parentIndex) = static_cast<AZ::u16>(child);
                 node = NthChild(program, parentIndex, static_cast<AZ::u16>(child));
+                AZ_Assert(node != InvalidNodeIndex, "A child index inside the child count must resolve to a node");
                 bubbling = false;
                 continue;
             }
 
             case NodeOp::LuaDecorator:
+                AZ_Error("GOAT", context.m_scripting != nullptr,
+                    "Node %u is a Lua decorator but scripting is not available, so its result passes through",
+                    parentIndex);
                 if (context.m_scripting != nullptr)
                 {
                     result = context.m_scripting->FilterDecorator(parent.m_tag, context, parentIndex, result);

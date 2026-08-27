@@ -22,14 +22,23 @@ namespace GOAT
 
     void WaitAction::Begin(const ActionContext& context)
     {
+        AZ_Assert(context.m_scratch != nullptr, "A wait always runs with agent scratch to count in");
+        AZ_Assert(context.m_request != nullptr, "A wait always runs with a request naming its duration");
+        AZ_Warning("GOAT", context.m_request == nullptr || context.m_request->m_amount >= 0.0f,
+            "A wait was given a negative duration, so it will finish immediately");
+
         Elapsed(context) = 0.0f;
     }
 
     ActionResult WaitAction::Step(const ActionContext& context, float deltaTime)
     {
+        AZ_Assert(deltaTime >= 0.0f, "A wait cannot be stepped backwards in time");
+
         float& elapsed = Elapsed(context);
         elapsed += deltaTime;
-        return elapsed >= context.m_request->m_duration ? ActionResult::Success : ActionResult::Running;
+
+        AZ_Assert(elapsed >= 0.0f, "Elapsed wait time must never go negative");
+        return elapsed >= context.m_request->m_amount ? ActionResult::Success : ActionResult::Running;
     }
 
     void WaitAction::End([[maybe_unused]] const ActionContext& context)

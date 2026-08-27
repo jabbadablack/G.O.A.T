@@ -1,4 +1,5 @@
 #include <Clients/GOATAgentComponent.h>
+#include <Clients/AgentBootstrap.h>
 
 #include <GOAT/Interfaces/IAgentSystem.h>
 
@@ -11,26 +12,6 @@ namespace GOAT
 {
     AZ_COMPONENT_IMPL(GOATAgentComponent, "GOATAgentComponent", GOATAgentComponentTypeId);
 
-    namespace
-    {
-        //! Blocks until an asset is usable, so activation order does not decide whether
-        //! an agent's variables were declared before its tree compiled.
-        template<typename AssetType>
-        bool EnsureLoaded(AZ::Data::Asset<AssetType>& asset)
-        {
-            if (!asset.GetId().IsValid())
-            {
-                return false;
-            }
-            if (!asset.IsReady())
-            {
-                asset.QueueLoad();
-                asset.BlockUntilLoadComplete();
-            }
-            return asset.IsReady();
-        }
-    } // namespace
-
     void GOATAgentComponent::Reflect(AZ::ReflectContext* context)
     {
         auto* serializeContext = azrtti_cast<AZ::SerializeContext*>(context);
@@ -40,10 +21,12 @@ namespace GOAT
         }
 
         serializeContext->Class<GOATAgentComponent, AZ::Component>()
-            ->Version(1)
+            ->Version(2)
             ->Field("Blackboards", &GOATAgentComponent::m_blackboards)
             ->Field("Scripts", &GOATAgentComponent::m_scripts)
-            ->Field("TreeName", &GOATAgentComponent::m_treeName)
+            ->Field("Trees", &GOATAgentComponent::m_trees)
+            // Kept so a level saved before an agent could hold several trees still loads.
+            ->Field("TreeName", &GOATAgentComponent::m_legacyTreeName)
             ->Field("Squad", &GOATAgentComponent::m_squad)
             ->Field("Band", &GOATAgentComponent::m_band);
 
@@ -67,8 +50,9 @@ namespace GOAT
                 AZ::Edit::UIHandlers::Default, &GOATAgentComponent::m_scripts, "Scripts",
                 "Lua scripts declaring behaviours, backends and trees")
             ->DataElement(
-                AZ::Edit::UIHandlers::Default, &GOATAgentComponent::m_treeName, "Tree",
-                "Name of the declared tree this agent runs")
+                AZ::Edit::UIHandlers::Default, &GOATAgentComponent::m_trees, "Trees",
+                "Declared trees this agent may run. The first is the one it starts in, and every "
+                "one of them is compiled when this entity activates.")
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATAgentComponent::m_squad, "Squad",
                 "Squad this agent joins, leave empty for none")
@@ -91,53 +75,22 @@ namespace GOAT
 
     void GOATAgentComponent::Activate()
     {
-        IAgentSystem* agents = AgentSystemInterface::Get();
-        if (agents == nullptr)
+        // A level saved before an agent could hold several trees names one; fold it in so those
+        // levels keep working without anyone having to re-author them.
+        if (m_trees.empty() && !m_legacyTreeName.empty())
         {
-            AZ_Warning("GOAT", false, "The GOAT agent system is not available");
-            return;
+            m_trees.push_back(m_legacyTreeName);
         }
 
-        // Variables must be declared before the tree compiles, because a guard resolves
-        // its blackboard name to a slot at compile time.
-        for (auto& blackboard : m_blackboards)
-        {
-            if (EnsureLoaded(blackboard))
-            {
-                if (auto declared = agents->LoadBlackboard(*blackboard.Get()); !declared.IsSuccess())
-                {
-                    AZ_Warning("GOAT", false, "%s", declared.GetError().c_str());
-                }
-            }
-        }
+        AgentBootstrapRequest request;
+        request.m_entity = GetEntityId();
+        request.m_blackboards = &m_blackboards;
+        request.m_scripts = &m_scripts;
+        request.m_trees = &m_trees;
+        request.m_squad = m_squad;
+        request.m_band = m_band;
 
-        for (auto& script : m_scripts)
-        {
-            if (EnsureLoaded(script))
-            {
-                agents->LoadScript(script);
-            }
-        }
-
-        if (m_treeName.empty())
-        {
-            AZ_Warning("GOAT", false, "Entity %s has no tree name set", GetEntityId().ToString().c_str());
-            return;
-        }
-
-        const AZ::Name treeName(m_treeName);
-        if (auto compiled = agents->CompileTree(treeName); !compiled.IsSuccess())
-        {
-            AZ_Warning("GOAT", false, "%s", compiled.GetError().c_str());
-            return;
-        }
-
-        m_agent = agents->RegisterAgent(GetEntityId(), treeName, static_cast<size_t>(m_band));
-
-        if (!m_squad.empty() && !m_agent.IsNull())
-        {
-            agents->JoinSquad(m_agent, AZ::Name(m_squad));
-        }
+        m_agent = BootstrapAgent(request);
     }
 
     void GOATAgentComponent::Deactivate()
