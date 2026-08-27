@@ -122,7 +122,6 @@ function GOAT_DeclareNode(typeName, mainProperty)
     _G[typeName] = nodeType(typeName)
 end
 
---! Defines a leaf behaviour: `behavior "Patrol" { start = ..., tick = ..., stop = ... }`.
 --! Reports something wrong with what a script declared.
 --! Debug.Warning when the engine has reflected it, print otherwise, so this works the same in a
 --! bare Lua harness as it does in the editor.
@@ -134,6 +133,7 @@ function GOAT._warn(message)
     end
 end
 
+--! Defines a leaf behaviour: `behavior "Patrol" { start = ..., tick = ..., stop = ... }`.
 function behavior(name)
     return function(body)
         -- A behaviour name is global to the vocabulary, so a second script declaring one that

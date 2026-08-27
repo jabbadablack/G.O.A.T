@@ -34,7 +34,7 @@ backend "Errand" {
             return { { action = "wait", seconds = 2.0 } }
         end
         return {
-            { action = "script", behavior = "Announce" },
+            { action = "script", behavior = "AnnounceChore" },
             { action = "wait", seconds = 0.5 },
         }
     end,
@@ -51,7 +51,7 @@ plan "Chores" {
         { action = "wait",   seconds = 0.25 },
     },
     option {
-        { action = "script", behavior = "Announce" },
+        { action = "script", behavior = "AnnounceChore" },
         { action = "wait",   seconds = 0.5 },
     },
 }
@@ -65,7 +65,7 @@ local function keys(ctx)
     announced = ctx:Key("announced")
 end
 
-behavior "Announce" {
+behavior "AnnounceChore" {
     tick = function(me, ctx)
         keys(ctx)
         ctx:SetBool(announced, true)
