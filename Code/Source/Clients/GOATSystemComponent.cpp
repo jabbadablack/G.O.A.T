@@ -98,31 +98,10 @@ namespace GOAT
         dependent.push_back(AZ_CRC_CE("AssetDatabaseService"));
     }
 
-    GOATSystemComponent::GOATSystemComponent()
-    {
-        if (GOATInterface::Get() == nullptr)
-        {
-            GOATInterface::Register(this);
-        }
-    }
-
-    GOATSystemComponent::~GOATSystemComponent()
-    {
-        if (GOATInterface::Get() == this)
-        {
-            GOATInterface::Unregister(this);
-        }
-    }
-
-    void GOATSystemComponent::Init()
-    {
-    }
-
     void GOATSystemComponent::Activate()
     {
         StartServices();
         RegisterAssetHandlers();
-        GOATRequestBus::Handler::BusConnect();
         AzFramework::AssetCatalogEventBus::Handler::BusConnect();
 
         if (AgentSystemInterface::Get() == nullptr)
@@ -139,7 +118,6 @@ namespace GOAT
         }
 
         AzFramework::AssetCatalogEventBus::Handler::BusDisconnect();
-        GOATRequestBus::Handler::BusDisconnect();
         UnregisterAssetHandlers();
         StopServices();
     }

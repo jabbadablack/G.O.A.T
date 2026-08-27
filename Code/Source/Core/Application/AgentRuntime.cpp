@@ -32,6 +32,11 @@ namespace GOAT
     {
     }
 
+    void AgentRuntime::ReleaseAgent(AgentRecord& agent)
+    {
+        m_backends.ReleaseAgent(MakePlanContext(agent));
+    }
+
     void AgentRuntime::AbortAgent(AgentRecord& agent)
     {
         AZ_Assert(!agent.m_id.IsNull(), "Only a registered agent can be aborted");

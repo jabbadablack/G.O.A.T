@@ -28,13 +28,6 @@ namespace GOAT
         const auto found = m_trees.find(name);
         return found != m_trees.end() ? found->second.get() : nullptr;
     }
-
-    void TreeLibrary::Remove(const AZ::Name& name)
-    {
-        m_trees.erase(name);
-        AZ_Assert(Find(name) == nullptr, "A removed tree must no longer be findable");
-    }
-
     void TreeLibrary::Bind(const AZ::Name& slot, const AZ::Name& treeName)
     {
         AZ_Assert(!slot.IsEmpty(), "A dynamic subtree slot must be named");
@@ -67,15 +60,5 @@ namespace GOAT
 
         AZ_Assert(names.size() == m_trees.size(), "Listing trees must report exactly as many as are stored");
         return names;
-    }
-
-    void TreeLibrary::Clear()
-    {
-        AZLOG_INFO("GOAT: dropping %zu authored trees", m_trees.size());
-
-        m_trees.clear();
-        m_bindings.clear();
-
-        AZ_Assert(m_trees.empty() && m_bindings.empty(), "Clearing must leave no tree and no subtree binding");
     }
 } // namespace GOAT

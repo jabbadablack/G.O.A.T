@@ -41,7 +41,4 @@ namespace GOAT
         return elapsed >= context.m_request->m_amount ? ActionResult::Success : ActionResult::Running;
     }
 
-    void WaitAction::End([[maybe_unused]] const ActionContext& context)
-    {
-    }
 } // namespace GOAT

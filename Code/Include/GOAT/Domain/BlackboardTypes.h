@@ -37,11 +37,7 @@ namespace GOAT
     //! Reflects the blackboard enums for serialization and scripting.
     void ReflectBlackboardTypes(AZ::ReflectContext* context);
 
-    //! Returns the C++ type a blackboard type stores, or a null id when unsupported.
-    AZ::TypeId ToTypeId(BlackboardType type);
 
-    //! Returns the blackboard type for a C++ type, or Count when unsupported.
-    BlackboardType FromTypeId(const AZ::TypeId& typeId);
 
     // These two are defined here rather than in a .cpp because the gem's API target is headers
     // only: a module gem in this tree links no GOAT object, so anything it calls must be inline.

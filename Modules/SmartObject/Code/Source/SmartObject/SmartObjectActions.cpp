@@ -74,9 +74,6 @@ namespace GOAT_SmartObject
         return AZ_NAME_LITERAL("claim_smart_object");
     }
 
-    void ClaimSmartObjectAction::Begin([[maybe_unused]] const GOAT::ActionContext& context)
-    {
-    }
 
     GOAT::ActionResult ClaimSmartObjectAction::Step(
         const GOAT::ActionContext& context, [[maybe_unused]] float deltaTime)

@@ -17,6 +17,5 @@ namespace GOAT
         AZ::Name GetName() const override;
         void Begin(const ActionContext& context) override;
         ActionResult Step(const ActionContext& context, float deltaTime) override;
-        void End(const ActionContext& context) override;
     };
 } // namespace GOAT

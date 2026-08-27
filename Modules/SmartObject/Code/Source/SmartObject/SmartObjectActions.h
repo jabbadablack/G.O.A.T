@@ -46,7 +46,6 @@ namespace GOAT_SmartObject
         ClaimSmartObjectAction(SmartObjectRegistry& registry, const SmartObjectKeys& keys);
 
         AZ::Name GetName() const override;
-        void Begin(const GOAT::ActionContext& context) override;
         GOAT::ActionResult Step(const GOAT::ActionContext& context, float deltaTime) override;
         void End(const GOAT::ActionContext& context) override;
 

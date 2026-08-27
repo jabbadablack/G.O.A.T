@@ -16,7 +16,7 @@ along with any verbs it registered.
 
 ## Adding one
 
-Implement `IBackend` (`Include/GOAT/Interfaces/IBackend.h`) — four methods, only two required:
+Implement `IBackend` (`Include/GOAT/Interfaces/IBackend.h`) — three methods, only two required:
 
 ```cpp
 class HtnBackend final : public IBackend
@@ -26,10 +26,7 @@ public:
 
     bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) override;
 
-    // Optional: conditions that invalidate the plan while it runs.
-    void CollectGuards(const PlanContext&, const ActionPlan&, GuardList&) const override;
-
-    // Optional: release any per agent state.
+    // Optional: release any per agent state. Called when an agent unregisters.
     void Release(const PlanContext&) override;
 };
 ```

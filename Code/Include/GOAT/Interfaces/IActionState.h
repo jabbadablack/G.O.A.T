@@ -44,13 +44,18 @@ namespace GOAT
         //! Name this verb is registered under and referenced by from Lua.
         virtual AZ::Name GetName() const = 0;
 
-        //! Begins the action for one agent.
-        virtual void Begin(const ActionContext& context) = 0;
+        //! Begins the action for one agent. Optional: a verb with nothing to set up says nothing,
+        //! rather than every such verb carrying an empty body to satisfy the interface.
+        virtual void Begin([[maybe_unused]] const ActionContext& context)
+        {
+        }
 
         //! Advances the action. The agent stays in this state while it returns Running.
         virtual ActionResult Step(const ActionContext& context, float deltaTime) = 0;
 
-        //! Ends the action, whether it completed or was aborted.
-        virtual void End(const ActionContext& context) = 0;
+        //! Ends the action, whether it completed or was aborted. Optional, like Begin.
+        virtual void End([[maybe_unused]] const ActionContext& context)
+        {
+        }
     };
 } // namespace GOAT

@@ -75,26 +75,6 @@ namespace GOAT_Animation
     {
     }
 
-    GOAT_AnimationSystemComponent::GOAT_AnimationSystemComponent()
-    {
-        if (GOAT_AnimationInterface::Get() == nullptr)
-        {
-            GOAT_AnimationInterface::Register(this);
-        }
-    }
-
-    GOAT_AnimationSystemComponent::~GOAT_AnimationSystemComponent()
-    {
-        if (GOAT_AnimationInterface::Get() == this)
-        {
-            GOAT_AnimationInterface::Unregister(this);
-        }
-    }
-
-    void GOAT_AnimationSystemComponent::Init()
-    {
-    }
-
     bool GOAT_AnimationSystemComponent::InstallVerb(
         AZStd::unique_ptr<GOAT::IActionState> action, GOAT::NodeTypeDescriptor descriptor)
     {
@@ -178,13 +158,11 @@ namespace GOAT_Animation
 
     void GOAT_AnimationSystemComponent::Activate()
     {
-        GOAT_AnimationRequestBus::Handler::BusConnect();
         InstallVocabulary();
     }
 
     void GOAT_AnimationSystemComponent::Deactivate()
     {
-        GOAT_AnimationRequestBus::Handler::BusDisconnect();
         RemoveVocabulary();
     }
 } // namespace GOAT_Animation

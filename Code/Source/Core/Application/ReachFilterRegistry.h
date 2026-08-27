@@ -27,7 +27,6 @@ namespace GOAT
         //! Every registered filter, for console output and for the component's dropdown.
         AZStd::vector<AZ::Name> GetNames() const;
 
-        void Clear();
 
     private:
         AZStd::unordered_map<AZ::Name, AZStd::unique_ptr<IReachFilter>> m_filters;

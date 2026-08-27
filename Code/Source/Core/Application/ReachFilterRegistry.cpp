@@ -52,10 +52,4 @@ namespace GOAT
         AZ_Assert(names.size() == m_filters.size(), "Listing filters must report exactly as many as exist");
         return names;
     }
-
-    void ReachFilterRegistry::Clear()
-    {
-        m_filters.clear();
-        AZ_Assert(m_filters.empty(), "Clearing must leave no reach filter installed");
-    }
 } // namespace GOAT

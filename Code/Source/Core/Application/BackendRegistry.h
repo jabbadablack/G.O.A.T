@@ -26,8 +26,10 @@ namespace GOAT
         //! Every installed backend name, for console output and authoring validation.
         AZStd::vector<AZ::Name> GetNames() const;
 
-        //! Removes every backend.
-        void Clear();
+        //! Tells every backend an agent is gone, so any per agent state it kept is dropped.
+        //! Asked of all of them rather than of the one that last planned, because a backend may
+        //! hold state across several plans and nothing records which ones an agent used.
+        void ReleaseAgent(const PlanContext& context) const;
 
     private:
         AZStd::unordered_map<AZ::Name, AZStd::unique_ptr<IBackend>> m_backends;

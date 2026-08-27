@@ -14,7 +14,6 @@
 #include <Core/Scripting/LuaDispatch.h>
 #include <Core/Scripting/LuaNodeScripting.h>
 
-#include <GOAT/GOATBus.h>
 #include <GOAT/Interfaces/IAgentSystem.h>
 
 #include <AzCore/Asset/AssetCommon.h>
@@ -32,7 +31,6 @@ namespace GOAT
     class GOATSystemComponent
         : public AZ::Component
         , public IAgentSystem
-        , protected GOATRequestBus::Handler
         , protected AzFramework::AssetCatalogEventBus::Handler
     {
     public:
@@ -45,8 +43,6 @@ namespace GOAT
         static void GetRequiredServices(AZ::ComponentDescriptor::DependencyArrayType& required);
         static void GetDependentServices(AZ::ComponentDescriptor::DependencyArrayType& dependent);
 
-        GOATSystemComponent();
-        ~GOATSystemComponent();
 
         ////////////////////////////////////////////////////////////////////////
         // IAgentSystem
@@ -101,7 +97,6 @@ namespace GOAT
 
         ////////////////////////////////////////////////////////////////////////
         // AZ::Component
-        void Init() override;
         void Activate() override;
         void Deactivate() override;
         ////////////////////////////////////////////////////////////////////////

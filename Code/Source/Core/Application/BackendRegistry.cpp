@@ -50,9 +50,11 @@ namespace GOAT
         return names;
     }
 
-    void BackendRegistry::Clear()
+    void BackendRegistry::ReleaseAgent(const PlanContext& context) const
     {
-        m_backends.clear();
-        AZ_Assert(m_backends.empty(), "Clearing must leave no backend installed");
+        for (auto& [name, backend] : m_backends)
+        {
+            backend->Release(context);
+        }
     }
 } // namespace GOAT

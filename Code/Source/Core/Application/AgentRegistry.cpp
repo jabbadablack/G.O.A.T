@@ -188,6 +188,10 @@ namespace GOAT
         // the record without this strands every one of them.
         m_runtime.AbortAgent(*record);
 
+        // After the abort, so a backend is told the agent is gone only once its plan has been
+        // given back and nothing can still be running through it.
+        m_runtime.ReleaseAgent(*record);
+
         RemoveFromBand(agent, record->m_band);
         record->m_observer.Disconnect();
 
@@ -278,6 +282,10 @@ namespace GOAT
         // keys differ between programs; and the old intent names a node that no longer exists.
         m_runtime.AbortAgent(*record);
 
+        // After the abort, so a backend is told the agent is gone only once its plan has been
+        // given back and nothing can still be running through it.
+        m_runtime.ReleaseAgent(*record);
+
         record->m_program = AZStd::move(program);
         record->m_treeName = treeName;
         record->m_cursor.Reset(*record->m_program);
@@ -360,21 +368,6 @@ namespace GOAT
         // time was skipped. Re-arming is the only way those guards ever start firing.
         record.m_observer.Disconnect();
         record.m_observer.Connect(*record.m_program, m_blackboard, record.m_id);
-    }
-
-    void AgentRegistry::SetBandIntervals(const AZStd::array<AZ::TimeMs, BandCount>& intervals)
-    {
-        for (size_t band = 0; band < BandCount; ++band)
-        {
-            AZ_Assert(intervals[band] > AZ::TimeMs{ 0 }, "An agent band interval must be positive");
-
-            m_bands[band].m_interval = intervals[band];
-            AZ_Assert(m_bands[band].m_event != nullptr, "Every agent band owns a scheduled event for its lifetime");
-            if (m_bands[band].m_event != nullptr)
-            {
-                m_bands[band].m_event->Requeue(intervals[band]);
-            }
-        }
     }
 
     AZStd::vector<AgentId> AgentRegistry::GetAgents() const

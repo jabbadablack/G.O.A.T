@@ -79,13 +79,7 @@ namespace GOAT
     {
     }
 
-    void DirectorActionBase::Begin([[maybe_unused]] const ActionContext& context)
-    {
-    }
 
-    void DirectorActionBase::End([[maybe_unused]] const ActionContext& context)
-    {
-    }
 
     ActionStateId DirectorActionBase::GetVerbId(const ActionContext& context) const
     {
@@ -246,13 +240,7 @@ namespace GOAT
         return AZ_NAME_LITERAL("order_value");
     }
 
-    void OrderValueAction::Begin([[maybe_unused]] const ActionContext& context)
-    {
-    }
 
-    void OrderValueAction::End([[maybe_unused]] const ActionContext& context)
-    {
-    }
 
     ActionResult OrderValueAction::Step(const ActionContext& context, [[maybe_unused]] float deltaTime)
     {
@@ -386,13 +374,7 @@ namespace GOAT
         return AZ_NAME_LITERAL("rebind_subtree");
     }
 
-    void RebindSubtreeAction::Begin([[maybe_unused]] const ActionContext& context)
-    {
-    }
 
-    void RebindSubtreeAction::End([[maybe_unused]] const ActionContext& context)
-    {
-    }
 
     ActionResult RebindSubtreeAction::Step(const ActionContext& context, [[maybe_unused]] float deltaTime)
     {

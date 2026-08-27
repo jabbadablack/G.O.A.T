@@ -23,7 +23,6 @@ namespace GOAT_Animation
         AZ::Name GetName() const override;
         void Begin(const GOAT::ActionContext& context) override;
         GOAT::ActionResult Step(const GOAT::ActionContext& context, float deltaTime) override;
-        void End(const GOAT::ActionContext& context) override;
 
     private:
         //! Pushes the agent's value for one blackboard variable into the anim graph.
@@ -44,6 +43,5 @@ namespace GOAT_Animation
         AZ::Name GetName() const override;
         void Begin(const GOAT::ActionContext& context) override;
         GOAT::ActionResult Step(const GOAT::ActionContext& context, float deltaTime) override;
-        void End(const GOAT::ActionContext& context) override;
     };
 } // namespace GOAT_Animation

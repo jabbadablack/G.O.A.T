@@ -77,8 +77,6 @@ namespace GOAT
         //! Drops the innermost remembered tree, which a pop does once it has switched.
         void ForgetInterruptedTree(AgentId agent);
 
-        //! How often each band runs.
-        void SetBandIntervals(const AZStd::array<AZ::TimeMs, BandCount>& intervals);
 
         size_t Size() const { return m_agents.Size(); }
 

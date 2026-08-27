@@ -38,8 +38,6 @@ namespace GOAT
         const BlackboardStorage* FindStorage(BlackboardScope scope, AgentId agent) const override;
         ////////////////////////////////////////////////////////////////////////
 
-        //! Drops every declaration and every storage instance.
-        void Clear();
 
         //! The declared variables, for validation messages and console output.
         const BlackboardSchema& GetSchema() const { return m_schema; }

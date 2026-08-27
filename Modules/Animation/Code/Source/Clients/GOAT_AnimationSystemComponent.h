@@ -3,7 +3,6 @@
 #include <GOAT/Domain/NodeType.h>
 #include <GOAT/Interfaces/IActionState.h>
 
-#include <GOAT_Animation/GOAT_AnimationBus.h>
 
 #include <AzCore/Component/Component.h>
 #include <AzCore/std/containers/vector.h>
@@ -17,7 +16,6 @@ namespace GOAT_Animation
     //! animate at all, simply does not enable it and the words disappear with it.
     class GOAT_AnimationSystemComponent
         : public AZ::Component
-        , protected GOAT_AnimationRequestBus::Handler
     {
     public:
         AZ_COMPONENT_DECL(GOAT_AnimationSystemComponent);
@@ -29,12 +27,9 @@ namespace GOAT_Animation
         static void GetRequiredServices(AZ::ComponentDescriptor::DependencyArrayType& required);
         static void GetDependentServices(AZ::ComponentDescriptor::DependencyArrayType& dependent);
 
-        GOAT_AnimationSystemComponent();
-        ~GOAT_AnimationSystemComponent();
 
     protected:
         //! AZ::Component
-        void Init() override;
         void Activate() override;
         void Deactivate() override;
 

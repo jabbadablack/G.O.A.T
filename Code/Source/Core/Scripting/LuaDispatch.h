@@ -76,8 +76,6 @@ namespace GOAT
         const ActionPlan* CallBackendPlan(
             const AZ::Name& backend, const AZ::Name& goal, AgentId agent, AgentScriptContext& context);
 
-        //! True when a backend of that name is defined in Lua.
-        bool HasLuaBackend(const AZ::Name& backend);
 
         //! Every backend name declared in Lua so far.
         AZStd::vector<AZ::Name> GetLuaBackendNames();

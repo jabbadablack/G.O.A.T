@@ -1,5 +1,4 @@
 set(FILES
-    Include/GOAT/GOATBus.h
     Include/GOAT/GOATTypeIds.h
     Include/GOAT/Assets/BehaviorTreeAsset.h
     Include/GOAT/Assets/BlackboardAsset.h

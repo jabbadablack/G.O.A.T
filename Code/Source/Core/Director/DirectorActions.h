@@ -22,9 +22,7 @@ namespace GOAT
     public:
         DirectorActionBase(DirectorRegistry& directors, const DirectorKeys& keys);
 
-        void Begin(const ActionContext& context) override;
         ActionResult Step(const ActionContext& context, float deltaTime) override;
-        void End(const ActionContext& context) override;
 
     protected:
         //! What one verb did to one agent.
@@ -104,9 +102,7 @@ namespace GOAT
         OrderValueAction(DirectorRegistry& directors, const DirectorKeys& keys);
 
         AZ::Name GetName() const override;
-        void Begin(const ActionContext& context) override;
         ActionResult Step(const ActionContext& context, float deltaTime) override;
-        void End(const ActionContext& context) override;
 
     private:
         DirectorRegistry& m_directors;
@@ -124,9 +120,7 @@ namespace GOAT
         explicit RebindSubtreeAction(const DirectorKeys& keys);
 
         AZ::Name GetName() const override;
-        void Begin(const ActionContext& context) override;
         ActionResult Step(const ActionContext& context, float deltaTime) override;
-        void End(const ActionContext& context) override;
 
     private:
         const DirectorKeys& m_keys;

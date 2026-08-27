@@ -19,9 +19,7 @@ namespace GOAT_Navigation
         AZ_CLASS_ALLOCATOR(IsAtLocationAction, AZ::SystemAllocator);
 
         AZ::Name GetName() const override;
-        void Begin(const GOAT::ActionContext& context) override;
         GOAT::ActionResult Step(const GOAT::ActionContext& context, float deltaTime) override;
-        void End(const GOAT::ActionContext& context) override;
     };
 
     //! Succeeds when a walkable path to a position exists.

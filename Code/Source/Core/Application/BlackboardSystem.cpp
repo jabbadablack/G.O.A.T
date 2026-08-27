@@ -143,18 +143,4 @@ namespace GOAT
             return nullptr;
         }
     }
-
-    void BlackboardSystem::Clear()
-    {
-        AZLOG_INFO("GOAT: clearing every blackboard, %zu agents included", m_agents.size());
-
-        m_squads.Clear();
-        m_agents.clear();
-        m_schema.Clear();
-        m_global.Reset(m_schema.GetLayout(BlackboardScope::Global));
-
-        AZ_Assert(m_agents.empty(), "Clearing must destroy every agent blackboard");
-        AZ_Assert(m_schema.GetLayout(BlackboardScope::Agent).m_defaults.empty(),
-            "Clearing must leave the schema holding no declared variables");
-    }
 } // namespace GOAT

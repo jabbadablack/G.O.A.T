@@ -242,35 +242,6 @@ namespace GOAT
         return executed && m_planValidator.IsClean();
     }
 
-    bool LuaDispatch::HasLuaBackend(const AZ::Name& backend)
-    {
-        if (m_scriptContext == nullptr)
-        {
-            return false;
-        }
-
-        AZ::ScriptDataContext call;
-        if (!m_scriptContext->Call("GOAT_HasBackend", call))
-        {
-            AZ_Error("GOAT", false, "GOAT_HasBackend is missing, so backend '%s' cannot be looked up", backend.GetCStr());
-            return false;
-        }
-
-        call.PushArg(AZStd::string(backend.GetStringView()));
-        if (!call.CallExecute())
-        {
-            AZ_Error("GOAT", false, "Looking up Lua backend '%s' raised a Lua error", backend.GetCStr());
-            return false;
-        }
-
-        bool defined = false;
-        if (call.GetNumResults() >= 1)
-        {
-            call.ReadResult(0, defined);
-        }
-        return defined;
-    }
-
     AZStd::vector<AZ::Name> LuaDispatch::GetLuaBackendNames()
     {
         m_nameCollector.Clear();
