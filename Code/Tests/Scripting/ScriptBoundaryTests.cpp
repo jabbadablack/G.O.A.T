@@ -131,6 +131,47 @@ namespace GOAT
         EXPECT_FALSE(stray);
     }
 
+    //! The path the gem actually uses: a behaviour is a function stored in a table, and C++
+    //! hands it the context as an argument rather than leaving one in a global. If a handle
+    //! survives a global but not an argument, every script in the gem is broken and every test
+    //! above still passes -- which is exactly the gap this closes.
+    TEST_F(ScriptBoundaryFixture, Key_SurvivesWhenTheContextArrivesAsAnArgument)
+    {
+        Declare("speed", BlackboardScope::Agent, BlackboardType::Float);
+
+        ASSERT_TRUE(Run(R"(
+            local handle
+            -- A plain global: ScriptContext::Call resolves a name with lua_getglobal, so a
+            -- dotted one never resolves.
+            behaviourTick = function(me, ctx, dt)
+                if (handle or 0) ~= 0 then else handle = ctx:Key('speed') end
+                ctx:SetNumber(handle, ctx:GetNumber(handle) + 1)
+                return handle
+            end
+        )"));
+
+        // Called the way LuaDispatch calls a behaviour: the context pushed as an argument.
+        for (int i = 0; i < 3; ++i)
+        {
+            AZ::ScriptDataContext call;
+            ASSERT_TRUE(m_script->Call("behaviourTick", call)) << "the behaviour must be callable";
+            call.PushArg(0);
+            call.PushArg(m_context);
+            call.PushArg(0.0f);
+            ASSERT_TRUE(call.CallExecute());
+
+            double handle = 0.0;
+            ASSERT_GE(call.GetNumResults(), 1);
+            ASSERT_TRUE(call.ReadResult(0, handle));
+            EXPECT_NE(handle, 0.0) << "ctx:Key answered nothing when the context arrived as an argument";
+        }
+
+        ASSERT_TRUE(Run("total = ctx:GetNumber(ctx:Key('speed'))"));
+        double total = 0.0;
+        ASSERT_TRUE(m_script->ReadGlobal("total", total));
+        EXPECT_DOUBLE_EQ(total, 3.0);
+    }
+
     //! An undeclared name answers with a handle that reads as nothing rather than one that
     //! happens to address a slot.
     TEST_F(ScriptBoundaryFixture, Key_AnswersZeroForAnUndeclaredName)

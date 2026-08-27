@@ -123,8 +123,27 @@ function GOAT_DeclareNode(typeName, mainProperty)
 end
 
 --! Defines a leaf behaviour: `behavior "Patrol" { start = ..., tick = ..., stop = ... }`.
+--! Reports something wrong with what a script declared.
+--! Debug.Warning when the engine has reflected it, print otherwise, so this works the same in a
+--! bare Lua harness as it does in the editor.
+function GOAT._warn(message)
+    if Debug ~= nil and Debug.Warning ~= nil then
+        Debug.Warning(false, "GOAT: " .. message)
+    else
+        print("GOAT: " .. message)
+    end
+end
+
 function behavior(name)
     return function(body)
+        -- A behaviour name is global to the vocabulary, so a second script declaring one that
+        -- is taken silently replaces it -- and every tree already pointing at the first then
+        -- runs the second, closed over a different script's variables. Loud, because the
+        -- symptom otherwise appears in an agent that has nothing to do with the change.
+        if GOAT._behaviors[name] ~= nil then
+            GOAT._warn("behaviour '" .. name .. "' is declared more than once; the last one wins, "
+                .. "and every tree naming it runs that one")
+        end
         GOAT._behaviors[name] = body
         return body
     end

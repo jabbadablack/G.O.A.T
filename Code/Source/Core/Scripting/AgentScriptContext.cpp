@@ -33,6 +33,9 @@ namespace GOAT
     {
         const BlackboardKey key = Resolve(name, "look up");
 
+        AZLOG(GoatAgent, "GOAT: script looked up '%s' and got handle %.0f", name.c_str(),
+            key.IsValid() ? static_cast<double>(key.GetPacked()) + 1.0 : 0.0);
+
         // Offset by one so that zero is never a handle. A packed key of zero is a real slot --
         // the first global bool -- while zero is also what an absent or nil Lua argument arrives
         // as, and those two must not be the same thing. Without this a script that lost its
