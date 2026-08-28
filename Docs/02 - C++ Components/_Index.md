@@ -18,6 +18,7 @@ This folder documents the **core C++ classes** that make up G.O.A.T. Each note c
 | [[IActionState]] | Interface for atomic action verbs (`Begin`, `Step`, `End`). |
 | [[IBackend]] | Interface for planning backends (`Plan`, `CollectGuards`, `Release`). |
 | [[IAgentSystem]] | Public API for modules to extend the framework. |
+| [[IDirectorFilter]] | Narrows which agents a director governs. |
 | [[IBlackboardSystem]] | Interface for the shared blackboard data. |
 | [[INodeScripting]] | Interface for custom control flow routing. |
 
@@ -28,6 +29,7 @@ This folder documents the **core C++ classes** that make up G.O.A.T. Each note c
 | [[ActionPlan]] | A sequence of `ActionRequest` steps. |
 | [[ActionContext]] | Per-agent context passed to `IActionState`. |
 | [[Intent]] | Message from a tree leaf to a backend. |
+| [[DirectorProfile]] | A director's priority and cooldown. |
 | [[DecisionProgram]] | Compiled flat representation of a behavior tree. |
 | [[DecisionNode]] | One compiled node in a `DecisionProgram`. |
 | [[DecisionService]] | Compiled representation of a service. |
@@ -81,6 +83,9 @@ This folder documents the **core C++ classes** that make up G.O.A.T. Each note c
 | Note | Description |
 | :--- | :--- |
 | [[GOATAgentComponent]] | Turns an entity into an AI agent. |
+| [[GOATDirectorComponent]] | Turns an entity into a director. |
+| [[GOATDirectorAreaFilterComponent]] | Narrows a director to a shape. |
+| [[GOATDirectorSquadFilterComponent]] | Narrows a director to squads or tags. |
 | [[GOATSystemComponent]] | "God object" owning all services. |
 | [[GOATModuleInterface]] | Base module class. |
 | [[GOATModule]] | Client module. |
