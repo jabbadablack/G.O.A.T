@@ -93,6 +93,8 @@ namespace GOAT
         void UnregisterBackend(const AZ::Name&) override {}
         bool RegisterNodeType(NodeTypeDescriptor) override { return false; }
         void UnregisterNodeType(const AZ::Name&) override {}
+        void RegisterVocabularyScript(AZStd::string_view) override {}
+        void UnregisterVocabularyScript(AZStd::string_view) override {}
         ActionStateId RegisterAction(AZStd::unique_ptr<IActionState>) override { return CoreActions::Invalid; }
         void UnregisterAction(ActionStateId) override {}
         AZStd::vector<AZ::Name> GetBackendNames() const override { return {}; }

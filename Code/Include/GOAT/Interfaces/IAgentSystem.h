@@ -22,6 +22,7 @@
 #include <AzCore/std/smart_ptr/shared_ptr.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 #include <AzCore/std/string/string.h>
+#include <AzCore/std/string/string_view.h>
 
 namespace GOAT
 {
@@ -151,6 +152,11 @@ namespace GOAT
         //! A leaf whose name matches a registered verb runs that verb.
         virtual bool RegisterNodeType(NodeTypeDescriptor descriptor) = 0;
         virtual void UnregisterNodeType(const AZ::Name& name) = 0;
+
+        //! Installs a Lua vocabulary file, run right after the core's own words.
+        //! @assetPath the cache path without an extension; the compiled form is preferred.
+        virtual void RegisterVocabularyScript(AZStd::string_view assetPath) = 0;
+        virtual void UnregisterVocabularyScript(AZStd::string_view assetPath) = 0;
 
         //! Installs an action verb, which is how a module contributes vocabulary.
         virtual ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) = 0;

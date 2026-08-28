@@ -26,6 +26,7 @@
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/std/algorithm.h>
 #include <AzFramework/Asset/GenericAssetHandler.h>
 
 namespace GOAT
@@ -348,6 +349,39 @@ namespace GOAT
         return false;
     }
 
+    bool GOATSystemComponent::RunScript(AZStd::string_view assetPath, const char* what)
+    {
+        const AZStd::string compiled = AZStd::string(assetPath) + ".luac";
+        const AZStd::string source = AZStd::string(assetPath) + ".lua";
+        const char* paths[] = { compiled.c_str(), source.c_str() };
+        return RunFirstAvailable(paths, AZStd::size(paths), what);
+    }
+
+    void GOATSystemComponent::RegisterVocabularyScript(AZStd::string_view assetPath)
+    {
+        AZStd::string path(assetPath);
+        if (AZStd::find(m_vocabularyScripts.begin(), m_vocabularyScripts.end(), path) != m_vocabularyScripts.end())
+        {
+            return;
+        }
+
+        m_vocabularyScripts.push_back(path);
+
+        // A gem that arrives after the vocabulary loaded gets its words now rather than never.
+        if (m_vocabularyLoaded)
+        {
+            AZ_Warning("GOAT", RunScript(path, "a gem's vocabulary"),
+                "Could not load the vocabulary script at '%s'", path.c_str());
+        }
+    }
+
+    void GOATSystemComponent::UnregisterVocabularyScript(AZStd::string_view assetPath)
+    {
+        const AZStd::string path(assetPath);
+        m_vocabularyScripts.erase(
+            AZStd::remove(m_vocabularyScripts.begin(), m_vocabularyScripts.end(), path), m_vocabularyScripts.end());
+    }
+
     bool GOATSystemComponent::LoadVocabulary()
     {
         if (!RunFirstAvailable(VocabularyAssetPaths, AZStd::size(VocabularyAssetPaths), "the authoring vocabulary"))
@@ -356,6 +390,13 @@ namespace GOAT
                 "GOAT", false,
                 "Could not load the GOAT Lua vocabulary; check that the Asset Processor produced goat/scripts/goat.luac");
             return false;
+        }
+
+        // A backend gem's words load after the ones they are written in and before any user script.
+        for (const AZStd::string& path : m_vocabularyScripts)
+        {
+            AZ_Warning("GOAT", RunScript(path, "a gem's vocabulary"),
+                "Could not load the vocabulary script at '%s'", path.c_str());
         }
 
         // The backends the gem ships load straight after the words they are written in, and

@@ -14,6 +14,12 @@
 
 namespace GOAT_BehaviorTree
 {
+    namespace
+    {
+        //! Where this gem's scan folder puts its vocabulary, without the extension.
+        constexpr const char* VocabularyScriptPath = "goat_behaviortree/scripts/behaviortree";
+    } // namespace
+
     AZ_COMPONENT_IMPL(GOAT_BehaviorTreeSystemComponent, "GOAT_BehaviorTreeSystemComponent",
         GOAT_BehaviorTreeSystemComponentTypeId);
 
@@ -58,6 +64,7 @@ namespace GOAT_BehaviorTree
         }
 
         GOAT::InstallBehaviorTreeWords(m_vocabulary);
+        agents->RegisterVocabularyScript(VocabularyScriptPath);
 
         // Handed over rather than held: the core's registry owns it, and unregistering by name
         // is what takes it back out.
@@ -74,6 +81,11 @@ namespace GOAT_BehaviorTree
     {
         GOAT::GOATBackendRequestBus::Broadcast(&GOAT::GOATBackendRequests::UnregisterDecisionBackend,
             GOAT::BehaviorTreeBackend::GetBackendName());
+
+        if (GOAT::IAgentSystem* agents = GOAT::AgentSystemInterface::Get())
+        {
+            agents->UnregisterVocabularyScript(VocabularyScriptPath);
+        }
 
         m_vocabulary.Clear();
     }

@@ -85,6 +85,8 @@ namespace GOAT
         void UnregisterBackend(const AZ::Name& name) override;
         bool RegisterNodeType(NodeTypeDescriptor descriptor) override;
         void UnregisterNodeType(const AZ::Name& name) override;
+        void RegisterVocabularyScript(AZStd::string_view assetPath) override;
+        void UnregisterVocabularyScript(AZStd::string_view assetPath) override;
         ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) override;
         void UnregisterAction(ActionStateId id) override;
         AZStd::vector<AZ::Name> GetBackendNames() const override;
@@ -202,6 +204,9 @@ namespace GOAT
         //! Loads the Lua authoring vocabulary shipped with the gem.
         bool LoadVocabulary();
 
+        //! Runs a script from its cache path, preferring the compiled form.
+        bool RunScript(AZStd::string_view assetPath, const char* what);
+
         //! Asks for a tree change, deferred to the agent's next tick because a request can
         //! arrive from Lua running inside that agent's current one.
         bool RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind, AZ::u8 priority);
@@ -267,6 +272,8 @@ namespace GOAT
         //! Trees compiled so far, shared by every agent running the same one.
         AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const AgentProgram>> m_programs;
         AZStd::vector<AZStd::unique_ptr<AZ::Data::AssetHandler>> m_assetHandlers;
+        //! Vocabulary files backend gems ship, run in the order they registered.
+        AZStd::vector<AZStd::string> m_vocabularyScripts;
         //! Whether the authoring vocabulary is loaded into the script context.
         bool m_vocabularyLoaded = false;
     };
