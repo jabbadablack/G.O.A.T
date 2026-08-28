@@ -11,7 +11,6 @@
 namespace GOAT
 {
     class ActionStateRegistry;
-    class AgentRegistry;
     class AgentRuntime;
 
     //! Runs another paradigm's program to completion, as one step of the plan it sits in.
@@ -30,7 +29,7 @@ namespace GOAT
         using ProgramTable = AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const AgentProgram>>;
 
         EmbedAction(
-            AgentRegistry& agents, AgentRuntime& runtime, const ActionStateRegistry& actions,
+            AgentLookup agents, AgentRuntime& runtime, const ActionStateRegistry& actions,
             const ProgramTable& programs);
 
         AZ::Name GetName() const override;
@@ -45,7 +44,7 @@ namespace GOAT
         static NestedFrame* Frame(const ActionContext& context);
         static void SetFrame(const ActionContext& context, NestedFrame* frame);
 
-        AgentRegistry& m_agents;
+        AgentLookup m_agents;
         AgentRuntime& m_runtime;
         const ActionStateRegistry& m_actions;
         const ProgramTable& m_programs;

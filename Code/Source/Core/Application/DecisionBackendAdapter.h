@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Core/Application/NestedRun.h>
+
 #include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Interfaces/IBackend.h>
 #include <GOAT/Interfaces/IDecisionBackend.h>
@@ -10,8 +12,6 @@
 
 namespace GOAT
 {
-    class AgentRegistry;
-
     //! One paradigm answering a single `delegate` leaf, as the planner that leaf expects.
     //!
     //! A backend that decides for a whole agent and one that answers one intent are asked the
@@ -27,14 +27,14 @@ namespace GOAT
 
         using ProgramTable = AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const AgentProgram>>;
 
-        DecisionBackendAdapter(IDecisionBackend& inner, AgentRegistry& agents, const ProgramTable& programs);
+        DecisionBackendAdapter(IDecisionBackend& inner, AgentLookup agents, const ProgramTable& programs);
 
         AZ::Name GetName() const override;
         bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) override;
 
     private:
         IDecisionBackend& m_inner;
-        AgentRegistry& m_agents;
+        AgentLookup m_agents;
         const ProgramTable& m_programs;
     };
 } // namespace GOAT

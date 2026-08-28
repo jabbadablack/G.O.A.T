@@ -148,8 +148,9 @@ namespace GOAT
 
         // After the registry, because running a program inside a plan needs the agent whose
         // block it borrows and the runtime that hands it its context.
-        m_actions->RegisterAt(
-            CoreActions::Embed, AZStd::make_unique<EmbedAction>(*m_agents, *m_runtime, *m_actions, m_programs));
+        m_actions->RegisterAt(CoreActions::Embed,
+            AZStd::make_unique<EmbedAction>(
+                [this](AgentId agent) { return m_agents->Find(agent); }, *m_runtime, *m_actions, m_programs));
 
         // Resolving a tree name needs the compiled programs, which live here, so the runtime is
         // handed the step rather than reaching back up for it.
@@ -1182,8 +1183,8 @@ namespace GOAT
         // reachable from a delegate without being registered twice or knowing it was asked.
         if (m_agents != nullptr)
         {
-            m_decisionAdapters[raw->GetName()] =
-                AZStd::make_unique<DecisionBackendAdapter>(*raw, *m_agents, m_programs);
+            m_decisionAdapters[raw->GetName()] = AZStd::make_unique<DecisionBackendAdapter>(
+                *raw, [this](AgentId agent) { return m_agents->Find(agent); }, m_programs);
         }
 
         return true;

@@ -1,5 +1,7 @@
 #include <BehaviorTreeBackend.h>
+#include <Core/Actions/EmbedAction.h>
 #include <Core/Application/ActionStateRegistry.h>
+#include <Core/Application/DecisionBackendAdapter.h>
 #include <Core/Application/AgentArchetype.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/AgentRuntime.h>
@@ -165,6 +167,7 @@ namespace GOAT
             m_actions.reset();
             m_blackboard.reset();
             m_inner.reset();
+            m_library.clear();
             m_agent.m_archetype.reset();
             m_agent.m_program = nullptr;
             AZ::NameDictionary::Destroy();
@@ -255,6 +258,53 @@ namespace GOAT
         AZStd::unique_ptr<TestAgentSystem> m_host;
         AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
+
+        //! Programs the embed verb and the delegate adapter resolve names through, standing in
+        //! for the table the system component owns.
+        EmbedAction::ProgramTable m_library;
+
+        //! Installs the embed verb, which the core normally registers at startup.
+        void InstallEmbed()
+        {
+            m_actions->RegisterAt(CoreActions::Embed,
+                AZStd::make_unique<EmbedAction>(
+                    [this](AgentId) { return &m_agent; }, *m_runtime, *m_actions, m_library));
+        }
+
+        //! A one leaf program the given backend runs, published under a name so a host can
+        //! name it the way an authored one would.
+        void Publish(const AZ::Name& name, ActionStateId verb)
+        {
+            DecisionProgram* program = aznew DecisionProgram();
+            program->m_name = name;
+            program->m_backend = m_treeBackend.get();
+
+            DecisionNode leaf;
+            leaf.m_op = NodeOp::Action;
+            leaf.m_parent = InvalidNodeIndex;
+            leaf.m_subtreeEnd = 1;
+            leaf.m_action.m_action = verb;
+            program->m_nodes.push_back(leaf);
+
+            program->m_stateBytes = AlignState(m_treeBackend->GetStateSize());
+            m_library[name] = AZStd::shared_ptr<const AgentProgram>(program);
+        }
+
+        //! Makes the host's only leaf run a program by name, and gives the agent room for it.
+        void HostEmbeds(const AZ::Name& name)
+        {
+            auto* program = const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program));
+            program->m_nodes[2].m_action.m_action = CoreActions::Embed;
+            program->m_nodes[2].m_action.m_tag = name;
+
+            const auto nested = m_library.find(name);
+            ASSERT_TRUE(nested != m_library.end());
+            program->m_stateBytes =
+                AlignState(m_treeBackend->GetStateSize()) + NestedFrameBytes() + nested->second->m_stateBytes;
+
+            m_agent.ResetBrain(*m_agent.m_program);
+            m_treeBackend->Attach(m_runtime->MakePlanContext(m_agent), *m_agent.m_program, m_agent.GetState());
+        }
     };
 
     //! An agent whose tree finds no work must walk it once, not twice. Before the redundant
@@ -444,5 +494,116 @@ namespace GOAT
         m_runtime->Tick(m_agent, 0.1f);
 
         EXPECT_GT(m_sleeping->m_steps, armed);
+    }
+
+    //! The whole point: a leaf of one program runs another program, in whatever paradigm owns
+    //! it, and the host reads Running until that program is done.
+    TEST_F(AgentRuntimeFixture, Embed_RunsANestedProgramToCompletion)
+    {
+        InstallEmbed();
+        BuildGuardedTree(true);
+        Publish(AZ::Name("Nested"), m_sleepId);
+        HostEmbeds(AZ::Name("Nested"));
+
+        // One tick to plan the host's step, one to enter the nested program and plan its
+        // first, and one for that to actually run.
+        m_runtime->Tick(m_agent, 0.1f);
+        m_runtime->Tick(m_agent, 0.1f);
+        m_runtime->Tick(m_agent, 0.1f);
+        EXPECT_GT(m_sleeping->m_steps, 0);
+
+        // The nested sleep runs a second, so the host is still holding this one step long after
+        // an ordinary leaf would have finished.
+        EXPECT_TRUE(m_agent.m_machine.HasPlan());
+        EXPECT_LT(m_sleeping->m_slept, 1.0f);
+
+        for (int i = 0; i < 20; ++i)
+        {
+            m_runtime->Tick(m_agent, 0.1f);
+        }
+
+        EXPECT_GE(m_sleeping->m_slept, 1.0f);
+        EXPECT_EQ(m_agent.m_brainUsed, AlignState(m_treeBackend->GetStateSize()));
+    }
+
+    //! A nested run borrows a block of the agent's brain state and gives it back, so entering
+    //! and leaving one leaves the agent exactly as wide as it started.
+    TEST_F(AgentRuntimeFixture, Embed_GivesBackWhatItBorrowed)
+    {
+        InstallEmbed();
+        BuildGuardedTree(true);
+        Publish(AZ::Name("Nested"), m_holdId);
+        HostEmbeds(AZ::Name("Nested"));
+
+        // Armed by hand: the tree here is built rather than compiled, and it is the compiler
+        // that normally makes a condition abort the branch it sits in.
+        auto* host = const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program));
+        host->m_nodes[1].m_abort = AbortMode::Self;
+        host->m_guardNodes.push_back(1);
+
+        // Connected, because a guard is only re-checked when a scope it watches has moved.
+        m_agent.m_observer.Connect(*m_agent.m_program, *m_blackboard, m_agent.m_id);
+
+        const AZ::u16 before = m_agent.m_brainUsed;
+        const size_t borrowedBefore = m_planStore->GetBorrowedCount();
+
+        m_runtime->Tick(m_agent, 0.1f);
+        m_runtime->Tick(m_agent, 0.1f);
+        EXPECT_GT(m_agent.m_brainUsed, before);
+
+        // Closing the guard is what an outer abort looks like from inside a nested run.
+        m_blackboard->Set<bool>(m_gate, false, m_agent.m_id);
+        m_runtime->Tick(m_agent, 0.1f);
+
+        EXPECT_EQ(m_agent.m_brainUsed, before);
+        EXPECT_EQ(m_planStore->GetBorrowedCount(), borrowedBefore);
+        EXPECT_FALSE(m_agent.m_machine.HasPlan());
+        m_agent.m_observer.Disconnect();
+    }
+
+    //! An embed that names nothing fails its step rather than running an empty program or
+    //! reading off the end of the block it was never given.
+    TEST_F(AgentRuntimeFixture, Embed_FailsWhenItNamesNoProgram)
+    {
+        InstallEmbed();
+        BuildGuardedTree(true);
+
+        auto* program = const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program));
+        program->m_nodes[2].m_action.m_action = CoreActions::Embed;
+        program->m_nodes[2].m_action.m_tag = AZ::Name("Missing");
+
+        AZ_TEST_START_TRACE_SUPPRESSION;
+        m_runtime->Tick(m_agent, 0.1f);
+        m_runtime->Tick(m_agent, 0.1f);
+        AZ_TEST_STOP_TRACE_SUPPRESSION_NO_COUNT;
+
+        EXPECT_FALSE(m_agent.m_machine.HasPlan());
+        EXPECT_EQ(m_agent.m_brainUsed, AlignState(m_treeBackend->GetStateSize()));
+    }
+
+    //! A paradigm can also answer a single delegate leaf, which is the cheap half of the same
+    //! idea: asked once, it hands back one plan and keeps nothing.
+    TEST_F(AgentRuntimeFixture, Delegate_TakesOnePlanFromAWholeParadigm)
+    {
+        BuildGuardedTree(true);
+        Publish(AZ::Name("Errand"), m_holdId);
+
+        DecisionBackendAdapter adapter(
+            *m_treeBackend, [this](AgentId) { return &m_agent; }, m_library);
+        auto* program = const_cast<DecisionProgram*>(static_cast<const DecisionProgram*>(m_agent.m_program));
+        program->m_stateBytes = AlignState(m_treeBackend->GetStateSize()) * 2;
+        m_agent.ResetBrain(*m_agent.m_program);
+        m_treeBackend->Attach(m_runtime->MakePlanContext(m_agent), *m_agent.m_program, m_agent.GetState());
+
+        Intent intent;
+        intent.m_goal = AZ::Name("Errand");
+
+        ActionPlan plan;
+        const AZ::u16 before = m_agent.m_brainUsed;
+        EXPECT_TRUE(adapter.Plan(m_runtime->MakePlanContext(m_agent), intent, plan));
+        EXPECT_FALSE(plan.IsEmpty());
+        EXPECT_EQ(m_agent.m_brainUsed, before);
+
+        m_planStore->Release(plan.m_span);
     }
 } // namespace GOAT

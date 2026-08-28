@@ -2,6 +2,8 @@
 
 #include <Core/Application/AgentRecord.h>
 
+#include <AzCore/std/functional.h>
+
 #include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Domain/AgentStateMachine.h>
 #include <GOAT/Interfaces/IDecisionBackend.h>
@@ -10,6 +12,10 @@ namespace GOAT
 {
     class ActionStateRegistry;
     struct ActionContext;
+
+    //! How something that is handed only an agent's handle reaches the block it borrows from.
+    //! Handed in rather than reached for, the way the runtime is handed its tree switch step.
+    using AgentLookup = AZStd::function<AgentRecord*(AgentId)>;
 
     //! One paradigm running inside another, held in the borrowed part of an agent's brain block.
     //!

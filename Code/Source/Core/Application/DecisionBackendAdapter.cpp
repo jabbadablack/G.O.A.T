@@ -1,15 +1,13 @@
 #include <Core/Application/DecisionBackendAdapter.h>
 
-#include <Core/Application/AgentRegistry.h>
-
 #include <AzCore/Console/ILogger.h>
 
 namespace GOAT
 {
     DecisionBackendAdapter::DecisionBackendAdapter(
-        IDecisionBackend& inner, AgentRegistry& agents, const ProgramTable& programs)
+        IDecisionBackend& inner, AgentLookup agents, const ProgramTable& programs)
         : m_inner(inner)
-        , m_agents(agents)
+        , m_agents(AZStd::move(agents))
         , m_programs(programs)
     {
     }
@@ -37,7 +35,7 @@ namespace GOAT
             return false;
         }
 
-        AgentRecord* record = m_agents.Find(context.m_agent);
+        AgentRecord* record = m_agents(context.m_agent);
         if (record == nullptr)
         {
             return false;

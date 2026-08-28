@@ -1,7 +1,6 @@
 #include <Core/Actions/EmbedAction.h>
 
 #include <Core/Application/ActionStateRegistry.h>
-#include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 
 #include <AzCore/Console/ILogger.h>
@@ -10,9 +9,9 @@
 namespace GOAT
 {
     EmbedAction::EmbedAction(
-        AgentRegistry& agents, AgentRuntime& runtime, const ActionStateRegistry& actions,
+        AgentLookup agents, AgentRuntime& runtime, const ActionStateRegistry& actions,
         const ProgramTable& programs)
-        : m_agents(agents)
+        : m_agents(AZStd::move(agents))
         , m_runtime(runtime)
         , m_actions(actions)
         , m_programs(programs)
@@ -59,7 +58,7 @@ namespace GOAT
             return;
         }
 
-        AgentRecord* record = m_agents.Find(context.m_agent);
+        AgentRecord* record = m_agents(context.m_agent);
         if (record == nullptr)
         {
             return;
@@ -75,7 +74,7 @@ namespace GOAT
     ActionResult EmbedAction::Step(const ActionContext& context, float deltaTime)
     {
         NestedFrame* frame = Frame(context);
-        AgentRecord* record = m_agents.Find(context.m_agent);
+        AgentRecord* record = m_agents(context.m_agent);
         if (frame == nullptr || record == nullptr || frame->m_program == nullptr)
         {
             return ActionResult::Failure;
@@ -149,7 +148,7 @@ namespace GOAT
     void EmbedAction::End(const ActionContext& context)
     {
         NestedFrame* frame = Frame(context);
-        AgentRecord* record = m_agents.Find(context.m_agent);
+        AgentRecord* record = m_agents(context.m_agent);
         if (frame == nullptr || record == nullptr)
         {
             return;
