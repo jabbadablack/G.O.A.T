@@ -16,7 +16,7 @@ tags: [cpp, core, component]
 
 `AgentRegistry` is the **central registry for all running agents**. It owns every `AgentRecord`, schedules agents into pacing bands, and manages their lifecycle. Agents are grouped into a few bands rather than given one scheduled event each, so the scheduler queue stays small while distant agents still run less often.
 
-It uses a `HandleTable` for dense, generation-checked storage of `AgentRecord`s, allowing O(1) lookup and cache-friendly iteration.
+It uses a `AgentStore` for dense, generation-checked storage of `AgentRecord`s, allowing O(1) lookup and cache-friendly iteration.
 
 ---
 
@@ -82,7 +82,7 @@ void RemoveFromBand(AgentId agent, size_t band);
 ```mermaid
 graph LR
     A[GOATSystemComponent] -->|Owns| B[AgentRegistry]
-    B --> C[HandleTable]
+    B --> C[AgentStore]
     B --> D[AgentRecord]
     B --> E[AgentRuntime]
     B --> F[BlackboardSystem]
@@ -90,7 +90,7 @@ graph LR
     B --> H[AZ::ScheduledEvent]
 ```
 
-- **Depends on:** `AgentRecord`, `AgentRuntime`, `BlackboardSystem`, `LuaDispatch`, `HandleTable`, `AZ::ScheduledEvent`.
+- **Depends on:** `AgentRecord`, `AgentRuntime`, `BlackboardSystem`, `LuaDispatch`, `AgentStore`, `AZ::ScheduledEvent`.
 - **Required by:** `GOATSystemComponent`.
 
 ---
@@ -165,7 +165,7 @@ void AgentRegistry::TickBand(size_t band)
 
 ### Performance Considerations
 
-- **Allocation:** Uses `HandleTable` for dense, generation-checked storage.
+- **Allocation:** Uses `AgentStore` for dense, generation-checked storage.
 - **Tick Rate:** Each band ticks at its own interval (33ms to 1000ms).
 - **Concurrency:** Main thread only. `TickBand` copies the roster to avoid iterator invalidation during behavior execution.
 
@@ -194,7 +194,7 @@ Unit tests should cover:
 
 - [[AgentRecord]]
 - [[AgentRuntime]]
-- [[HandleTable]]
+- [[AgentStore]]
 - [[AgentId]]
 - [[GOATAgentComponent]]
 - [[GOATSystemComponent]]

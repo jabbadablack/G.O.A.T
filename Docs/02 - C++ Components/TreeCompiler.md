@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`TreeCompiler` is the **validation and flattening engine** of G.O.A.T. It takes an authored `BehaviorTreeNode` hierarchy (which comes from Lua or a future graph editor) and converts it into a flat, immutable `DecisionProgram`. This process resolves blackboard variable names into typed keys, validates node properties against registered node types, and precomputes child indices for O(1) traversal during runtime.
+`TreeCompiler` is the **validation and flattening engine** of G.O.A.T. It takes an authored `AuthoredNode` hierarchy (which comes from Lua or a future graph editor) and converts it into a flat, immutable `DecisionProgram`. This process resolves blackboard variable names into typed keys, validates node properties against registered node types, and precomputes child indices for O(1) traversal during runtime.
 
 The compiler ensures that only valid, type-safe trees reach the execution stage, eliminating runtime string lookups and preventing performance spikes.
 
@@ -26,7 +26,7 @@ The compiler ensures that only valid, type-safe trees reach the execution stage,
 | :--- | :--- | :--- |
 | 1 | **Node Validation** | Validates node types against the `NodeTypeRegistry`, checking required properties, legal child counts, and property types. |
 | 2 | **Blackboard Resolution** | Converts authored string variable names (e.g., `TargetVisible`) into compiled `BlackboardKey` indices. |
-| 3 | **Tree Flattening** | Transforms the recursive `BehaviorTreeNode` graph into a contiguous `AZStd::vector<DecisionNode>` array. |
+| 3 | **Tree Flattening** | Transforms the recursive `AuthoredNode` graph into a contiguous `AZStd::vector<DecisionNode>` array. |
 | 4 | **Subtree Inlining** | Expands `subtree` references recursively, detecting cycles to prevent infinite loops. |
 | 5 | **Guard Observation** | Collects the list of `observedKeys` for conditions with `abort` modes, enabling efficient reactive replanning. |
 | 6 | **Service Attachment** | Compiles services attached to composites, storing their intervals and names. |
@@ -39,7 +39,7 @@ The compiler ensures that only valid, type-safe trees reach the execution stage,
 
 ```cpp
 // Compiles an authored tree into a DecisionProgram.
-AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AZ::Name& name, const BehaviorTreeNode& root) const;
+AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AZ::Name& name, const AuthoredNode& root) const;
 ```
 
 ### Private Methods
@@ -47,7 +47,7 @@ AZ::Outcome<DecisionProgram, AZStd::string> Compile(const AZ::Name& name, const 
 ```cpp
 // Emits one node and its subtree, returning the index it was written to.
 AZ::Outcome<NodeIndex, AZStd::string> Emit(
-    const BehaviorTreeNode& authored,
+    const AuthoredNode& authored,
     NodeIndex parent,
     AZ::u32 depth,
     DecisionProgram& program,
@@ -55,7 +55,7 @@ AZ::Outcome<NodeIndex, AZStd::string> Emit(
 
 // Expands a subtree reference in place of the referencing node.
 AZ::Outcome<NodeIndex, AZStd::string> Inline(
-    const BehaviorTreeNode& authored,
+    const AuthoredNode& authored,
     NodeIndex parent,
     AZ::u32 depth,
     DecisionProgram& program,
@@ -63,7 +63,7 @@ AZ::Outcome<NodeIndex, AZStd::string> Inline(
 
 // Checks an authored node's properties against what its type accepts.
 AZ::Outcome<void, AZStd::string> Validate(
-    const BehaviorTreeNode& authored,
+    const AuthoredNode& authored,
     const NodeTypeDescriptor& descriptor) const;
 ```
 
@@ -73,7 +73,7 @@ AZ::Outcome<void, AZStd::string> Validate(
 
 ```mermaid
 graph LR
-    A[Authored BehaviorTreeNode] --> B[TreeCompiler]
+    A[Authored AuthoredNode] --> B[TreeCompiler]
     B --> C[NodeTypeRegistry]
     B --> D[IBlackboardSystem]
     B --> E[TreeLibrary]
@@ -117,7 +117,7 @@ The `Compile` method invokes a recursive `Emit` function that performs a **pre-o
 Here is the indirect flow:
 
 1. Lua executes `GOAT_EmitTree`.
-2. `LuaTreeBuilder` reconstructs the `BehaviorTreeNode` hierarchy.
+2. `LuaTreeBuilder` reconstructs the `AuthoredNode` hierarchy.
 3. `GOATSystemComponent` passes that hierarchy to `TreeCompiler::Compile`.
 
 ---

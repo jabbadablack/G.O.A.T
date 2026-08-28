@@ -8,7 +8,7 @@ tags: [performance, architecture, design]
 
 > **Category:** Performance Model  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Application/AgentRegistry.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`, `Code/Source/Core/Memory/HandleTable.h`
+> **Core Files:** `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Application/AgentRegistry.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`, `Code/Source/Core/Memory/AgentStore.h`
 
 ---
 
@@ -47,9 +47,9 @@ graph TD
 
     subgraph Storage[Data Storage]
         F --> O[AgentRecord]
-        O --> P[HandleTable]
+        O --> P[AgentStore]
         O --> Q[DecisionCursor]
-        O --> R[AgentObserver]
+        O --> R[GuardWatch]
         G --> S[BlackboardStorage]
         I --> S
     end
@@ -269,16 +269,16 @@ graph TD
 
 ---
 
-### 5. Event-Driven Guards (AgentObserver)
+### 5. Event-Driven Guards (GuardWatch)
 
 **Description:**  
-`AgentObserver` watches only the blackboard slots an agent's tree actually guards on. When a watched slot changes, it marks the agent as "dirty" so the `GuardEvaluator` re-checks conditions only when necessary.
+`GuardWatch` watches only the blackboard slots an agent's tree actually guards on. When a watched slot changes, it marks the agent as "dirty" so the `GuardEvaluator` re-checks conditions only when necessary.
 
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Core/Application/AgentObserver.cpp
-void AgentObserver::Connect(const DecisionProgram& program, IBlackboardSystem& blackboard, AgentId agent)
+// Code/Source/Core/Application/GuardWatch.cpp
+void GuardWatch::Connect(const DecisionProgram& program, IBlackboardSystem& blackboard, AgentId agent)
 {
     Disconnect();
     m_observed = program.m_observedKeys;
@@ -350,17 +350,17 @@ void BlackboardStorage::EnsureCapacity(const BlackboardLayout& layout)
 
 ---
 
-### 8. HandleTable (Dense Storage)
+### 8. AgentStore (Dense Storage)
 
 **Description:**  
-`HandleTable` uses generation-checked handles (like `AgentId`) to safely manage agents while keeping data contiguous. When a slot is released, the generation is bumped, invalidating stale handles.
+`AgentStore` uses generation-checked handles (like `AgentId`) to safely manage agents while keeping data contiguous. When a slot is released, the generation is bumped, invalidating stale handles.
 
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Core/Memory/HandleTable.h
+// Code/Source/Core/Memory/AgentStore.h
 template<typename T, typename Tag>
-class HandleTable final
+class AgentStore final
 {
 public:
     HandleType Acquire(Args&&... args);      // Stores value, returns handle
@@ -411,7 +411,7 @@ for (int attempt = 0; attempt < MaxIntentsPerTick; ++attempt)
 | Memory efficiency | Fewer per-agent customizations (shared programs) |
 | No stack overflow | More complex debugging for deep trees |
 | Type-safe blackboard access | Schema must be declared before trees compile |
-| Event-driven guards | Requires careful setup of `AgentObserver` |
+| Event-driven guards | Requires careful setup of `GuardWatch` |
 
 ---
 
@@ -429,8 +429,8 @@ for (int attempt = 0; attempt < MaxIntentsPerTick; ++attempt)
 - `TreeWalker` executes iteratively with no recursion.
 - `AgentRegistry` schedules agents into bands.
 - `AgentRuntime` bounds work per tick.
-- `AgentObserver` enables event-driven guards.
-- `HandleTable` provides dense, generation-checked storage.
+- `GuardWatch` enables event-driven guards.
+- `AgentStore` provides dense, generation-checked storage.
 
 ### Extensibility
 

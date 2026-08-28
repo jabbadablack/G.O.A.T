@@ -26,7 +26,7 @@ Records are held behind a `unique_ptr` so their address stays put while the regi
 | 1 | **Program Storage** | Holds a shared pointer to the immutable `DecisionProgram`. |
 | 2 | **Position Tracking** | Holds a `DecisionCursor` tracking the agent's position in the tree. |
 | 3 | **Action Execution** | Holds an `AgentStateMachine` for the currently running plan. |
-| 4 | **Observer** | Holds an `AgentObserver` that watches only the blackboard slots the tree guards on. |
+| 4 | **Observer** | Holds an `GuardWatch` that watches only the blackboard slots the tree guards on. |
 | 5 | **Intent Tracking** | Stores the intent currently being satisfied, for replanning. |
 | 6 | **Service Scratch** | Reused each tick when collecting due services. |
 
@@ -43,7 +43,7 @@ Records are held behind a `unique_ptr` so their address stays put while the regi
 | `m_program` | `AZStd::shared_ptr<const DecisionProgram>` | The compiled tree, shared by all agents using it. |
 | `m_cursor` | `DecisionCursor` | Where the agent is inside the tree. |
 | `m_machine` | `AgentStateMachine` | The state machine for the current action plan. |
-| `m_observer` | `AgentObserver` | Watches only the blackboard slots the tree guards on. |
+| `m_observer` | `GuardWatch` | Watches only the blackboard slots the tree guards on. |
 | `m_intent` | `Intent` | The currently being satisfied intent (for replanning). |
 | `m_band` | `size_t` | Which pacing band this agent belongs to. |
 | `m_dueServices` | `AZStd::vector<AZ::u32>` | Scratch storage for due services each tick. |
@@ -58,11 +58,11 @@ graph LR
     B --> C[DecisionProgram]
     B --> D[DecisionCursor]
     B --> E[AgentStateMachine]
-    B --> F[AgentObserver]
+    B --> F[GuardWatch]
     B --> G[Intent]
 ```
 
-- **Depends on:** `DecisionProgram`, `DecisionCursor`, `AgentStateMachine`, `AgentObserver`, `AgentId`, `Intent`.
+- **Depends on:** `DecisionProgram`, `DecisionCursor`, `AgentStateMachine`, `GuardWatch`, `AgentId`, `Intent`.
 - **Required by:** `AgentRegistry`.
 
 ---
@@ -114,7 +114,7 @@ Unit tests should cover:
 
 - [[AgentRegistry]]
 - [[AgentRuntime]]
-- [[AgentObserver]]
+- [[GuardWatch]]
 - [[AgentStateMachine]]
 - [[DecisionCursor]]
 - [[DecisionProgram]]

@@ -67,12 +67,12 @@ This diagram shows the exact communication path between the three layers.
 graph LR
     L[Lua Script] -->|GOAT_EmitTree| D[LuaDispatch]
     D -->|BeginTree / AddNode| B[LuaTreeBuilder]
-    B -->|BehaviorTreeNode| C[TreeCompiler]
+    B -->|AuthoredNode| C[TreeCompiler]
     C -->|DecisionProgram| W[TreeWalker]
     W -->|Intent| K[BackendRegistry]
     K -->|ActionPlan| R[AgentStateMachine]
     R -->|IActionState| A[Game World]
-    A -->|Blackboard Updates| O[AgentObserver]
+    A -->|Blackboard Updates| O[GuardWatch]
     O -->|Dirty Flag| W
 ```
 
@@ -245,7 +245,7 @@ graph LR
 | 1 | Lua Script | `LuaDispatch` | Function call: `GOAT_EmitTree` |
 | 2 | `LuaDispatch` | `LuaTreeBuilder` | `BeginTree`, `AddNode`, `SetProperty` |
 | 3 | `LuaDispatch` | `LuaTreeBuilder` | `EndTree` (completes assembly) |
-| 4 | `GOATSystemComponent` | `TreeCompiler` | `BehaviorTreeNode` (root) |
+| 4 | `GOATSystemComponent` | `TreeCompiler` | `AuthoredNode` (root) |
 | 5 | `TreeCompiler` | `DecisionProgram` | `Compile` (flattened array) |
 
 ---
@@ -264,7 +264,7 @@ graph LR
 ## 🧩 Performance Considerations per Layer
 
 - **Lua Layer**: Lightweight; only runs on script load and `GOAT_Dispatch` calls.
-- **C++ Core**: Runs every tick (depending on Band). Uses `DecisionCursor`, `HandleTable`, and `AgentObserver` to avoid heap allocations during runtime and reduce unnecessary polling.
+- **C++ Core**: Runs every tick (depending on Band). Uses `DecisionCursor`, `AgentStore`, and `GuardWatch` to avoid heap allocations during runtime and reduce unnecessary polling.
 - **Runtime Layer**: Very lightweight; `GOATAgentComponent` is a thin shell that just passes data.
 
 ---

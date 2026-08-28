@@ -24,7 +24,7 @@ It is constructed once by `GOATSystemComponent` and passed to `AgentRegistry`, w
 
 | # | Responsibility | Description |
 | :--- | :--- | :--- |
-| 1 | **Guard Evaluation** | Re-checks guards via `GuardEvaluator` when `AgentObserver` is dirty. |
+| 1 | **Guard Evaluation** | Re-checks guards via `GuardEvaluator` when `GuardWatch` is dirty. |
 | 2 | **Service Ticking** | Runs due services via `ServiceTracker` on their configured intervals. |
 | 3 | **Action Execution** | Advances the `AgentStateMachine` by calling `IActionState::Step()`. |
 | 4 | **Tree Walking** | Produces `Intent`s via `TreeWalker` and hands them to backends. |

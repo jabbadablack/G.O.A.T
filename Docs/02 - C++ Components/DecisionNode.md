@@ -75,7 +75,7 @@ graph LR
 
 ### Key Algorithms
 
-`TreeCompiler::Emit()` creates each `DecisionNode` and fills its fields based on the authored `BehaviorTreeNode` and its resolved `NodeTypeDescriptor`.
+`TreeCompiler::Emit()` creates each `DecisionNode` and fills its fields based on the authored `AuthoredNode` and its resolved `NodeTypeDescriptor`.
 
 ### Performance Considerations
 

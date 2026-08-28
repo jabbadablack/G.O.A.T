@@ -129,7 +129,7 @@ The entire behavior tree DSL is defined in Lua (`GOAT.lua`). Trees, behaviors, f
 - `GOAT.lua` defines global functions: `tree`, `behavior`, `flow`, `backend`, and node constructors (`selector`, `sequence`, `wait`, `script`, etc.).
 - The `tree` function calls `GOAT.Compile(name, root)` which flattens the node graph into a pre-order record list.
 - `LuaDispatch::EmitTree` calls `GOAT_EmitTree`, which pushes node data into a `LuaTreeBuilder`.
-- `LuaTreeBuilder` reconstructs a `BehaviorTreeNode` hierarchy.
+- `LuaTreeBuilder` reconstructs a `AuthoredNode` hierarchy.
 - `TreeCompiler` compiles that hierarchy into a `DecisionProgram`.
 
 **Concrete example (from `ExampleAgent.lua`):**
@@ -246,8 +246,8 @@ The framework uses multiple mechanisms to ensure agents run efficiently without 
 | **Iterative Traversal** | `TreeWalker` uses a loop instead of recursion, avoiding stack overflow on deep trees. |
 | **Shared Programs** | Multiple agents running the same tree share an immutable `DecisionProgram`. |
 | **Blackboard Indexing** | Values are stored in typed arrays, accessed by index, not string. |
-| **Event-Driven Guards** | `AgentObserver` watches only the blackboard slots a tree guards on, waking the agent only when a relevant key changes. |
-| **HandleTable** | Dense storage with generation-checked handles prevents stale pointers and keeps memory contiguous. |
+| **Event-Driven Guards** | `GuardWatch` watches only the blackboard slots a tree guards on, waking the agent only when a relevant key changes. |
+| **AgentStore** | Dense storage with generation-checked handles prevents stale pointers and keeps memory contiguous. |
 
 **Concrete example (from `AgentRuntime.cpp`):**
 
@@ -298,7 +298,7 @@ Behaviors declare which blackboard keys they need. The system dynamically provis
 - `TreeCompiler` collects `observedKeys` for conditions with `abort` modes.
 - `BlackboardStorage::EnsureCapacity` resizes arrays only when new keys are added.
 - `LuaPlanBuilder` validates that steps reference existing blackboard keys.
-- `AgentObserver` connects only to the storages that hold observed keys.
+- `GuardWatch` connects only to the storages that hold observed keys.
 
 **Why this matters:**
 - **Memory efficiency** – No wasted storage for unused variables.

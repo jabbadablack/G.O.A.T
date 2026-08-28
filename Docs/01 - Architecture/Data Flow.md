@@ -39,7 +39,7 @@ graph TD
 
     subgraph Build[Compilation]
         B --> C[LuaTreeBuilder]
-        C --> D[BehaviorTreeNode]
+        C --> D[AuthoredNode]
         D --> E[TreeCompiler]
         E --> F[DecisionProgram]
     end
@@ -54,7 +54,7 @@ graph TD
         L --> M[Game World]
     end
 
-    M -->|Blackboard Updates| N[AgentObserver]
+    M -->|Blackboard Updates| N[GuardWatch]
     N -->|Dirty Flag| G
 ```
 
@@ -97,7 +97,7 @@ return tree "ExampleAgent" {
 
 ```cpp
 // Code/Source/Core/Scripting/LuaDispatch.cpp
-AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> LuaDispatch::EmitTree(const AZ::Name& treeName)
+AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> LuaDispatch::EmitTree(const AZ::Name& treeName)
 {
     AZ::ScriptDataContext call;
     if (!m_scriptContext->Call("GOAT_EmitTree", call))
@@ -119,7 +119,7 @@ AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> LuaDispatc
             "Tree '%s' could not be assembled: %s", treeName.GetCStr(), m_builder.GetError().c_str()));
     }
 
-    return AZ::Success(AZStd::shared_ptr<const BehaviorTreeNode>(aznew BehaviorTreeNode(m_builder.GetRoot())));
+    return AZ::Success(AZStd::shared_ptr<const AuthoredNode>(aznew AuthoredNode(m_builder.GetRoot())));
 }
 ```
 
@@ -127,7 +127,7 @@ AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> LuaDispatc
 
 ### Stage 3: LuaTreeBuilder Reconstructs the Hierarchy
 
-`LuaTreeBuilder` receives flat node calls and reconstructs the nested `BehaviorTreeNode` structure.
+`LuaTreeBuilder` receives flat node calls and reconstructs the nested `AuthoredNode` structure.
 
 ```cpp
 // Code/Source/Core/Scripting/LuaTreeBuilder.cpp
@@ -142,7 +142,7 @@ void LuaTreeBuilder::AddNode(AZStd::string type, int childCount, int serviceCoun
 ```
 
 ```cpp
-size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
+size_t LuaTreeBuilder::Build(size_t index, AuthoredNode& out)
 {
     const Record& record = m_records[index++];
     out.m_type = record.m_type;
@@ -150,14 +150,14 @@ size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
 
     for (int i = 0; i < record.m_serviceCount && m_error.empty(); ++i)
     {
-        BehaviorTreeNode service;
+        AuthoredNode service;
         index = Build(index, service);
         out.m_services.push_back(AZStd::move(service));
     }
 
     for (int i = 0; i < record.m_childCount && m_error.empty(); ++i)
     {
-        BehaviorTreeNode child;
+        AuthoredNode child;
         index = Build(index, child);
         out.m_children.push_back(AZStd::move(child));
     }
@@ -175,7 +175,7 @@ size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
 ```cpp
 // Code/Source/Core/Frontend/TreeCompiler.cpp
 AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Emit(
-    const BehaviorTreeNode& authored,
+    const AuthoredNode& authored,
     NodeIndex parent,
     AZ::u32 depth,
     DecisionProgram& program,
@@ -201,7 +201,7 @@ AZ::Outcome<NodeIndex, AZStd::string> TreeCompiler::Emit(
 
     // Emit children
     const NodeIndex firstChild = aznumeric_cast<NodeIndex>(program.m_nodes.size());
-    for (const BehaviorTreeNode& child : authored.m_children)
+    for (const AuthoredNode& child : authored.m_children)
     {
         auto emitted = Emit(child, index, depth + 1, program, inlining);
         if (!emitted.IsSuccess()) { return emitted; }
@@ -346,7 +346,7 @@ ActionResult AgentStateMachine::Step(const ActionStateRegistry& registry, Action
 `AgentRuntime` ties everything together each tick:
 
 1. **Advance clock:** `agent.m_cursor.AdvanceClock(deltaTime)`.
-2. **Apply guards:** `ApplyGuards()` (only if `AgentObserver` is dirty).
+2. **Apply guards:** `ApplyGuards()` (only if `GuardWatch` is dirty).
 3. **Tick services:** `TickServices()` (collect due services, run them).
 4. **Advance action:** If `AgentStateMachine` has a plan, call `Step()`.
 5. **Walk tree:** If no plan, call `TreeWalker::Begin()` or `Advance()`.
@@ -405,12 +405,12 @@ void AgentRuntime::Tick(AgentRecord& agent, float deltaTime)
 ```mermaid
 flowchart LR
     A[Lua Tree] -->|GOAT_EmitTree| B[LuaTreeBuilder]
-    B -->|BehaviorTreeNode| C[TreeCompiler]
+    B -->|AuthoredNode| C[TreeCompiler]
     C -->|DecisionProgram| D[TreeWalker]
     D -->|Intent| E[Backend]
     E -->|ActionPlan| F[AgentStateMachine]
     F -->|IActionState| G[Game World]
-    G -->|Blackboard Updates| H[AgentObserver]
+    G -->|Blackboard Updates| H[GuardWatch]
     H -->|Dirty Flag| D
 ```
 

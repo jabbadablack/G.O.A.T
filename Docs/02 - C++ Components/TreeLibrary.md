@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`TreeLibrary` is the **registry for authored trees**. It stores `BehaviorTreeNode` hierarchies by name, allowing the `TreeCompiler` to resolve `subtree` references and inline them at compile time. It also supports dynamic rebinding via slots (`Tag`), which is how a director or a gameplay system can swap a subtree at runtime without changing the tree structure.
+`TreeLibrary` is the **registry for authored trees**. It stores `AuthoredNode` hierarchies by name, allowing the `TreeCompiler` to resolve `subtree` references and inline them at compile time. It also supports dynamic rebinding via slots (`Tag`), which is how a director or a gameplay system can swap a subtree at runtime without changing the tree structure.
 
 It holds authored roots rather than assets, so an in-memory tree from Lua and a loaded `.bt` asset are the same thing to the compiler.
 
@@ -24,7 +24,7 @@ It holds authored roots rather than assets, so an in-memory tree from Lua and a 
 
 | # | Responsibility | Description |
 | :--- | :--- | :--- |
-| 1 | **Tree Storage** | Stores `BehaviorTreeNode` hierarchies by `AZ::Name`. |
+| 1 | **Tree Storage** | Stores `AuthoredNode` hierarchies by `AZ::Name`. |
 | 2 | **Subtree Lookup** | Provides `Find(AZ::Name)` for `TreeCompiler` to inline subtrees. |
 | 3 | **Slot Binding** | Manages dynamic bindings between slot names and tree names (for directors/rebinding). |
 | 4 | **Enumeration** | Provides `GetNames()` for console output. |
@@ -38,10 +38,10 @@ It holds authored roots rather than assets, so an in-memory tree from Lua and a 
 
 ```cpp
 // Adds or replaces a tree under a name.
-void Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeNode> root);
+void Add(const AZ::Name& name, AZStd::shared_ptr<const AuthoredNode> root);
 
 // The authored root registered under a name, or nullptr when there is none.
-const BehaviorTreeNode* Find(const AZ::Name& name) const;
+const AuthoredNode* Find(const AZ::Name& name) const;
 
 // Removes a tree.
 void Remove(const AZ::Name& name);
@@ -71,7 +71,7 @@ graph LR
     B --> D[GOATSystemComponent]
 ```
 
-- **Depends on:** `BehaviorTreeNode`, `AZ::Name`, `AZStd::shared_ptr`.
+- **Depends on:** `AuthoredNode`, `AZ::Name`, `AZStd::shared_ptr`.
 - **Required by:** `TreeCompiler` (to resolve subtrees), `GOATSystemComponent` (to store trees).
 
 ---
@@ -84,13 +84,13 @@ graph LR
 
 ```cpp
 // Code/Source/Core/Frontend/TreeLibrary.cpp
-void TreeLibrary::Add(const AZ::Name& name, AZStd::shared_ptr<const BehaviorTreeNode> root)
+void TreeLibrary::Add(const AZ::Name& name, AZStd::shared_ptr<const AuthoredNode> root)
 {
     if (name.IsEmpty() || root == nullptr) { return; }
     m_trees[name] = AZStd::move(root);
 }
 
-const BehaviorTreeNode* TreeLibrary::Find(const AZ::Name& name) const
+const AuthoredNode* TreeLibrary::Find(const AZ::Name& name) const
 {
     const auto found = m_trees.find(name);
     return found != m_trees.end() ? found->second.get() : nullptr;
@@ -145,7 +145,7 @@ Unit tests should cover:
 - [[TreeCompiler]]
 - [[LuaDispatch]]
 - [[LuaTreeBuilder]]
-- [[BehaviorTreeNode]]
+- [[AuthoredNode]]
 - [[Director AI]]
 
 ---

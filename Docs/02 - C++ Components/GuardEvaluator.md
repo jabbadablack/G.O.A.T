@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`GuardEvaluator` is responsible for **re-checking condition guards** when a watched blackboard slot changes. It implements Unreal's four observer abort modes: `None`, `Self`, `LowerPriority`, and `Both`. It is called by `AgentRuntime` only when `AgentObserver` reports that a watched key is dirty, ensuring idle agents evaluate no conditions at all.
+`GuardEvaluator` is responsible for **re-checking condition guards** when a watched blackboard slot changes. It implements Unreal's four observer abort modes: `None`, `Self`, `LowerPriority`, and `Both`. It is called by `AgentRuntime` only when `GuardWatch` reports that a watched key is dirty, ensuring idle agents evaluate no conditions at all.
 
 ---
 

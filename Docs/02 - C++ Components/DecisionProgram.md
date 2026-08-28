@@ -105,13 +105,13 @@ graph LR
     A[TreeCompiler] -->|Produces| B[DecisionProgram]
     B -->|Consumed by| C[TreeWalker]
     B -->|Shared by| D[AgentRegistry]
-    B -->|Used by| E[AgentObserver]
+    B -->|Used by| E[GuardWatch]
     B -->|Used by| F[GuardEvaluator]
     B -->|Used by| G[ServiceTracker]
 ```
 
 - **Depends on:** `DecisionNode`, `DecisionService`, `BlackboardKey`, `NodeIndex`, `NodeOp`, `AbortMode`, `ActionRequest`.
-- **Required by:** `TreeWalker`, `AgentRegistry`, `AgentObserver`, `GuardEvaluator`, `ServiceTracker`.
+- **Required by:** `TreeWalker`, `AgentRegistry`, `GuardWatch`, `GuardEvaluator`, `ServiceTracker`.
 
 ---
 
@@ -165,7 +165,7 @@ Unit tests should cover:
 - [[TreeWalker]]
 - [[DecisionNode]]
 - [[DecisionService]]
-- [[AgentObserver]]
+- [[GuardWatch]]
 - [[GuardEvaluator]]
 - [[ServiceTracker]]
 

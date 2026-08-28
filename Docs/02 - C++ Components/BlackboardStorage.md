@@ -16,7 +16,7 @@ tags: [cpp, core, domain]
 
 `BlackboardStorage` is the **container that holds blackboard values** for a specific scope (Global, Agent, or Squad). It uses typed, contiguous arrays (e.g., `m_bools`, `m_ints`, `m_floats`) indexed by `BlackboardKey`, providing O(1) access without runtime string lookups.
 
-It also exposes a `ChangedEvent` that fires when a slot is modified, allowing `AgentObserver` to subscribe to only the storages that hold watched keys.
+It also exposes a `ChangedEvent` that fires when a slot is modified, allowing `GuardWatch` to subscribe to only the storages that hold watched keys.
 
 ---
 
@@ -82,11 +82,11 @@ graph LR
     B --> C[BlackboardLayout]
     D[AgentScriptContext] -->|Get/Set| B
     E[AgentRuntime] -->|Get/Set| B
-    F[AgentObserver] -->|Connect to ChangedEvent| B
+    F[GuardWatch] -->|Connect to ChangedEvent| B
 ```
 
 - **Depends on:** `BlackboardKey`, `BlackboardLayout`, `BlackboardType`, `BlackboardTraits`.
-- **Required by:** `BlackboardSystem`, `AgentScriptContext`, `AgentRuntime`, `AgentObserver`.
+- **Required by:** `BlackboardSystem`, `AgentScriptContext`, `AgentRuntime`, `GuardWatch`.
 
 ---
 
@@ -183,7 +183,7 @@ Unit tests should cover:
 - [[BlackboardKey]]
 - [[BlackboardLayout]]
 - [[BlackboardTraits]]
-- [[AgentObserver]]
+- [[GuardWatch]]
 
 ---
 

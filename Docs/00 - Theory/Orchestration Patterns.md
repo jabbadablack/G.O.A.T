@@ -125,7 +125,7 @@ tree "DirectorTree" {
 | **Schema-Driven Blackboard** | Global and Squad scopes allow cross-agent data sharing. |
 | **Performance-Aware** | Band 3 for global agents minimizes CPU cost. |
 | **Behavior-Driven Data** | Agents react to Global keys via conditions and aborts. |
-| **Event-Driven Guards** | `AgentObserver` wakes agents only when watched keys change. |
+| **Event-Driven Guards** | `GuardWatch` wakes agents only when watched keys change. |
 
 ---
 
@@ -235,7 +235,7 @@ backend "Director" {
 - `AgentRegistry` schedules the Director entity at Band 3.
 - `BackendRegistry` routes `delegate` intents to the Director backend.
 - `BlackboardSystem` provides Global and Squad storage.
-- `AgentObserver` wakes the Director only when watched Global keys change.
+- `GuardWatch` wakes the Director only when watched Global keys change.
 
 ### Extensibility
 

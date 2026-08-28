@@ -99,12 +99,12 @@ graph LR
     C --> D[Typed Arrays]
     B --> E[TreeCompiler]
     E -->|Resolves names to keys| B
-    B --> F[AgentObserver]
+    B --> F[GuardWatch]
     F -->|Watches keys| B
 ```
 
 - **Depends on:** `BlackboardScope`, `BlackboardType`.
-- **Required by:** `BlackboardStorage`, `BlackboardSchema`, `TreeCompiler`, `AgentObserver`, `LuaPlanBuilder`.
+- **Required by:** `BlackboardStorage`, `BlackboardSchema`, `TreeCompiler`, `GuardWatch`, `LuaPlanBuilder`.
 
 ---
 

@@ -25,7 +25,7 @@ It hides the complexity of `AZ::ScriptContext` and `AZ::ScriptDataContext` from 
 | # | Responsibility | Description |
 | :--- | :--- | :--- |
 | 1 | **Script Execution** | Runs Lua scripts (e.g., `GOAT.lua`) into the shared default script context, registering the global vocabulary. |
-| 2 | **Tree Emission** | Calls `GOAT_EmitTree` to extract a compiled `BehaviorTreeNode` hierarchy from Lua. |
+| 2 | **Tree Emission** | Calls `GOAT_EmitTree` to extract a compiled `AuthoredNode` hierarchy from Lua. |
 | 3 | **Behavior Dispatch** | Calls `GOAT_Dispatch` to run a specific behavior's `start`, `tick`, or `stop` phase, converting the returned integer to an `ActionResult`. |
 | 4 | **Backend Planning** | Calls `GOAT_Plan` to invoke user-defined Lua backends, passing a `LuaPlanBuilder` to assemble the resulting `ActionPlan`. |
 | 5 | **Flow Routing** | Calls `GOAT_FlowBegin`, `GOAT_FlowAdvance`, and `GOAT_FlowFilter` to execute user-defined custom control flow (composites/decorators). |
@@ -49,7 +49,7 @@ bool IsReady() const { return m_scriptContext != nullptr; }
 bool RunScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset);
 
 // Asks Lua to hand a declared tree over through the reflected builder.
-AZ::Outcome<AZStd::shared_ptr<const BehaviorTreeNode>, AZStd::string> EmitTree(const AZ::Name& treeName);
+AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitTree(const AZ::Name& treeName);
 
 // Runs one phase of a Lua behaviour and reports what it returned.
 ActionResult CallBehavior(
@@ -148,7 +148,7 @@ The `builder` argument is the `LuaTreeBuilder` passed from `LuaDispatch::EmitTre
 Unit tests for `LuaDispatch` should cover:
 
 - **Vocabulary Loading:** `RunScript` correctly loads `GOAT.lua` and registers the global functions.
-- **Tree Emission:** `EmitTree` correctly calls `GOAT_EmitTree` and returns a valid `BehaviorTreeNode` (or fails gracefully).
+- **Tree Emission:** `EmitTree` correctly calls `GOAT_EmitTree` and returns a valid `AuthoredNode` (or fails gracefully).
 - **Behavior Dispatch:** `CallBehavior` correctly maps Lua integer returns (0, 1, 2) to `ActionResult` (Running, Success, Failure).
 - **Backend Planning:** `CallBackendPlan` correctly passes the `LuaPlanBuilder` and returns a valid `ActionPlan`.
 - **Error Handling:** Ensuring Lua syntax errors or missing functions return safe fallbacks (e.g., `FAILURE`) instead of crashing.

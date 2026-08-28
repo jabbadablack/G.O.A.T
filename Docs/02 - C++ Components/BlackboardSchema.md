@@ -64,7 +64,7 @@ graph LR
     A[BlackboardSystem] -->|Owns| B[BlackboardSchema]
     B --> C[BlackboardLayout]
     D[TreeCompiler] -->|FindKey| B
-    E[AgentObserver] -->|Observed Keys| B
+    E[GuardWatch] -->|Observed Keys| B
 ```
 
 - **Depends on:** `BlackboardKey`, `BlackboardLayout`, `BlackboardType`, `BlackboardScope`.
