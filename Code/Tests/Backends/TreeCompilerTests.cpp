@@ -18,6 +18,16 @@ namespace GOAT
         ActionResult Step(const ActionContext&, float) override { return ActionResult::Running; }
     };
 
+    //! Stands in for the core's embed verb, which a tree needs registered to compile a leaf
+    //! that hands work to another program, but whose behaviour is not what is under test here.
+    class EmbeddingVerb final : public IActionState
+    {
+    public:
+        AZ_RTTI(EmbeddingVerb, "{0F3D6C57-19A4-4E88-8B2C-7A5E1D46B930}", IActionState);
+        AZ::Name GetName() const override { return AZ::Name("embed"); }
+        ActionResult Step(const ActionContext&, float) override { return ActionResult::Running; }
+    };
+
     class TreeCompilerFixture : public UnitTest::LeakDetectionFixture
     {
     protected:
@@ -29,6 +39,7 @@ namespace GOAT
             m_blackboard = AZStd::make_unique<BlackboardSystem>();
             m_actions = AZStd::make_unique<ActionStateRegistry>();
             m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitingVerb>());
+            m_actions->RegisterAt(CoreActions::Embed, AZStd::make_unique<EmbeddingVerb>());
             m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
             for (NodeTypeDescriptor& word : BehaviorTreeWords())
             {
@@ -132,5 +143,38 @@ namespace GOAT
     {
         const auto compiled = Compile(GuardedSequence("sef"));
         EXPECT_FALSE(compiled.IsSuccess());
+    }
+
+    //! A leaf that hands work to another program records the reference, because the compiler
+    //! that resolved it is the only thing that knows and the core is what compiles it.
+    TEST_F(TreeCompilerFixture, Compile_RecordsWhatALeafHandsToAnotherProgram)
+    {
+        AuthoredNode root = Node("sequence");
+
+        AuthoredNode embed = Node("embed");
+        Text(embed, "goal", "ClearRoom");
+        root.m_children.push_back(embed);
+
+        AuthoredNode delegated = Node("delegate");
+        Text(delegated, "backend", "htn");
+        Text(delegated, "goal", "SecurePerimeter");
+        root.m_children.push_back(delegated);
+
+        const TreeCompiler compiler(*m_agents, *m_blackboard);
+        auto compiled = compiler.Compile(AZ::Name("Sentry"), root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        const auto& nested = compiled.GetValue().m_nested;
+        ASSERT_EQ(nested.size(), 2u);
+
+        // An embed names only the program; which paradigm owns it is answered by its root word.
+        EXPECT_EQ(nested[0].m_program, AZ::Name("ClearRoom"));
+        EXPECT_TRUE(nested[0].m_backend.IsEmpty());
+        EXPECT_TRUE(nested[0].m_runsToCompletion);
+
+        // A delegate names the backend outright, and takes one plan rather than running it out.
+        EXPECT_EQ(nested[1].m_program, AZ::Name("SecurePerimeter"));
+        EXPECT_EQ(nested[1].m_backend, AZ::Name("htn"));
+        EXPECT_FALSE(nested[1].m_runsToCompletion);
     }
 } // namespace GOAT
