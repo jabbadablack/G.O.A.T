@@ -1,7 +1,9 @@
 #include "GOATSystemComponent.h"
 
+#include <Core/Application/DecisionBackendAdapter.h>
 #include <Core/Application/NestedRun.h>
 #include <Core/Assets/BlackboardAssetHandler.h>
+#include <Core/Actions/EmbedAction.h>
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
 #include <Core/Director/DirectorActions.h>
@@ -143,6 +145,11 @@ namespace GOAT
             *m_blackboardSystem, *m_actions, *m_backends, *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
         m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents);
+
+        // After the registry, because running a program inside a plan needs the agent whose
+        // block it borrows and the runtime that hands it its context.
+        m_actions->RegisterAt(
+            CoreActions::Embed, AZStd::make_unique<EmbedAction>(*m_agents, *m_runtime, *m_actions, m_programs));
 
         // Resolving a tree name needs the compiled programs, which live here, so the runtime is
         // handed the step rather than reaching back up for it.
@@ -1113,7 +1120,15 @@ namespace GOAT
 
     IBackend* GOATSystemComponent::FindBackend(const AZ::Name& name) const
     {
-        return m_backends != nullptr ? m_backends->Find(name) : nullptr;
+        // A planner registered under the name wins, so naming a paradigm here is only ever the
+        // fallback and nothing that resolves today starts resolving to something else.
+        if (IBackend* planner = m_backends != nullptr ? m_backends->Find(name) : nullptr)
+        {
+            return planner;
+        }
+
+        const auto adapter = m_decisionAdapters.find(name);
+        return adapter != m_decisionAdapters.end() ? adapter->second.get() : nullptr;
     }
 
     ActionResult GOATSystemComponent::CallBehavior(
@@ -1163,6 +1178,14 @@ namespace GOAT
             m_nodeTypeOwners[word] = raw;
         }
 
+        // A paradigm can also answer one leaf rather than a whole agent, so every one of them is
+        // reachable from a delegate without being registered twice or knowing it was asked.
+        if (m_agents != nullptr)
+        {
+            m_decisionAdapters[raw->GetName()] =
+                AZStd::make_unique<DecisionBackendAdapter>(*raw, *m_agents, m_programs);
+        }
+
         return true;
     }
 
@@ -1185,6 +1208,7 @@ namespace GOAT
             }
         }
 
+        m_decisionAdapters.erase(name);
         m_decisionBackends->Unregister(name);
     }
 

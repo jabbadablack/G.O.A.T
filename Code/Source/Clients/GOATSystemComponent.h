@@ -5,6 +5,7 @@
 #include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
+#include <Core/Application/DecisionBackendAdapter.h>
 #include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
@@ -270,6 +271,8 @@ namespace GOAT
         //! Programs being compiled right now, outermost first, so one that hands work back to
         //! itself is caught rather than compiled forever.
         AZStd::vector<AZ::Name> m_compiling;
+        //! Each paradigm as a planner one delegate leaf can reach, built when it registers.
+        AZStd::unordered_map<AZ::Name, AZStd::unique_ptr<DecisionBackendAdapter>> m_decisionAdapters;
         //! Which backend gives each authored word meaning, so a program can be placed with the
         //! paradigm that owns its root without the core ever naming one.
         AZStd::unordered_map<AZ::Name, IDecisionBackend*> m_nodeTypeOwners;

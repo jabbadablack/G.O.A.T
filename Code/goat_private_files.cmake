@@ -15,6 +15,8 @@ set(FILES
     Source/Clients/GOATSystemComponent.h
     Source/Core/Actions/RunScriptAction.cpp
     Source/Core/Actions/RunScriptAction.h
+    Source/Core/Actions/EmbedAction.cpp
+    Source/Core/Actions/EmbedAction.h
     Source/Core/Actions/WaitAction.cpp
     Source/Core/Actions/WaitAction.h
     Source/Core/Application/ActionStateRegistry.cpp
@@ -25,6 +27,8 @@ set(FILES
     Source/Core/Application/AgentArchetype.cpp
     Source/Core/Application/AgentArchetype.h
     Source/Core/Application/AgentRegistry.cpp
+    Source/Core/Application/DecisionBackendAdapter.cpp
+    Source/Core/Application/DecisionBackendAdapter.h
     Source/Core/Application/NestedRun.cpp
     Source/Core/Application/NestedRun.h
     Source/Core/Application/AgentStore.cpp
