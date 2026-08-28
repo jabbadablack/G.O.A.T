@@ -8,7 +8,7 @@ tags: [architecture, design, philosophy]
 
 > **Category:** Design Principles  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Core/Frontend/TreeCompiler.cpp`, `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Include/GOAT/Interfaces/IBackend.h`
+> **Core Files:** `Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.cpp`, `Code/Source/Backends/BehaviorTree/Code/Source/TreeWalker.cpp`, `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Include/GOAT/Interfaces/IBackend.h`
 
 ---
 
@@ -93,11 +93,6 @@ public:
     // Produces a plan for one intent. Returns false when this backend cannot satisfy it.
     virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
 
-    // Reports the conditions that invalidate the plan while it runs.
-    virtual void CollectGuards(
-        [[maybe_unused]] const PlanContext& context,
-        [[maybe_unused]] const ActionPlan& plan,
-        [[maybe_unused]] GuardList& outGuards) const { }
 
     // Releases any per agent state held for this agent.
     virtual void Release([[maybe_unused]] const PlanContext& context) { }
@@ -108,7 +103,7 @@ public:
 
 | Backend | Type | Usage |
 | :--- | :--- | :--- |
-| `DirectBackend` | C++ | Handles `raw` and `script` leaves. Converts a single action into a one-step plan. |
+| *(inline)* | C++ | `raw` and `script` leaves need no backend: the leaf's own request becomes a one-step plan. |
 | `LuaBackend` | Lua | User-defined planning in Lua via `backend "MyGoap" { plan = ... }`. |
 | `FutureGoapBackend` | Planned | Could implement full GOAP planning, reusable across all trees. |
 
@@ -129,7 +124,7 @@ The entire behavior tree DSL is defined in Lua (`GOAT.lua`). Trees, behaviors, f
 - `GOAT.lua` defines global functions: `tree`, `behavior`, `flow`, `backend`, and node constructors (`selector`, `sequence`, `wait`, `script`, etc.).
 - The `tree` function calls `GOAT.Compile(name, root)` which flattens the node graph into a pre-order record list.
 - `LuaDispatch::EmitTree` calls `GOAT_EmitTree`, which pushes node data into a `LuaTreeBuilder`.
-- `LuaTreeBuilder` reconstructs a `BehaviorTreeNode` hierarchy.
+- `LuaTreeBuilder` reconstructs a `AuthoredNode` hierarchy.
 - `TreeCompiler` compiles that hierarchy into a `DecisionProgram`.
 
 **Concrete example (from `ExampleAgent.lua`):**
@@ -246,8 +241,8 @@ The framework uses multiple mechanisms to ensure agents run efficiently without 
 | **Iterative Traversal** | `TreeWalker` uses a loop instead of recursion, avoiding stack overflow on deep trees. |
 | **Shared Programs** | Multiple agents running the same tree share an immutable `DecisionProgram`. |
 | **Blackboard Indexing** | Values are stored in typed arrays, accessed by index, not string. |
-| **Event-Driven Guards** | `AgentObserver` watches only the blackboard slots a tree guards on, waking the agent only when a relevant key changes. |
-| **HandleTable** | Dense storage with generation-checked handles prevents stale pointers and keeps memory contiguous. |
+| **Event-Driven Guards** | `GuardWatch` watches only the blackboard slots a tree guards on, waking the agent only when a relevant key changes. |
+| **AgentStore** | Dense storage with generation-checked handles prevents stale pointers and keeps memory contiguous. |
 
 **Concrete example (from `AgentRuntime.cpp`):**
 
@@ -298,7 +293,7 @@ Behaviors declare which blackboard keys they need. The system dynamically provis
 - `TreeCompiler` collects `observedKeys` for conditions with `abort` modes.
 - `BlackboardStorage::EnsureCapacity` resizes arrays only when new keys are added.
 - `LuaPlanBuilder` validates that steps reference existing blackboard keys.
-- `AgentObserver` connects only to the storages that hold observed keys.
+- `GuardWatch` connects only to the storages that hold observed keys.
 
 **Why this matters:**
 - **Memory efficiency** – No wasted storage for unused variables.
@@ -319,7 +314,7 @@ Behaviors declare which blackboard keys they need. The system dynamically provis
 
 - `TreeCompiler` validates authored trees and flattens them into `DecisionProgram`s.
 - `TreeWalker` executes these flat programs iteratively, emitting `Intent`s.
-- `BackendRegistry` and `DirectBackend` interpret these `Intent`s and produce `ActionPlan`s.
+- An `Intent` with no backend named becomes a one-step plan inline; one that names a backend goes through `BackendRegistry`.
 - `AgentStateMachine` executes `ActionPlan`s, calling `IActionState::Begin`, `Step`, `End`.
 - `GuardEvaluator` re-checks guards when observed keys change.
 - `ServiceTracker` determines which services are due to run.

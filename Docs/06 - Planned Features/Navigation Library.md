@@ -1,151 +1,20 @@
 ---
 type: module
-status: planned
+status: superseded
 tags: [planned, navigation, module]
 ---
 
 # Navigation Library
 
-> **Status:** Planned  
-> **Target Version:** Future  
-> **Related Folder:** `Code/Source/Modules/Navigation/`  
-> **Build Flag:** `GOAT_WITH_NAVIGATION=ON`
+> **Superseded.** This was the design sketch. Navigation is implemented — see [[Navigation]].
+
+The gem ships as `GOAT_Navigation` in `Modules/Navigation/`, providing `move_to`,
+`is_at_location` and `does_path_exist` over a RecastNavigation mesh, and publishing
+`nav_waypoint`, `nav_steer` and `nav_remaining` to the blackboard.
+
+This page is kept only for the reasoning behind the original design. For anything you intend to
+use, read [[Navigation]] instead.
 
 ---
 
-## 🎯 Objective
-
-The Navigation Library will provide a **set of movement `IActionState` verbs** for G.O.A.T. agents. Instead of being a separate component, navigation verbs (like `MoveTo`, `Wander`, `Flee`) will be registered as `IActionState`s that agents can call directly from Lua behavior trees.
-
----
-
-## 🧠 Theoretical Approach
-
-Following G.O.A.T.'s **Extensibility Model**, Navigation will not be a component. It will be a **library of `IActionState`s** registered via `IAgentSystem::RegisterAction`.
-
-### Why not a component?
-- **Performance:** A component would add unnecessary per-entity overhead. A library of verbs keeps the runtime lightweight.
-- **Flexibility:** Any tree can use any navigation verb via `script "MoveTo"` or `raw "MoveTo"`, without needing a separate component on the entity.
-- **Lua-First:** Designers can use navigation directly in their trees without setting up additional infrastructure.
-
----
-
-## 🗂️ Proposed File Structure
-
-```text
-Code/Source/Modules/Navigation/
-├── MoveToAction.cpp
-├── MoveToAction.h
-├── WanderAction.cpp
-├── WanderAction.h
-├── FleeAction.cpp
-├── FleeAction.h
-├── FollowPathAction.cpp
-├── FollowPathAction.h
-└── CMakeLists.txt
-```
-
----
-
-## 📜 Proposed Public API
-
-Each navigation verb will implement `IActionState`:
-
-```cpp
-class MoveToAction final : public IActionState
-{
-public:
-    AZ_CLASS_ALLOCATOR(MoveToAction, AZ::SystemAllocator);
-
-    AZ::Name GetName() const override { return AZ_NAME_LITERAL("MoveTo"); }
-
-    void Begin(const ActionContext& context) override;
-    ActionResult Step(const ActionContext& context, float deltaTime) override;
-    void End(const ActionContext& context) override;
-};
-```
-
----
-
-## 🗝️ Proposed Actions
-
-| Action | Description | Blackboard Key |
-| :--- | :--- | :--- |
-| `MoveTo` | Moves to a target position or entity. | `Vector3` or `EntityId` |
-| `Wander` | Moves randomly within a radius. | `Vector3` (center) |
-| `Flee` | Moves away from a threat. | `EntityId` (threat) |
-| `FollowPath` | Follows a predefined path. | `EntityIdList` (waypoints) |
-| `Seek` | Pursues a moving target. | `EntityId` (target) |
-| `Arrive` | Moves to a target, decelerating on approach. | `Vector3` (destination) |
-
----
-
-## 🧪 Example Usage in Lua
-
-Once implemented, designers will use it like this:
-
-```lua
-behavior "Patrol" {
-    tick = function(me, ctx)
-        ctx:SetVector3("target_position", AZ::Vector3(10, 0, 0))
-        return SUCCESS
-    end,
-}
-
-return tree "Agent" {
-    sequence {
-        script "Patrol",
-        raw "MoveTo" { key = "target_position" },
-        wait(1.0),
-    }
-}
-```
-
----
-
-## 🗺️ Build Integration
-
-The module auto-enables if the `RecastNavigation` gem is present in the project. From `CMakeLists.txt`:
-
-```cmake
-if(NOT DEFINED GOAT_WITH_NAVIGATION)
-    if(TARGET Gem::RecastNavigation.API)
-        set(GOAT_WITH_NAVIGATION ON)
-    else()
-        set(GOAT_WITH_NAVIGATION OFF)
-    endif()
-endif()
-
-if(GOAT_WITH_NAVIGATION AND EXISTS ${CMAKE_CURRENT_LIST_DIR}/goat_navigation_files.cmake)
-    list(APPEND goat_module_files_cmake goat_navigation_files.cmake)
-    list(APPEND goat_module_dependencies Gem::RecastNavigation.API)
-else()
-    set(GOAT_WITH_NAVIGATION OFF)
-endif()
-```
-
-It degrades gracefully at runtime if the gem is not enabled.
-
----
-
-## ✅ Implementation Checklist
-
-- [ ] Define the `MoveToAction` class implementing `IActionState`.
-- [ ] Integrate with O3DE's `NavigationSystem` (Recast/Detour or custom).
-- [ ] Register `MoveToAction` via `IAgentSystem::RegisterAction`.
-- [ ] Expose `MoveTo` to Lua via `BehaviorContext`.
-- [ ] Add `WanderAction`, `FleeAction`, and other verbs.
-- [ ] Write unit tests for each action.
-
----
-
-## 🔗 Related Notes
-
-- [[Design Principles]]
-- [[Extensibility Model]]
-- [[Adding New Actions]]
-- [[Navigation]]
-
----
-
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-27*

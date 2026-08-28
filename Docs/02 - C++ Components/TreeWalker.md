@@ -6,8 +6,8 @@ tags: [cpp, core, component]
 
 # TreeWalker
 
-> **File Location:** `Code/Source/Core/Frontend/TreeWalker.cpp`  
-> **Header:** `Code/Source/Core/Frontend/TreeWalker.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Source/TreeWalker.cpp`  
+> **Header:** `Code/Source/Backends/BehaviorTree/Code/Source/TreeWalker.h`  
 > **Inherits:** None (Plain class, instantiated by `AgentRuntime`)
 
 ---
@@ -96,7 +96,7 @@ The core method is `Run()`, which is an iterative loop using a `bubbling` flag:
 3. **Lua Composites/Decorators:** When it hits a `LuaComposite` or `LuaDecorator`, it calls `context.m_scripting` (which routes to Lua) to ask for the next child index or to filter the result.
 
 ```cpp
-// Code/Source/Core/Frontend/TreeWalker.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/TreeWalker.cpp
 WalkStep TreeWalker::Run(
     const DecisionProgram& program,
     DecisionCursor& cursor,
@@ -182,7 +182,6 @@ Unit tests for `TreeWalker` should cover:
 - [[DecisionCursor]]
 - [[LuaNodeScripting]]
 - [[AgentRuntime]]
-- [[DirectBackend]]
 
 ---
 

@@ -6,7 +6,7 @@ tags: [cpp, core, component]
 
 # BackendRegistry
 
-> **File Location:** `Code/Source/Core/Application/BackendRegistry.cpp`  
+> **File Location:** `Code/Source/Core/Application/BackendRegistry.h`  
 > **Header:** `Code/Source/Core/Application/BackendRegistry.h`  
 > **Inherits:** None (Plain class, owned by `GOATSystemComponent`)
 
@@ -14,7 +14,9 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`BackendRegistry` is the **central lookup table** for all planning backends. It stores `IBackend` implementations (like `DirectBackend`, `LuaBackend`, and future C++ backends) by name, allowing the `TreeWalker` to route an `Intent` to the correct planning algorithm at runtime.
+`BackendRegistry` is the lookup table for **`delegate` planners** — [[IBackend]] implementations, chiefly [[LuaBackend]], stored by name so an `Intent` naming one reaches it.
+
+It is not where paradigms live. Those are [[IDecisionBackend]] implementations in [[DecisionBackendRegistry]]. A leaf that names no backend never comes here at all: it becomes a one-step plan inline.
 
 Adding a backend is a registration; removing one is deleting its entry. Agents planning through a missing backend fall back to the direct backend.
 
@@ -60,7 +62,6 @@ void Clear();
 ```mermaid
 graph LR
     A[GOATSystemComponent] -->|Registers| B[BackendRegistry]
-    B --> C[DirectBackend]
     B --> D[LuaBackend]
     B --> E[Future Backends]
     F[AgentRuntime] -->|Lookup by name| B
@@ -81,7 +82,7 @@ graph LR
 `Register()` checks for null, empty name, and duplicates before inserting into the map:
 
 ```cpp
-// Code/Source/Core/Application/BackendRegistry.cpp
+// Code/Source/Core/Application/BackendRegistry.h
 bool BackendRegistry::Register(AZStd::unique_ptr<IBackend> backend)
 {
     if (backend == nullptr)
@@ -131,7 +132,8 @@ Unit tests should cover:
 
 - [[IBackend]]
 - [[LuaBackend]]
-- [[DirectBackend]]
+- [[IDecisionBackend]]
+- [[DecisionBackendRegistry]]
 - [[GOATSystemComponent]]
 - [[Extensibility Model]]
 - [[AgentRuntime]]

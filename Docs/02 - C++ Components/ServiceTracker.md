@@ -6,8 +6,8 @@ tags: [cpp, core, component]
 
 # ServiceTracker
 
-> **File Location:** `Code/Source/Core/Frontend/ServiceTracker.cpp`  
-> **Header:** `Code/Source/Core/Frontend/ServiceTracker.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Source/ServiceTracker.cpp`  
+> **Header:** `Code/Source/Backends/BehaviorTree/Code/Source/ServiceTracker.h`  
 > **Inherits:** None (Plain class)
 
 ---
@@ -72,7 +72,7 @@ graph LR
 3. **Reschedule:** Sets `cursor.ServiceDue(service) = now + interval` and adds it to the output.
 
 ```cpp
-// Code/Source/Core/Frontend/ServiceTracker.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/ServiceTracker.cpp
 void ServiceTracker::CollectDue(
     const DecisionProgram& program, DecisionCursor& cursor, AZStd::vector<AZ::u32>& outServices) const
 {

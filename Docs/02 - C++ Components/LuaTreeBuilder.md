@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`LuaTreeBuilder` is the **C++ counterpart** to the Lua `GOAT_EmitTree` function. It receives a flat, pre-order stream of node calls from the Lua DSL (via `GOAT.lua`) and reconstructs a nested `BehaviorTreeNode` hierarchy.
+`LuaTreeBuilder` is the **C++ counterpart** to the Lua `GOAT_EmitTree` function. It receives a flat, pre-order stream of node calls from the Lua DSL (via `GOAT.lua`) and reconstructs a nested `AuthoredNode` hierarchy.
 
 The builder acts as a "push-based" assembly mechanism: Lua calls `BeginTree`, `AddNode`, `SetBoolProperty`, etc., and the builder stores these calls in a temporary record list. When `EndTree` is called, it rebuilds the recursive node tree from the flat records, validating that the child counts match the actual number of children provided. This allows the Lua authoring layer to stay completely decoupled from C++ memory management.
 
@@ -26,7 +26,7 @@ The builder acts as a "push-based" assembly mechanism: Lua calls `BeginTree`, `A
 | :--- | :--- | :--- |
 | 1 | **Node Capture** | Receives `AddNode` calls with `type`, `childCount`, and `serviceCount`. |
 | 2 | **Property Capture** | Receives `SetBoolProperty`, `SetNumberProperty`, and `SetStringProperty` calls for the most recently added node. |
-| 3 | **Tree Assembly** | `EndTree` rebuilds the `BehaviorTreeNode` hierarchy from the flat record list, recursively consuming children and services based on the declared counts. |
+| 3 | **Tree Assembly** | `EndTree` rebuilds the `AuthoredNode` hierarchy from the flat record list, recursively consuming children and services based on the declared counts. |
 | 4 | **Validation** | Detects mismatches between declared child/service counts and actual provided nodes, reporting errors via `GetError()`. |
 | 5 | **Retrieval** | Provides the assembled `GetRoot()` node and `GetTreeName()` to the caller (`LuaDispatch`). |
 
@@ -55,7 +55,7 @@ void EndTree();
 bool IsComplete() const { return m_complete; }
 
 // The assembled root, valid once the emission completed.
-const BehaviorTreeNode& GetRoot() const { return m_root; }
+const AuthoredNode& GetRoot() const { return m_root; }
 
 // Name the emitted tree declared.
 const AZStd::string& GetTreeName() const { return m_name; }
@@ -71,12 +71,12 @@ const AZStd::string& GetError() const { return m_error; }
 ```mermaid
 graph LR
     A[Lua Vocabulary] -->|GOAT_EmitTree| B[LuaTreeBuilder]
-    B --> C[BehaviorTreeNode]
+    B --> C[AuthoredNode]
     C --> D[TreeCompiler]
     B --> E[LuaDispatch]
 ```
 
-- **Depends on:** `BehaviorTreeNode` (the data structure to produce).
+- **Depends on:** `AuthoredNode` (the data structure to produce).
 - **Required by:** `LuaDispatch` (via `m_builder`).
 - **Interacts with:** `LuaDispatch` (to receive calls), `TreeCompiler` (to compile the resulting tree).
 
@@ -89,11 +89,11 @@ graph LR
 `LuaTreeBuilder` uses a two-phase approach:
 
 1. **Emission Phase:** Lua pushes node records and properties into the builder. Each record stores its `type`, `childCount`, `serviceCount`, and `properties`.
-2. **Reconstruction Phase (`EndTree`):** The builder recursively consumes records from the flat list. It starts at index 0, reads the record, creates a `BehaviorTreeNode`, then consumes `serviceCount` and `childCount` sub-records by calling `Build()` recursively. This mirrors the pre-order flattening that `GOAT.Compile` performs in Lua.
+2. **Reconstruction Phase (`EndTree`):** The builder recursively consumes records from the flat list. It starts at index 0, reads the record, creates a `AuthoredNode`, then consumes `serviceCount` and `childCount` sub-records by calling `Build()` recursively. This mirrors the pre-order flattening that `GOAT.Compile` performs in Lua.
 
 ```cpp
 // Code/Source/Core/Scripting/LuaTreeBuilder.cpp
-size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
+size_t LuaTreeBuilder::Build(size_t index, AuthoredNode& out)
 {
     if (index >= m_records.size())
     {
@@ -107,14 +107,14 @@ size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
 
     for (int i = 0; i < record.m_serviceCount && m_error.empty(); ++i)
     {
-        BehaviorTreeNode service;
+        AuthoredNode service;
         index = Build(index, service);
         out.m_services.push_back(AZStd::move(service));
     }
 
     for (int i = 0; i < record.m_childCount && m_error.empty(); ++i)
     {
-        BehaviorTreeNode child;
+        AuthoredNode child;
         index = Build(index, child);
         out.m_children.push_back(AZStd::move(child));
     }
@@ -125,7 +125,7 @@ size_t LuaTreeBuilder::Build(size_t index, BehaviorTreeNode& out)
 
 ### Performance Considerations
 
-- **Allocation:** The `m_records` vector is reused across calls to prevent reallocation. The `BehaviorTreeNode` hierarchy is allocated dynamically during `EndTree`, but this happens only once per tree compile.
+- **Allocation:** The `m_records` vector is reused across calls to prevent reallocation. The `AuthoredNode` hierarchy is allocated dynamically during `EndTree`, but this happens only once per tree compile.
 - **Tick Rate:** Not called during runtime; only during asset loading.
 - **Concurrency:** Runs on main thread.
 
@@ -159,7 +159,7 @@ end
 
 Unit tests for `LuaTreeBuilder` should cover:
 
-- **Valid Tree Assembly:** Given a flat record list, verify the resulting `BehaviorTreeNode` hierarchy matches the expected nesting.
+- **Valid Tree Assembly:** Given a flat record list, verify the resulting `AuthoredNode` hierarchy matches the expected nesting.
 - **Count Mismatch:** Declaring 2 children but only providing 1 should fail with a descriptive error.
 - **Missing Termination:** If `EndTree` is called without any nodes, it should set an error.
 - **Property Capture:** Ensure all property types (bool, number, string) are correctly stored.
@@ -170,7 +170,7 @@ Unit tests for `LuaTreeBuilder` should cover:
 
 - [[LuaDispatch]]
 - [[TreeCompiler]]
-- [[BehaviorTreeNode]]
+- [[AuthoredNode]]
 - [[GOAT.lua]]
 
 ---

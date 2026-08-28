@@ -90,12 +90,12 @@ graph LR
     B --> E[SquadRegistry]
     F[TreeCompiler] -->|FindKey| A
     G[AgentRuntime] -->|FindStorage| A
-    H[AgentObserver] -->|FindStorage| A
+    H[GuardWatch] -->|FindStorage| A
     I[AgentScriptContext] -->|Find/Set| A
 ```
 
 - **Depends on:** `BlackboardKey`, `BlackboardScope`, `BlackboardType`, `BlackboardStorage`, `AgentId`.
-- **Required by:** `TreeCompiler`, `AgentRuntime`, `AgentObserver`, `AgentScriptContext`, `AgentStateMachine`.
+- **Required by:** `TreeCompiler`, `AgentRuntime`, `GuardWatch`, `AgentScriptContext`, `AgentStateMachine`.
 - **Implemented by:** `BlackboardSystem`.
 
 ---

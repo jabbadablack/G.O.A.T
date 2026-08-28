@@ -6,8 +6,8 @@ tags: [cpp, core, domain]
 
 # DecisionCursor
 
-> **File Location:** `Code/Source/Core/Frontend/DecisionCursor.cpp`  
-> **Header:** `Code/Source/Core/Frontend/DecisionCursor.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Source/DecisionCursor.cpp`  
+> **Header:** `Code/Source/Backends/BehaviorTree/Code/Source/DecisionCursor.h`  
 > **Inherits:** None (Plain class)
 
 ---
@@ -89,7 +89,7 @@ graph LR
 `Reset()` clears all vectors and sets `m_activeLeaf` to `InvalidNodeIndex`. Vectors are pre-sized to match the program's node count, avoiding dynamic allocation during execution.
 
 ```cpp
-// Code/Source/Core/Frontend/DecisionCursor.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/DecisionCursor.cpp
 void DecisionCursor::Reset(const DecisionProgram& program)
 {
     const size_t nodeCount = program.m_nodes.size();

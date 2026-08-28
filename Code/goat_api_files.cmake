@@ -22,7 +22,8 @@ set(FILES
     Include/GOAT/Domain/PlanContext.h
     Include/GOAT/Interfaces/IActionState.h
     Include/GOAT/Interfaces/IBackend.h
-    Include/GOAT/Interfaces/IReachFilter.h
+    Include/GOAT/GOATDirectorFilterBus.h
+    Include/GOAT/Interfaces/IDirectorFilter.h
     Include/GOAT/Interfaces/IAgentSystem.h
     Include/GOAT/Interfaces/IBlackboardSystem.h
     Include/GOAT/Interfaces/IDecisionBackend.h

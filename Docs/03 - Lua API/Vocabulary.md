@@ -6,17 +6,37 @@ tags: [lua, authoring, api]
 
 # Vocabulary
 
-> **Asset Type:** Lua Script  
-> **Location:** `Assets/GOAT/Scripts/GOAT.lua`  
+> **Asset Type:** Lua Script
+> **Core file:** `Assets/GOAT/Scripts/GOAT.lua`
+> **Gem files:** each backend gem ships its own, run straight after
 > **Executed:** Once at startup into the shared script context
 
 ---
 
 ## 📌 Purpose
 
-`GOAT.lua` is the **single source of truth** for the Lua authoring DSL. It is executed once when the gem initializes, registering all global functions and node constructors that designers use to create AI behavior. Without this file, no trees, behaviors, backends, or flows can be authored.
+The vocabulary is what you type when you author AI. It is loaded once at startup, and it comes
+from more than one file.
 
-It defines the syntax that gets compiled into a `DecisionProgram` for the C++ runtime.
+`GOAT.lua` holds only what **every paradigm shares** — `condition`, `compare`, `wait`, `raw`,
+`script`, `delegate`, plus the machinery (`behavior`, `flow`, `plan`, `backend`, `GOAT.Compile`).
+
+Each backend gem ships its own vocabulary file, run straight after:
+
+| File | Brings |
+| :--- | :--- |
+| `Assets/GOAT/Scripts/GOAT.lua` | the shared words and the machinery |
+| `GOAT_BehaviorTree/Scripts/BehaviorTree.lua` | `tree`, `service`, `subtree` |
+| `GOAT_Htn/Scripts/Htn.lua` | `domain`, `task`, `method`, `primitive`, `subtask`, `effect` |
+
+Module gems add verbs the same way — `move_to` comes from the navigation gem.
+
+**`tree` and `selector` are not core words.** If they ever appear in `GOAT.lua` again, the
+paradigm split has failed. Turn off the behaviour tree gem and those words are simply gone, while
+`condition` and `script` keep working.
+
+Most words declare themselves. `GOAT_DeclareNode(typeName, mainProperty)` creates a global for any
+registered node type, so a gem writes one line per word instead of a constructor.
 
 ---
 
@@ -26,10 +46,12 @@ These are the top-level functions that define the building blocks of a GOAT agen
 
 | Function | Description |
 | :--- | :--- |
-| `tree(name, body)` | Declares a named behavior tree and compiles it into a flat node list for C++ execution. |
 | `behavior(name, body)` | Defines a leaf behavior with optional `start`, `tick`, and `stop` functions. |
 | `flow(name, body)` | Defines custom composite/decorator control flow logic. |
-| `backend(name, body)` | Defines a planning backend in Lua, with a `plan` function that returns steps. |
+| `backend(name, body)` | Defines a `delegate` planner in Lua, with a `plan` function that returns steps. |
+| `plan(name, body)` | Declares the same thing declaratively, as a list of `option`s. Baked at load. |
+| `tree(name, body)` | Declares a behaviour tree. **From the GOAT_BehaviorTree gem.** |
+| `domain(name, body)` | Declares a task network. **From the GOAT_Htn gem.** |
 
 ### `tree`
 Declares a tree. The `body` must be a single root node.
@@ -78,41 +100,76 @@ backend "Errand" {
 
 ## 🗝️ Node Constructors
 
-Node constructors are callable tables that build tree nodes. They accept a string argument (for the main property) or a table of children.
+Node constructors are callable tables that build nodes. They take a string (which fills the main
+property) or a table of children.
 
-### Composites
-| Constructor | Default Property | Description |
+They come from different places, and it matters: turn a gem off and its words go with it.
+
+### Shared — from `GOAT.lua`, available to every paradigm
+
+| Constructor | Main property | Description |
 | :--- | :--- | :--- |
-| `selector` | None | Runs children in order until one succeeds. |
-| `sequence` | None | Runs children in order until one fails. |
+| `condition` | `key` | Checks a blackboard value, and aborts the branch it sits in when it changes. |
+| `compare` | `key` | Compares two blackboard values, aborting on either changing. |
+| `wait` | `seconds` | Waits for a number of seconds. |
+| `script` | `behavior` | Runs a named `behavior`. |
+| `raw` | `action` | Runs any registered verb directly, including one a module contributed. |
+| `delegate` | `backend` | Hands an intent to a named `delegate` planner. |
+
+> **`condition` is a leaf, not a decorator.** It evaluates and reports; what it guards is the
+> branch it *sits in*, not a child of its own. This catches everyone once.
+>
+> It is also a **dependency declaration**. Writing one makes the agent react when that value
+> changes — you do not need `abort` for that. `abort = "none"` opts out.
+
+### Behaviour tree — from the GOAT_BehaviorTree gem
+
+| Constructor | Main property | Description |
+| :--- | :--- | :--- |
+| `selector` | — | Runs children in order until one succeeds. |
+| `sequence` | — | Runs children in order until one fails. |
+| `parallel` | — | Runs children at once, per its policy. |
 | `composite` | `behavior` | Runs a user-defined `flow` as a composite. |
-
-### Decorators
-| Constructor | Default Property | Description |
-| :--- | :--- | :--- |
-| `invert` | None | Inverts the child's result. |
-| `force_success` | None | Forces the child's result to Success. |
-| `cooldown` | `seconds` | Prevents re-entry until cooldown expires. |
+| `invert` | — | Inverts the child's result. |
+| `force_success` | — | Forces the child's result to success. |
+| `cooldown` | `seconds` | Prevents re-entry until the cooldown expires. |
 | `loop` | `count` | Repeats the child a fixed number of times. |
 | `conditional_loop` | `key` | Repeats while a condition holds. |
 | `time_limit` | `seconds` | Fails the child if it takes too long. |
-| `condition` | `key` | Checks a blackboard key. |
-| `compare` | `key` | Compares a blackboard key to another value. |
 | `decorator` | `behavior` | Runs a user-defined `flow` as a decorator. |
+| `subtree` | `tree` | Runs another named tree through a rebindable slot. |
 
-### Leaves
-| Constructor | Default Property | Description |
-| :--- | :--- | :--- |
-| `wait` | `seconds` | Waits for a specified number of seconds. |
-| `script` | `behavior` | Runs a named `behavior`. |
-| `raw` | `action` | Runs a registered action verb by name. |
-| `delegate` | `backend` | Delegates to a named backend with a goal. |
-| `subtree` | `tree` | Inlines another named tree. |
+### Task network — from the GOAT_Htn gem
 
-### Services
-| Constructor | Default Property | Description |
+| Constructor | Main property | Description |
 | :--- | :--- | :--- |
-| `service` | `behavior` | Attaches a periodic behavior to a composite, running on an interval. |
+| `task` | `name` | Something to achieve, offering methods. |
+| `method` | — | One way to achieve a task. |
+| `primitive` | `name` | A leaf that runs a verb. |
+| `subtask` | `task` | Names another task or primitive from inside a method. |
+| `effect` | `key` | What a primitive is assumed to change while planning. |
+
+### Verbs — from module gems
+
+| Constructor | Main property | From |
+| :--- | :--- | :--- |
+| `move_to`, `is_at_location`, `does_path_exist` | `key` | Navigation |
+| `claim_smart_object`, `use_smart_object` | `use` | Smart Objects |
+| `play_motion`, `animate` | — | Animation |
+| `order_tree`, `order_interrupt`, `order_band`, `order_value`, `rebind_subtree` | varies | the core, for directors |
+
+### Services — from the GOAT_BehaviorTree gem
+
+| Constructor | Main property | Description |
+| :--- | :--- | :--- |
+| `service` | `behavior` | Attaches periodic work to a composite, on an `interval`. |
+
+A service attaches to a composite rather than sitting in its child list, which is why it is the
+one word the gem writes out by hand instead of letting `GOAT_DeclareNode` generate it.
+
+Reach for a service when you genuinely need work on a timer. Do **not** use one to poll a
+blackboard variable — a `condition` already reacts the moment that variable changes, with no
+interval and no cost while nothing happens.
 
 ---
 
@@ -195,10 +252,16 @@ return tree "ExampleAgent" {
 
 ## ⚠️ Constraints & Validation
 
-- **Duplicate Names:** Behavior, flow, backend, and tree names must be unique.
-- **Required Properties:** Some nodes require certain properties (e.g., `wait` requires `seconds`).
-- **Blackboard Keys:** Referencing an undeclared variable will fail at compile time.
-- **Root Node:** A tree must have exactly one root node.
+- **Duplicate names.** Behaviour, flow, backend, tree and domain names must each be unique, and a
+  `plan` cannot take a name a backend already has.
+- **Required properties.** Some words demand one — `wait` needs `seconds`, `task` needs a `name`.
+- **Blackboard keys.** Referencing an undeclared variable fails at compile time.
+- **One root.** A tree has exactly one root node. A domain starts at its first task unless `root`
+  names another.
+- **Unknown `abort` modes fail the compile.** They used to fall through to `none` silently, which
+  turned a typo into a tree that quietly stopped reacting.
+- **A word you did not enable does not exist.** `selector` with the behaviour tree gem turned off
+  is an undefined global, not a compile error with a helpful message.
 
 ---
 

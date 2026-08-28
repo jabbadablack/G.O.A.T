@@ -44,7 +44,7 @@ graph TD
         I[TreeCompiler] -->|Resolves Name to Key| D
         J[TreeWalker] -->|Reads/Writes| E
         K[AgentRuntime] -->|Reads/Writes| E
-        L[AgentObserver] -->|Listens to changes| E
+        L[GuardWatch] -->|Listens to changes| E
     end
 ```
 
@@ -261,11 +261,11 @@ public:
 
 ## 🧩 Event-Driven Changes
 
-`BlackboardStorage` exposes a `ChangedEvent` that fires whenever a slot is modified. `AgentObserver` subscribes to only the storages that hold watched keys, enabling event-driven guard evaluation.
+`BlackboardStorage` exposes a `ChangedEvent` that fires whenever a slot is modified. `GuardWatch` subscribes to only the storages that hold watched keys, enabling event-driven guard evaluation.
 
 ```cpp
-// Code/Source/Core/Application/AgentObserver.cpp
-void AgentObserver::OnChanged(BlackboardKey key)
+// Code/Source/Core/Application/GuardWatch.cpp
+void GuardWatch::OnChanged(BlackboardKey key)
 {
     if (AZStd::binary_search(m_observed.begin(), m_observed.end(), key))
     {
@@ -293,7 +293,7 @@ void AgentObserver::OnChanged(BlackboardKey key)
 - **Compile-time resolution:** Variables are resolved to keys once, not per-tick.
 - **Typed arrays:** Contiguous memory for cache locality.
 - **Dynamic provisioning:** Arrays grow only when new variables are declared.
-- **Event-driven guards:** `AgentObserver` wakes agents only when watched keys change.
+- **Event-driven guards:** `GuardWatch` wakes agents only when watched keys change.
 - **Replication:** Keys marked as replicated are synced to clients automatically (via O3DE).
 
 ---
@@ -304,7 +304,7 @@ void AgentObserver::OnChanged(BlackboardKey key)
 - [[Layered Overview]]
 - [[GOATSystemComponent]]
 - [[TreeCompiler]]
-- [[AgentObserver]]
+- [[GuardWatch]]
 - [[SquadRegistry]]
 
 ---

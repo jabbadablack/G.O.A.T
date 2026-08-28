@@ -13,7 +13,7 @@ This is the central hub for understanding the architecture, theory, and usage of
 | 🏗️ **[01 - Architecture](01%20-%20Architecture/_Index.md)**           | Layered overview, data flow, blackboard system                         |
 | ⚙️ **[02 - C++ Components](02%20-%20C++%20Components/_Index.md)**  | Core C++ classes and their responsibilities                            |
 | 📜 **[03 - Lua API](03%20-%20Lua%20API/_Index.md)**                    | Authoring vocabulary, behavior DSL, flows, backends                    |
-| 🧩 **[04 - Modules](04%20-%20Modules/_Index.md)**                      | Currently implemented or in-progress modules                           |
+| 🧩 **[04 - Modules](04%20-%20Modules/_Index.md)**                      | The gems that ship beside the core: paradigms and verb modules         |
 | 🛠️ **[05 - Guides](05%20-%20Guides/_Index.md)**                       | Step‑by‑step tutorials for extending the framework                     |
 | 🗺️ **[06 - Planned Features](06%20-%20Planned%20Features/_Index.md)** | Theoretical designs for missing modules (Navigation, Bark, Perception) |
 | 📅 **[07 - Changelog](07%20-%20Changelog/README.md)**                  | Version history and release notes                                      |
@@ -22,14 +22,23 @@ This is the central hub for understanding the architecture, theory, and usage of
 
 ## 📖 What is G.O.A.T.?
 
-G.O.A.T. is a **backend-driven AI framework** for O3DE that unifies:
-- Behavior Trees
-- Hierarchical Task Networks (HTN)
-- Goal-Oriented Action Planning (GOAP)
-- Utility AI
-- Director AI
+G.O.A.T. is a **genre-neutral NPC AI framework** for O3DE. You write the AI in Lua; C++ provides
+the infrastructure underneath it.
 
-All decision-making is routed through a **pluggable `IBackend` interface**, allowing any planning paradigm to be swapped in or out without modifying the core engine.
+The core knows about agents, a blackboard, plans and actions — and nothing about how decisions get
+made. A **paradigm** is a gem you can add or delete:
+
+| Paradigm | Brain | Gem | Status |
+| :--- | :--- | :--- | :--- |
+| Behaviour trees | `tree` | GOAT_BehaviorTree | shipped |
+| Task networks (HTN) | `htn` | GOAT_Htn | shipped |
+| GOAP, Utility AI, … | yours | yours | write one, see [Writing Custom Backends](05%20-%20Guides/Writing%20Custom%20Backends.md) |
+
+Both can run in the same level, on different agents, at the same time. They coordinate through
+blackboard variables and neither knows the other exists.
+
+A **director** is an agent whose leaves act on other agents. It is not a paradigm — it works with
+whichever one you picked.
 
 ---
 
@@ -37,14 +46,20 @@ All decision-making is routed through a **pluggable `IBackend` interface**, allo
 
 | Feature | Status |
 | :--- | :--- |
-| Core Behavior Tree Engine | ✅ Implemented |
-| Lua Authoring DSL | ✅ Implemented |
-| Direct & Lua Backends | ✅ Implemented |
-| Blackboard System (Global/Agent/Squad) | ✅ Implemented |
-| Custom Control Flow (Flows) | ✅ Implemented |
-| Navigation Library | ❌ Not yet implemented (see [Planned](06%20-%20Planned%20Features/Navigation%20Library.md)) |
-| Bark System | ❌ Not yet implemented |
-| Perception Module | ❌ Not yet implemented |
+| Behaviour tree backend (`tree`) | ✅ Implemented, as its own gem |
+| Task network backend (`htn`) | ✅ Implemented, as its own gem |
+| Lua authoring DSL | ✅ Implemented |
+| Blackboard (Global / Agent / Squad) | ✅ Implemented |
+| Reactivity — a `condition` is a dependency | ✅ Implemented |
+| Directors, with area and squad/tag filters | ✅ Implemented |
+| Custom control flow (flows) | ✅ Implemented |
+| `delegate` planners in Lua | ✅ Implemented |
+| Navigation module | ✅ Implemented |
+| Smart objects | ✅ Implemented |
+| Animation module | ✅ Implemented |
+| Graph editor | 🚧 Asset format ready, tool not built |
+| Bark system | ❌ Planned |
+| Perception module | ❌ Planned |
 
 ---
 
@@ -67,7 +82,7 @@ This vault is organized into **logical layers**:
 | `01 - Architecture` | The *what* – high‑level structure and data flow |
 | `02 - C++ Components` | The *code* – detailed documentation of C++ classes |
 | `03 - Lua API` | The *user manual* – how to author agents in Lua |
-| `04 - Modules` | Implemented add‑ons (currently empty) |
+| `04 - Modules` | The paradigm and verb gems that ship beside the core |
 | `05 - Guides` | How‑to tutorials |
 | `06 - Planned Features` | Theoretical designs for future work |
 | `07 - Changelog` | Release history |

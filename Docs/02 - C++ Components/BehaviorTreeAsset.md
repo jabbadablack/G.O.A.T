@@ -16,7 +16,7 @@ tags: [cpp, core, asset]
 
 `BehaviorTreeAsset` is the **authorable asset type** for behavior trees. It is saved as a `.bt` file and represents a tree as authored, before it is compiled for execution. The runtime never sees this type, only the `DecisionProgram` compiled from it.
 
-It is produced by a future graph editor, while currently Lua builds one of these in memory (via `LuaTreeBuilder`). The asset holds the tree's name and its root `BehaviorTreeNode`.
+It is produced by a future graph editor, while currently Lua builds one of these in memory (via `LuaTreeBuilder`). The asset holds the tree's name and its root `AuthoredNode`.
 
 ---
 
@@ -51,7 +51,7 @@ static constexpr const char* DisplayName = "Behavior Tree";
 | Member | Type | Description |
 | :--- | :--- | :--- |
 | `m_name` | `AZStd::string` | Name agents refer to this tree by. |
-| `m_root` | `BehaviorTreeNode` | The root of the tree. |
+| `m_root` | `AuthoredNode` | The root of the tree. |
 
 ---
 
@@ -59,13 +59,13 @@ static constexpr const char* DisplayName = "Behavior Tree";
 
 ```mermaid
 graph LR
-    A[BehaviorTreeAsset] --> B[BehaviorTreeNode]
+    A[BehaviorTreeAsset] --> B[AuthoredNode]
     B --> C[TreeCompiler]
     C --> D[DecisionProgram]
     A --> E[Future Graph Editor]
 ```
 
-- **Depends on:** `BehaviorTreeNode`, `AZ::Data::AssetData`.
+- **Depends on:** `AuthoredNode`, `AZ::Data::AssetData`.
 - **Required by:** `TreeCompiler` (through `TreeLibrary`), future graph editor.
 - **Interacts with:** `LuaTreeBuilder` (in-memory equivalent), `TreeCompiler`.
 
@@ -77,7 +77,7 @@ graph LR
 
 `BehaviorTreeAsset::Reflect()` registers the asset with the SerializeContext, enabling it to be saved and loaded. It uses `EnableForAssetEditor` to show in the Asset Editor's new asset list.
 
-`BehaviorTreeProperty`, `BehaviorTreeNodeMetadata`, and `BehaviorTreeNode` are all reflected as supporting types.
+`AuthoredProperty`, `AuthoredNodeMetadata`, and `AuthoredNode` are all reflected as supporting types.
 
 ### Performance Considerations
 
@@ -104,9 +104,9 @@ Unit tests should cover:
 
 ## Related Notes
 
-- [[BehaviorTreeNode]]
-- [[BehaviorTreeProperty]]
-- [[BehaviorTreeNodeMetadata]]
+- [[AuthoredNode]]
+- [[AuthoredProperty]]
+- [[AuthoredNodeMetadata]]
 - [[TreeCompiler]]
 - [[TreeLibrary]]
 

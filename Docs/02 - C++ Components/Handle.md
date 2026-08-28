@@ -13,7 +13,7 @@ tags: [cpp, core, domain]
 
 ## Overview
 
-`Handle` is a **generation-checked reference** to a slot in a `HandleTable`. It provides a safe, stale-proof way to refer to an entry in a dense container. The `Tag` parameter keeps handles of different kinds (e.g., `AgentTag`) from being assigned to each other, providing type safety.
+`Handle` is a **generation-checked reference** to a slot in a `AgentStore`. It provides a safe, stale-proof way to refer to an entry in a dense container. The `Tag` parameter keeps handles of different kinds (e.g., `AgentTag`) from being assigned to each other, providing type safety.
 
 When a slot is released, its generation counter is bumped. Any existing `Handle` pointing to that slot becomes invalid, preventing use-after-free bugs.
 
@@ -62,14 +62,14 @@ static constexpr AZ::u32 NullIndex = static_cast<AZ::u32>(-1);
 
 ```mermaid
 graph LR
-    A[Handle] --> B[HandleTable]
+    A[Handle] --> B[AgentStore]
     A --> C[AgentId]
     A --> D[Other Tagged Handles]
     B --> E[AgentRegistry]
 ```
 
 - **Depends on:** None (standalone template).
-- **Required by:** `HandleTable`, `AgentId`, `BlackboardKey` (indirectly, via `AgentRegistry`).
+- **Required by:** `AgentStore`, `AgentId`, `BlackboardKey` (indirectly, via `AgentRegistry`).
 
 ---
 
@@ -77,7 +77,7 @@ graph LR
 
 ### Key Algorithms
 
-`Handle` is a simple value type. The `HandleTable` maintains the generation counter and returns a `Handle` to callers. When the slot is released, the generation is incremented, making any previously issued handle invalid.
+`Handle` is a simple value type. The `AgentStore` maintains the generation counter and returns a `Handle` to callers. When the slot is released, the generation is incremented, making any previously issued handle invalid.
 
 ### Performance Considerations
 
@@ -107,7 +107,7 @@ Unit tests should cover:
 
 ## Related Notes
 
-- [[HandleTable]]
+- [[AgentStore]]
 - [[AgentId]]
 - [[AgentRegistry]]
 

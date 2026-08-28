@@ -37,7 +37,6 @@ namespace GOAT
     inline constexpr const char* DecisionNodeTypeId = "{F9AD7034-257F-488E-9695-73757A1E91AD}";
     inline constexpr const char* DecisionServiceTypeId = "{E35A6DA7-1284-41E1-9C35-83EFE4B86DCA}";
     inline constexpr const char* PlanStoreTypeId = "{4B6E2A17-9D53-4C88-B0E1-7F3A5C2D9E64}";
-    inline constexpr const char* DirectorReachTypeId = "{8A47E2B6-13D5-4C90-A7E1-6B2F98D4C053}";
     inline constexpr const char* DirectorProfileTypeId = "{C15B9A38-7E42-4D6B-9F03-24A8E7561BD9}";
     inline constexpr const char* DecisionProgramTypeId = "{9D805D2E-92E6-4FC4-8E7F-6DDC2A7B5280}";
     inline constexpr const char* AgentProgramTypeId = "{7C1F4A83-2B96-4E05-9D74-1AE6835C0F2B}";
@@ -47,7 +46,7 @@ namespace GOAT
     inline constexpr const char* IDecisionBackendTypeId = "{4E8B0D27-95C3-41FA-B6E8-27D95A104C63}";
     inline constexpr const char* IActionStateTypeId = "{CFC2D26D-0EB8-45B6-9333-93BF41289396}";
     inline constexpr const char* IBlackboardSystemTypeId = "{5B0B29DA-8F97-4C68-8273-74412E3EBFE2}";
-    inline constexpr const char* IReachFilterTypeId = "{2F8C4D71-6A93-4E15-BD28-51C7A0E9F364}";
+    inline constexpr const char* IDirectorFilterTypeId = "{2F8C4D71-6A93-4E15-BD28-51C7A0E9F364}";
     inline constexpr const char* IAgentSystemTypeId = "{363A84A2-B220-4ECA-BD6E-A606A6B41C90}";
 
     // Scripting TypeIds
@@ -61,4 +60,6 @@ namespace GOAT
     inline constexpr const char* GOATBuilderComponentTypeId = "{C6851C07-CFCE-4C3F-8393-C38F36D796C5}";
     inline constexpr const char* GOATDirectorComponentTypeId = "{5D3E81C7-A296-4F48-B0D1-73E6C4952A8F}";
     inline constexpr const char* GOATAgentComponentTypeId = "{60C89039-4265-4A0D-B3ED-75F7C272F371}";
+    inline constexpr const char* GOATDirectorAreaFilterComponentTypeId = "{1B7F4C29-8D53-4A06-9E14-3C82B5D7F0A6}";
+    inline constexpr const char* GOATDirectorSquadFilterComponentTypeId = "{6E2A08D4-45B1-4F73-8C90-D71E36A9B542}";
 } // namespace GOAT

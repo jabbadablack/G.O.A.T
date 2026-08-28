@@ -6,7 +6,7 @@
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/DirectorProfile.h>
 #include <GOAT/Domain/NodeType.h>
-#include <GOAT/Interfaces/IReachFilter.h>
+#include <GOAT/Interfaces/IDirectorFilter.h>
 #include <GOAT/GOATTypeIds.h>
 #include <GOAT/Interfaces/IActionState.h>
 #include <GOAT/Interfaces/IBackend.h>
@@ -110,7 +110,8 @@ namespace GOAT
         virtual AZ::Outcome<size_t, AZStd::string> RebindSubtree(
             const AZ::Name& slot, const AZ::Name& treeName) = 0;
 
-        //! Makes an agent a director governing a reach. False when it already is one.
+        //! Makes an agent a director. It governs every other agent until a filter narrows it.
+        //! False when it already is one.
         virtual bool RegisterDirector(AgentId director, const DirectorProfile& profile) = 0;
         virtual void UnregisterDirector(AgentId director) = 0;
 
@@ -118,10 +119,9 @@ namespace GOAT
         virtual size_t GetReachSize(AgentId director) = 0;
         virtual AgentId GetInReach(AgentId director, size_t index) = 0;
 
-        //! Installs a way to narrow a reach that the core cannot judge for itself.
-        virtual bool RegisterReachFilter(AZStd::unique_ptr<IReachFilter> filter) = 0;
-        virtual void UnregisterReachFilter(const AZ::Name& name) = 0;
-        virtual AZStd::vector<AZ::Name> GetReachFilterNames() const = 0;
+        //! Narrows what a director governs. The filter is not owned by the core.
+        virtual bool AttachDirectorFilter(AgentId director, IDirectorFilter& filter) = 0;
+        virtual void DetachDirectorFilter(AgentId director, IDirectorFilter& filter) = 0;
 
         //! Wakes agents whose running action was waiting to be told something.
         virtual void WakeAgents(AZStd::span<const AgentId> agents) = 0;

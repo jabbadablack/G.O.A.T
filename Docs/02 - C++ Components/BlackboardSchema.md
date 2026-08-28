@@ -7,7 +7,7 @@ tags: [cpp, core, domain]
 # BlackboardSchema
 
 > **File Location:** `Code/Source/Core/Domain/BlackboardSchema.cpp`  
-> **Header:** `Code/Include/GOAT/Domain/BlackboardSchema.h`  
+> **Header:** `Code/Source/Core/Domain/BlackboardSchema.h`  
 > **Inherits:** None (Plain class, owned by `BlackboardSystem`)
 
 ---
@@ -64,7 +64,7 @@ graph LR
     A[BlackboardSystem] -->|Owns| B[BlackboardSchema]
     B --> C[BlackboardLayout]
     D[TreeCompiler] -->|FindKey| B
-    E[AgentObserver] -->|Observed Keys| B
+    E[GuardWatch] -->|Observed Keys| B
 ```
 
 - **Depends on:** `BlackboardKey`, `BlackboardLayout`, `BlackboardType`, `BlackboardScope`.

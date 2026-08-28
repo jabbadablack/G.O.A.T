@@ -2,7 +2,6 @@
 
 #include <GOAT/GOATTypeIds.h>
 
-#include <AzCore/Name/Name.h>
 #include <AzCore/RTTI/TypeInfo.h>
 #include <AzCore/base.h>
 
@@ -12,37 +11,14 @@ namespace GOAT
     //! intended default: a director exists to overrule what an agent decided for itself.
     inline constexpr AZ::u8 SelfSwitchPriority = 0;
 
-    //! Which agents one director governs.
+    //! What one director governs with, and how forcefully.
     //!
-    //! The filters that are set combine with AND; an unset one is no constraint, so a director
-    //! with none governs every agent. Narrowing rather than widening is what an author expects
-    //! from a field labelled "Squad", and it is what makes "squad Alpha, within 30 m, running
-    //! Patrol" expressible at all. Two directors give you the OR, and priority settles the overlap.
-    //! Held as interned names rather than strings because a reach is compared against every
-    //! agent on every director tick, and a name compares as a four byte hash. The component
-    //! authors them as strings, which is what the property editor can show, and converts once.
-    struct DirectorReach final
-    {
-        AZ_TYPE_INFO(DirectorReach, DirectorReachTypeId);
-
-        //! Governs only this squad. Empty for any.
-        AZ::Name m_squad;
-        //! Governs only agents currently running this tree. Empty for any.
-        AZ::Name m_tree;
-        //! Governs only agents this close. Zero for any distance.
-        float m_radius = 0.0f;
-        //! A registered reach filter to narrow by. Empty for plain straight line distance.
-        //! Named rather than typed so that navigation aware reach can live in the navigation
-        //! gem and the core can stay ignorant of it.
-        AZ::Name m_filter;
-    };
-
-    //! What one director governs, and how forcefully.
+    //! Not who it governs: a director reaches every agent until a filter component beside it
+    //! narrows that. Several filters combine with AND, two directors give you the OR, and
+    //! priority settles the overlap.
     struct DirectorProfile final
     {
         AZ_TYPE_INFO(DirectorProfile, DirectorProfileTypeId);
-
-        DirectorReach m_reach;
 
         //! Higher outranks lower when two directors command the same agent in one window.
         //! Above SelfSwitchPriority, so any director outranks an agent switching itself.

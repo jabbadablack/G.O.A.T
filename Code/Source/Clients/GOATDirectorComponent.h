@@ -19,9 +19,8 @@ namespace GOAT
     //! tree, so guards, services, parallel, plans and the whole console apply to it unchanged.
     //! The only difference is that its leaves act on the agents it governs rather than on itself.
     //!
-    //! Which agents those are is its reach, and the filters that are set narrow it: an unset one
-    //! is no constraint, so a director with none governs the whole level. Several directors may
-    //! govern the same agent, and priority settles who wins.
+    //! It governs every other agent until a filter component beside it narrows that. Several
+    //! directors may govern the same agent, and priority settles who wins.
     class GOATDirectorComponent
         : public AZ::Component
     {
@@ -40,9 +39,6 @@ namespace GOAT
         void Deactivate() override;
 
     private:
-        //! Turns the authored fields into the form the registry compares against.
-        DirectorProfile BuildProfile() const;
-
         //! Blackboard assets declaring the variables this director's tree refers to.
         AZStd::vector<AZ::Data::Asset<BlackboardAsset>> m_blackboards;
         //! Lua scripts declaring the behaviours and trees it runs.
@@ -51,13 +47,6 @@ namespace GOAT
         AZStd::string m_brain = "tree";
         //! Programs it may run. The first is the one it starts in.
         AZStd::vector<AZStd::string> m_programs;
-
-        //! Which agents it governs, authored as strings because that is what the property editor
-        //! can show; converted to the interned form once, when this component activates.
-        AZStd::string m_squad;
-        AZStd::string m_tree;
-        float m_radius = 0.0f;
-        AZStd::string m_filter;
 
         //! Higher outranks lower when two directors command the same agent.
         int m_priority = 1;

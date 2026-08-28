@@ -6,7 +6,7 @@ tags: [cpp, core, domain]
 
 # DecisionNode
 
-> **File Location:** `Code/Include/GOAT/Domain/DecisionProgram.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Include/GOAT_BehaviorTree/DecisionProgram.h`  
 > **Inherits:** None (Plain struct)
 
 ---
@@ -75,7 +75,7 @@ graph LR
 
 ### Key Algorithms
 
-`TreeCompiler::Emit()` creates each `DecisionNode` and fills its fields based on the authored `BehaviorTreeNode` and its resolved `NodeTypeDescriptor`.
+`TreeCompiler::Emit()` creates each `DecisionNode` and fills its fields based on the authored `AuthoredNode` and its resolved `NodeTypeDescriptor`.
 
 ### Performance Considerations
 

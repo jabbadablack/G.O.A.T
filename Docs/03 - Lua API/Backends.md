@@ -6,68 +6,64 @@ tags: [lua, authoring, api]
 
 # Backends
 
-> **Asset Type:** Lua Script  
-> **Location:** `Assets/GOAT/Scripts/GOAT.lua`  
 > **Prerequisites:** [[Vocabulary]], [[Behavior DSL]]
 
 ---
 
-## 📌 Purpose
+## Two things are called "backend"
 
-A **backend** is a planning algorithm. In G.O.A.T., you can write an entire planning backend in Lua using the `backend` function. This allows you to implement GOAP, HTN, or simple task-based planners without touching any C++ code. 
+This trips people up, so it is worth being blunt about it.
 
-When a tree hits a `delegate` node, the `TreeWalker` creates an `Intent` with the backend name and a `goal`. The C++ core looks up the backend (via `BackendRegistry`) and calls its `plan` function, which returns an `ActionPlan`—a sequence of steps the `AgentRuntime` will execute.
+**A decision backend is a paradigm.** It decides how a whole agent acts, every tick. `tree` and
+`htn` are the two that ship, each in its own gem. You pick one with the **Brain** field on the
+component. You cannot write one of these in Lua — see [[IDecisionBackend]].
+
+**A `delegate` backend is a planner behind one leaf.** A program hits a `delegate` node, a
+planner produces a short list of steps, the agent runs them. *This* is the one you can write in
+Lua, and it is what the rest of this page is about.
+
+The rest of the program is unaffected either way. A behaviour tree that delegates keeps being a
+behaviour tree.
 
 ---
 
-## 🗝️ Backend Anatomy
-
-A backend is defined with a single `plan` function.
+## Writing one
 
 ```lua
-backend "MyBackend" {
+backend "Errand" {
     plan = function(me, ctx, goal)
-        -- Return a table of steps, or nil/false if planning fails.
+        -- Return a list of steps, or nil when you cannot satisfy the goal.
     end,
 }
 ```
 
-### Parameters
-
-| Parameter | Type | Description |
+| Parameter | Type | What it is |
 | :--- | :--- | :--- |
-| `me` | Table | Per-agent scratch state for this backend instance. |
-| `ctx` | Table | The blackboard context (`SetBool`, `GetInt`, etc.). |
-| `goal` | String | The goal passed by the `delegate` node. |
+| `me` | table | per-agent scratch state, yours to use |
+| `ctx` | table | the blackboard context — `GetInt`, `SetBool`, `Key`, and so on |
+| `goal` | string | whatever the `delegate` node's `goal` said |
 
-### Return Values
-
-| Return | Description |
-| :--- | :--- |
-| `table` | A list of steps. Each step is a table describing an action. |
-| `nil` or `false` | Planning failed; the tree returns `FAILURE`. |
+Return a table of steps, or `nil`/`false` to fail. An empty table counts as a failure too — if
+you have nothing to do, say so rather than returning nothing.
 
 ---
 
-## 🧩 Step Properties
+## What a step looks like
 
-Each step in the returned table can have the following properties:
-
-| Property | Type | Description |
+| Property | Type | What it does |
 | :--- | :--- | :--- |
-| `action` | String | (Required) The verb to run (e.g., `wait`, `script`, or a registered module action like `MoveTo`). |
-| `behavior` | String | Used with `action = "script"`. Names the Lua behavior to run. |
-| `tag` | String | A tag to pass to the action (e.g., the name of a verb). |
-| `seconds` | Number | Used with `action = "wait"`. Duration to wait. |
-| `tolerance` | Number | An optional tolerance for movement or completion. |
-| `key` | String | A blackboard variable name to use as the target (e.g., `TargetEntity`). |
+| `action` | string | **required.** The verb: `wait`, `script`, or a module verb like `move_to` |
+| `behavior` | string | with `action = "script"`, names the Lua behaviour to run |
+| `tag` | string | a label passed to the action |
+| `seconds` | number | with `action = "wait"`, how long |
+| `tolerance` | number | how close counts as arrived, for movement |
+| `key` | string | a blackboard variable to act on |
 
 ---
 
-## 🧩 Full Example (From `ExampleAdvanced.lua`)
+## A full example
 
 ```lua
--- A simple backend that fulfills errands.
 backend "Errand" {
     plan = function(me, ctx, goal)
         if goal == "Rest" then
@@ -81,112 +77,87 @@ backend "Errand" {
 }
 ```
 
-**Usage in a tree:**
+Used from a tree:
 
 ```lua
-return tree "ExampleAdvanced" {
-    composite "AllOf" {
-        decorator "NeverFails" { script "Chore" },
+return tree "Errands" {
+    sequence {
+        script "Chore",
         delegate "Errand" { goal = "Deliver" },
-        raw "wait" { seconds = 0.25 },
+        wait(0.25),
     },
 }
 ```
 
 ---
 
-## 🗺️ Visual Overview (Execution Flow)
+## Declarative plans
+
+If your planner is really just "try these in order until one fits", you do not need a function.
+`plan` and `option` say the same thing declaratively:
+
+```lua
+plan "Deliver" {
+    option { when = "has_package", { action = "script", behavior = "DropOff" } },
+    option { { action = "wait", seconds = 1.0 } },
+}
+```
+
+Options are tried in order and the first whose guard holds contributes all of its steps. Each
+option takes `when` **or** `unless`, not both.
+
+Prefer this. Declarative plans are **baked** at load time into steps that C++ already holds, so
+running one later pushes nothing across the Lua boundary and allocates nothing. They are also
+validated while you are still looking at the file, and the error names the line you wrote it on.
+
+---
+
+## Registration
+
+You do not register anything. `GOATSystemComponent::RegisterLuaBackends` scans what Lua declared
+after the vocabulary loads and wraps each one in a `LuaBackend`, which is the C++ class
+implementing [[IBackend]].
+
+A C++ backend of the same name wins; the Lua one is skipped.
+
+---
+
+## How a delegate resolves
 
 ```mermaid
 flowchart TD
-    A[TreeWalker hits delegate node] --> B[Creates Intent with backend name and goal]
-    B --> C[BackendRegistry looks up backend]
-    C --> D{Is it a Lua backend?}
-    D -->|Yes| E[LuaBackend calls GOAT_Plan]
-    E --> F[LuaDispatch invokes Lua backend plan function]
-    F --> G[Plan returns list of steps]
-    G --> H[LuaPlanBuilder validates steps]
+    A[Program reaches a delegate node] --> B[Intent: backend name plus goal]
+    B --> C[BackendRegistry looks the name up]
+    C --> D{Found?}
+    D -->|Lua| E[LuaBackend calls GOAT_Plan]
+    E --> F[Your plan function runs]
+    F --> G[Steps pushed into LuaPlanBuilder]
+    G --> H[Verbs and keys validated]
     H --> I[ActionPlan]
-    I --> J[AgentStateMachine executes plan]
-    D -->|No| K[DirectBackend or other C++ backend handles it]
-    K --> I
+    D -->|C++| I
+    I --> J[AgentStateMachine runs it]
 ```
 
 ---
 
-## 🧠 How it Connects to C++
+## What will be rejected
 
-The `backend` function registers the Lua code in `GOAT._backends[name]`. 
-
-When a `delegate` node is executed:
-
-1. The **C++ `LuaBackend`** (a class implementing `IBackend`) intercepts the call.
-2. It calls `LuaDispatch::CallBackendPlan()`, which calls the Lua function `GOAT_Plan`.
-3. `GOAT_Plan` invokes the user's `plan` function.
-4. The user's `plan` function returns a table of steps.
-5. `GOAT_Plan` pushes those steps into a `LuaPlanBuilder` (a C++ object passed via reflection).
-6. The `LuaPlanBuilder` validates the verbs and blackboard keys.
-7. The resulting `ActionPlan` is returned to the `AgentStateMachine`.
+- **Unknown verbs.** A step naming an action nothing registered fails the plan.
+- **Undeclared keys.** A `key` must name a variable some `.bbx` declared.
+- **Empty plans.** Returning `{}` is a failure, not a no-op.
+- **Duplicate names.** A backend name has to be free, and it cannot collide with a `plan` name.
 
 ---
 
-## 🧩 Auto-Registration
+## Related
 
-You don't need to manually register Lua backends with the C++ system. `GOATSystemComponent` automatically scans for any backend declared in Lua during `RegisterLuaBackends()`.
-
-```cpp
-// Code/Source/Core/Application/GOATSystemComponent.cpp
-void GOATSystemComponent::RegisterLuaBackends()
-{
-    for (const AZ::Name& name : m_dispatch->GetLuaBackendNames())
-    {
-        if (m_backends->Find(name) != nullptr) { continue; }
-        m_backends->Register(AZStd::make_unique<LuaBackend>(name, *m_dispatch, *m_scriptContext));
-    }
-}
-```
-
----
-
-## 🧪 Example: A "Director" Backend
-
-You can use a backend as a **Director AI**. Create a global agent that delegates to a backend to spawn waves or alter game state.
-
-```lua
-backend "Director" {
-    plan = function(me, ctx, goal)
-        if goal == "SpawnWave" then
-            return {
-                { action = "script", behavior = "SpawnEnemies" },
-                { action = "wait", seconds = 2.0 },
-            }
-        end
-        return nil -- Failed to plan
-    end,
-}
-```
-
----
-
-## ⚠️ Constraints & Validation
-
-- **Verbs:** Steps must reference registered actions (e.g., `wait`, `script`, or module actions). Unknown verbs fail the plan.
-- **Blackboard Keys:** Steps referencing `key` must point to declared variables.
-- **Empty Plans:** Returning an empty list `{}` counts as a failure.
-- **Duplicates:** Backend names must be unique. C++ backends take priority over Lua backends with the same name.
-
----
-
-## 🔗 Related Assets & Notes
-
+- [[IDecisionBackend]] — the other meaning of "backend"
 - [[Vocabulary]]
 - [[Behavior DSL]]
-- [[Flows]]
-- [[LuaDispatch]]
-- [[LuaPlanBuilder]]
-- [[LuaBackend]]
 - [[IBackend]]
+- [[LuaBackend]]
+- [[Writing Custom Backends]]
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-27*

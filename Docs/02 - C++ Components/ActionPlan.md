@@ -1,113 +1,80 @@
 ---
 type: component
 status: active
-tags: [cpp, core, domain]
+tags: [cpp, core, domain, plan]
 ---
 
 # ActionPlan
 
-> **File Location:** `Code/Include/GOAT/Domain/ActionPlan.h`  
-> **Inherits:** None (Plain struct)
+> **Header:** `Code/Include/GOAT/Domain/ActionPlan.h`
+> **Kind:** Plain struct, public API
 
 ---
 
 ## Overview
 
-`ActionPlan` is a **sequence of `ActionRequest` steps** that an agent executes. It is produced by a backend (via `IBackend::Plan`) and consumed by `AgentStateMachine`. It represents the complete set of actions an agent must perform to satisfy a goal.
+The sequence of actions a backend produced, and the input to the state machine.
 
----
-
-## Key Responsibilities
-
-| # | Responsibility | Description |
-| :--- | :--- | :--- |
-| 1 | **Step Storage** | Holds an ordered list of `ActionRequest`s in a `fixed_vector`. |
-| 2 | **Validation** | Exposes `IsEmpty()` to check if a plan has no steps. |
-| 3 | **Length Limits** | Enforces a maximum plan length (`MaxPlanLength` = 8). |
-
----
-
-## Public Interface
-
-### Methods
+It is a **view into a [[PlanStore]]**, not a buffer of its own:
 
 ```cpp
-// Returns true if there are no steps.
-bool IsEmpty() const { return m_steps.empty(); }
+struct ActionPlan final
+{
+    bool IsEmpty() const;
+    size_t Size() const;
+    const ActionRequest* GetStep(size_t index) const;
+    bool IsBorrowed() const;
 
-// Clears all steps.
-void Clear() { m_steps.clear(); }
+    PlanStore::Span m_span;
+};
 ```
 
-### Data Members
-
-| Member | Type | Description |
-| :--- | :--- | :--- |
-| `m_steps` | `AZStd::fixed_vector<ActionRequest, MaxPlanLength>` | The ordered list of actions to execute. |
+Sixteen bytes, whatever the plan contains.
 
 ---
 
-## Dependencies & Interactions
+## Why it is a span
 
-```mermaid
-graph LR
-    A[IBackend] -->|Produces| B[ActionPlan]
-    B -->|Consumed by| C[AgentStateMachine]
+It used to be a fixed buffer with a hard cap of eight steps. Two things came from making it a
+span instead.
+
+**There is no length limit.** A five-hundred-step plan costs an agent exactly the same sixteen
+bytes a one-step plan does.
+
+**Nothing is copied.** An authored plan's steps are baked once and shared by every agent running
+it, so reaching a plan boundary copies nothing at all.
+
+---
+
+## Ownership
+
+The span stays valid as long as the store that issued it does.
+
+- **Baked** — an authored plan. Never released. `IsBorrowed()` is false.
+- **Borrowed** — computed at runtime. Must be given back when the plan ends or is abandoned.
+
+The runtime handles the release. A backend calls `Acquire` and hands the span over; it should not
+keep a copy.
+
+---
+
+## Getting one
+
+```cpp
+outPlan.m_span = context.m_planStore->Acquire(steps.data(), count);
 ```
 
-- **Depends on:** `ActionRequest`, `MaxPlanLength`.
-- **Required by:** `IBackend`, `AgentStateMachine`.
+An empty plan is a failure, not a no-op — see [[IDecisionBackend]].
 
 ---
 
-## Implementation Notes
+## Related
 
-### Key Algorithms
-
-`ActionPlan` is a simple container. Backends clear it, push steps, and return. `AgentStateMachine` iterates through `m_steps` and executes each `ActionRequest`.
-
-### Performance Considerations
-
-- **Allocation:** Uses `fixed_vector` to avoid dynamic allocation.
-- **Tick Rate:** Called once per plan, not per frame.
-- **Concurrency:** Main thread only.
-
----
-
-## Lua Exposure
-
-Assembled via `LuaPlanBuilder`:
-
-```lua
-backend "Errand" {
-    plan = function(me, ctx, goal)
-        return {
-            { action = "wait", seconds = 2.0 },
-        }
-    end,
-}
-```
-
----
-
-## Testing
-
-Unit tests should cover:
-
-- **IsEmpty:** Correctly returns true when no steps are present.
-- **Push:** Correctly appends steps.
-- **Clear:** Removes all steps.
-- **Max Length:** Fails when exceeding 8 steps.
-
----
-
-## Related Notes
-
-- [[IBackend]]
+- [[PlanStore]]
 - [[ActionRequest]]
 - [[AgentStateMachine]]
-- [[LuaPlanBuilder]]
+- [[IDecisionBackend]]
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-27*

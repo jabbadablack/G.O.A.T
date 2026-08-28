@@ -104,7 +104,7 @@ Unit tests should cover:
 ## Related Notes
 
 - [[Handle]]
-- [[HandleTable]]
+- [[AgentStore]]
 - [[AgentRegistry]]
 - [[AgentRecord]]
 

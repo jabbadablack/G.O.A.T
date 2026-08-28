@@ -41,7 +41,8 @@ It is responsible for initializing the blackboard schema, registering core actio
 ```cpp
 bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset) override;
 AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) override;
-AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) override;
+AZ::Outcome<void, AZStd::string> CompileProgram(
+    const AZ::Name& backendName, const AZ::Name& programName) override;
 AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) override;
 void UnregisterAgent(AgentId agent) override;
 void JoinSquad(AgentId agent, const AZ::Name& squad) override;
@@ -101,7 +102,7 @@ Enforces a **strict initialization order**:
 
 1. Create `BlackboardSystem`, `ActionStateRegistry`, `BackendRegistry`, `NodeTypeRegistry`, `TreeLibrary`.
 2. Create `LuaDispatch` and `AgentScriptContext`.
-3. Register `DirectBackend` and core `IActionState`s (`WaitAction`, `RunScriptAction`).
+3. Register the core `IActionState`s (`WaitAction`, `RunScriptAction`) and the director verbs.
 4. Create `LuaNodeScripting`, `AgentRuntime`, and `AgentRegistry`.
 5. Configure the `LuaPlanBuilder`.
 6. Connect `LuaDispatch` to the script context.
@@ -118,7 +119,6 @@ void GOATSystemComponent::StartServices()
     m_dispatch = AZStd::make_unique<LuaDispatch>();
     m_scriptContext = AZStd::make_unique<AgentScriptContext>();
 
-    auto direct = AZStd::make_unique<DirectBackend>();
     m_directBackend = AZStd::move(direct);
 
     m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitAction>());
@@ -174,7 +174,7 @@ Unit tests should cover:
 - `StartServices` / `StopServices` lifecycle without crashes.
 - `LoadVocabulary` correctly falls back to `goat.lua` when `goat.luac` is missing.
 - `RegisterAction` and `RegisterBackend` correctly update their respective registries.
-- `CompileTree` correctly adds programs to the map and fails on invalid trees.
+- `CompileProgram` correctly adds programs to the map and fails on invalid trees.
 - `LoadBlackboard` correctly declares variables from a `.bbx` asset.
 - `RegisterAgent` correctly creates an agent and joins a squad if specified.
 

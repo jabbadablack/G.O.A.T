@@ -48,7 +48,8 @@ virtual bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset) = 0;
 virtual AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) = 0;
 
 // Compiles a declared tree so agents can run it.
-virtual AZ::Outcome<void, AZStd::string> CompileTree(const AZ::Name& treeName) = 0;
+virtual AZ::Outcome<void, AZStd::string> CompileProgram(
+    const AZ::Name& backendName, const AZ::Name& programName) = 0;
 
 // Registers an entity as an agent running a compiled tree.
 virtual AgentId RegisterAgent(AZ::EntityId entity, const AZ::Name& treeName, size_t band) = 0;
@@ -107,7 +108,7 @@ graph LR
 
 - `LoadScript()` → `LuaDispatch::RunScript()` + `RegisterLuaBackends()`.
 - `LoadBlackboard()` → `BlackboardSystem::Declare()` for each variable.
-- `CompileTree()` → `LuaDispatch::EmitTree()` + `TreeCompiler::Compile()`.
+- `CompileProgram()` → `LuaDispatch::EmitTree()` + `TreeCompiler::Compile()`.
 - `RegisterAgent()` → `AgentRegistry::Register()`.
 - `RegisterBackend()` → `BackendRegistry::Register()`.
 - `RegisterAction()` → `ActionStateRegistry::Register()`.

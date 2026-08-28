@@ -6,7 +6,7 @@ tags: [cpp, core, domain]
 
 # DecisionProgram
 
-> **File Location:** `Code/Include/GOAT/Domain/DecisionProgram.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Include/GOAT_BehaviorTree/DecisionProgram.h`  
 > **Inherits:** None (Plain class)
 
 ---
@@ -105,13 +105,13 @@ graph LR
     A[TreeCompiler] -->|Produces| B[DecisionProgram]
     B -->|Consumed by| C[TreeWalker]
     B -->|Shared by| D[AgentRegistry]
-    B -->|Used by| E[AgentObserver]
+    B -->|Used by| E[GuardWatch]
     B -->|Used by| F[GuardEvaluator]
     B -->|Used by| G[ServiceTracker]
 ```
 
 - **Depends on:** `DecisionNode`, `DecisionService`, `BlackboardKey`, `NodeIndex`, `NodeOp`, `AbortMode`, `ActionRequest`.
-- **Required by:** `TreeWalker`, `AgentRegistry`, `AgentObserver`, `GuardEvaluator`, `ServiceTracker`.
+- **Required by:** `TreeWalker`, `AgentRegistry`, `GuardWatch`, `GuardEvaluator`, `ServiceTracker`.
 
 ---
 
@@ -122,7 +122,7 @@ graph LR
 `TreeCompiler` fills `m_nodes` via pre-order traversal. `TreeWalker` indexes directly into `m_nodes` using `NodeIndex`.
 
 ```cpp
-// Code/Source/Core/Frontend/TreeCompiler.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.cpp
 const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
 program.m_nodes.emplace_back();
 {
@@ -165,7 +165,7 @@ Unit tests should cover:
 - [[TreeWalker]]
 - [[DecisionNode]]
 - [[DecisionService]]
-- [[AgentObserver]]
+- [[GuardWatch]]
 - [[GuardEvaluator]]
 - [[ServiceTracker]]
 

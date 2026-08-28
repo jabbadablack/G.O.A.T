@@ -6,8 +6,8 @@ tags: [cpp, core, component]
 
 # GOATModuleInterface
 
-> **File Location:** `Code/Source/Clients/GOATModuleInterface.cpp`  
-> **Header:** `Code/Source/Clients/GOATModuleInterface.h`  
+> **File Location:** `Code/Source/GOATModuleInterface.cpp`  
+> **Header:** `Code/Source/GOATModuleInterface.h`  
 > **Inherits:** `AZ::Module`
 
 ---
@@ -69,7 +69,7 @@ graph LR
 The constructor inserts the component descriptors:
 
 ```cpp
-// Code/Source/Clients/GOATModuleInterface.cpp
+// Code/Source/GOATModuleInterface.cpp
 GOATModuleInterface::GOATModuleInterface()
 {
     m_descriptors.insert(m_descriptors.end(), {

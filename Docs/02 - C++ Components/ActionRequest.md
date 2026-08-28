@@ -62,7 +62,7 @@ graph LR
 ```
 
 - **Depends on:** `ActionStateId`, `BlackboardKey`, `AZ::Vector3`, `AZ::EntityId`, `AZ::Name`.
-- **Required by:** `ActionPlan`, `IActionState`, `AgentStateMachine`, `LuaPlanBuilder`, `DirectBackend`.
+- **Required by:** `ActionPlan`, `IActionState`, `AgentStateMachine`, `LuaPlanBuilder`, `PlanStore`.
 
 ---
 
@@ -71,7 +71,7 @@ graph LR
 ### Key Algorithms
 
 - `LuaPlanBuilder` assembles `ActionRequest`s from Lua backend steps.
-- `DirectBackend` copies the `Intent.m_direct` (an `ActionRequest`) into an `ActionPlan`.
+- An inline leaf's own `ActionRequest` is acquired from the [[PlanStore]] as a one-step plan.
 - `AgentStateMachine` passes the current `ActionRequest` to `IActionState::Begin`, `Step`, and `End`.
 
 ### Performance Considerations
@@ -104,7 +104,7 @@ Unit tests should cover:
 - [[ActionPlan]]
 - [[IActionState]]
 - [[LuaPlanBuilder]]
-- [[DirectBackend]]
+- [[PlanStore]]
 
 ---
 

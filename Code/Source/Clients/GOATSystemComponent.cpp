@@ -141,8 +141,7 @@ namespace GOAT
         m_runtime = AZStd::make_unique<AgentRuntime>(
             *m_blackboardSystem, *m_actions, *m_backends, *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
-        m_reachFilters = AZStd::make_unique<ReachFilterRegistry>("reach filter");
-        m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents, *m_blackboardSystem, *m_reachFilters);
+        m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents);
 
         // Resolving a tree name needs the compiled programs, which live here, so the runtime is
         // handed the step rather than reaching back up for it.
@@ -164,7 +163,6 @@ namespace GOAT
         m_programs.clear();
         // Before the agents, because a director record is keyed by an agent handle.
         m_directors.reset();
-        m_reachFilters.reset();
         m_agents.reset();
         m_runtime.reset();
         m_scripting.reset();
@@ -980,22 +978,17 @@ namespace GOAT
         return index < reach.size() ? reach[index] : AgentId{};
     }
 
-    bool GOATSystemComponent::RegisterReachFilter(AZStd::unique_ptr<IReachFilter> filter)
+    bool GOATSystemComponent::AttachDirectorFilter(AgentId director, IDirectorFilter& filter)
     {
-        return m_reachFilters != nullptr && m_reachFilters->Register(AZStd::move(filter));
+        return m_directors != nullptr && m_directors->AttachFilter(director, filter);
     }
 
-    void GOATSystemComponent::UnregisterReachFilter(const AZ::Name& name)
+    void GOATSystemComponent::DetachDirectorFilter(AgentId director, IDirectorFilter& filter)
     {
-        if (m_reachFilters != nullptr)
+        if (m_directors != nullptr)
         {
-            m_reachFilters->Unregister(name);
+            m_directors->DetachFilter(director, filter);
         }
-    }
-
-    AZStd::vector<AZ::Name> GOATSystemComponent::GetReachFilterNames() const
-    {
-        return m_reachFilters != nullptr ? m_reachFilters->GetNames() : AZStd::vector<AZ::Name>{};
     }
 
     void GOATSystemComponent::JoinSquad(AgentId agent, const AZ::Name& squad)
@@ -1238,6 +1231,22 @@ namespace GOAT
             return true;
         }
 
+        //! What is narrowing a director, by type, for console output.
+        AZStd::string DescribeFilters(const AZStd::vector<const IDirectorFilter*>& filters)
+        {
+            if (filters.empty())
+            {
+                return "nothing";
+            }
+
+            AZStd::string described;
+            for (const IDirectorFilter* filter : filters)
+            {
+                described += described.empty() ? "" : ", ";
+                described += filter->RTTI_GetTypeName();
+            }
+            return described;
+        }
     } // namespace
 
     void GOATSystemComponent::SetAgentTreeCommand(const AZ::ConsoleCommandContainer& arguments)
@@ -1323,14 +1332,10 @@ namespace GOAT
                 continue;
             }
 
-            const DirectorReach& reach = profile->m_reach;
-            AZLOG_INFO(
-                "director %u: entity %s | priority %u | squad '%s' tree '%s' radius %.1f filter '%s' | governs %zu",
+            AZLOG_INFO("director %u: entity %s | priority %u | narrowed by %s | governs %zu",
                 director.GetIndex(), GetAgentEntity(director).ToString().c_str(),
                 static_cast<AZ::u32>(profile->m_priority),
-                reach.m_squad.IsEmpty() ? "any" : reach.m_squad.GetCStr(),
-                reach.m_tree.IsEmpty() ? "any" : reach.m_tree.GetCStr(),
-                reach.m_radius, reach.m_filter.IsEmpty() ? "none" : reach.m_filter.GetCStr(),
+                DescribeFilters(m_directors->GetFilters(director)).c_str(),
                 m_directors->Resolve(director).size());
         }
     }
@@ -1356,18 +1361,12 @@ namespace GOAT
             return;
         }
 
+        AZLOG_INFO("narrowed by %s", DescribeFilters(m_directors->GetFilters(director)).c_str());
+
         for (const AgentId agent : m_directors->Resolve(director))
         {
             AZLOG_INFO("  agent %u: entity %s | %s", agent.GetIndex(),
                 GetAgentEntity(agent).ToString().c_str(), DescribeAgent(agent).c_str());
-        }
-    }
-
-    void GOATSystemComponent::ListReachFilters([[maybe_unused]] const AZ::ConsoleCommandContainer& arguments)
-    {
-        for (const AZ::Name& name : GetReachFilterNames())
-        {
-            AZLOG_INFO("reach filter: %s", name.GetCStr());
         }
     }
 

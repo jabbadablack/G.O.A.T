@@ -23,7 +23,7 @@ tags: [cpp, core, component]
 | # | Responsibility | Description |
 | :--- | :--- | :--- |
 | 1 | **Asset Loading** | Loads `.bbx` Blackboard assets and Lua Script assets on `Activate()`. |
-| 2 | **Tree Compilation** | Calls `IAgentSystem::CompileTree()` for the specified tree name. |
+| 2 | **Tree Compilation** | Calls `IAgentSystem::CompileProgram()` for each program it lists. |
 | 3 | **Agent Registration** | Calls `IAgentSystem::RegisterAgent()` to get an `AgentId`. |
 | 4 | **Squad Joining** | Optionally joins a named squad via `IAgentSystem::JoinSquad()`. |
 | 5 | **Lifecycle Management** | Registers and unregisters the agent on `Activate()` and `Deactivate()`. |
@@ -76,7 +76,7 @@ graph LR
 
 1. **Load Blackboards:** Calls `LoadBlackboard()` for every asset.
 2. **Load Scripts:** Calls `LoadScript()` for every script.
-3. **Compile Tree:** Calls `CompileTree()` for the `m_treeName`.
+3. **Compile Tree:** Calls `CompileProgram()` for the `m_treeName`.
 4. **Register Agent:** Calls `RegisterAgent()` to create the runtime handle.
 5. **Join Squad:** If `m_squad` is not empty, calls `JoinSquad()`.
 
@@ -118,7 +118,7 @@ void GOATAgentComponent::Activate()
     }
 
     const AZ::Name treeName(m_treeName);
-    if (auto compiled = agents->CompileTree(treeName); !compiled.IsSuccess())
+    if (auto compiled = agents->CompileProgram(brain, programName); !compiled.IsSuccess())
     {
         AZ_Warning("GOAT", false, "%s", compiled.GetError().c_str());
         return;

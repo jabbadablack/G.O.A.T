@@ -30,7 +30,7 @@ Learn how to create a custom `IActionState` (a "verb" like `MoveTo`, `Attack`, `
 
 ### Step 1: Create the Action Class
 
-Create a new C++ class that implements `IActionState`. Place it in your module's `Code/Source` directory (e.g., `Code/Source/Modules/Navigation/MoveToAction.h` and `.cpp`).
+Create a new C++ class that implements `IActionState`. Place it in your module's `Code/Source` directory (e.g., `Modules/Navigation/Code/Source/Navigation/MoveToAction.h` and `.cpp`).
 
 **Header (MoveToAction.h):**
 

@@ -6,15 +6,15 @@ tags: [cpp, core, component]
 
 # GuardEvaluator
 
-> **File Location:** `Code/Source/Core/Frontend/GuardEvaluator.cpp`  
-> **Header:** `Code/Source/Core/Frontend/GuardEvaluator.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Source/GuardEvaluator.cpp`  
+> **Header:** `Code/Source/Backends/BehaviorTree/Code/Source/GuardEvaluator.h`  
 > **Inherits:** None (Plain class)
 
 ---
 
 ## Overview
 
-`GuardEvaluator` is responsible for **re-checking condition guards** when a watched blackboard slot changes. It implements Unreal's four observer abort modes: `None`, `Self`, `LowerPriority`, and `Both`. It is called by `AgentRuntime` only when `AgentObserver` reports that a watched key is dirty, ensuring idle agents evaluate no conditions at all.
+`GuardEvaluator` is responsible for **re-checking condition guards** when a watched blackboard slot changes. It implements Unreal's four observer abort modes: `None`, `Self`, `LowerPriority`, and `Both`. It is called by `AgentRuntime` only when `GuardWatch` reports that a watched key is dirty, ensuring idle agents evaluate no conditions at all.
 
 ---
 
@@ -86,7 +86,7 @@ graph LR
 2. **Leaf Lower Priority:** If the running leaf is *outside* the guard's subtree and the guard's condition now holds, it returns `AbortAction::Restart`.
 
 ```cpp
-// Code/Source/Core/Frontend/GuardEvaluator.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/GuardEvaluator.cpp
 AbortDecision GuardEvaluator::Evaluate(...) const
 {
     AbortDecision decision;

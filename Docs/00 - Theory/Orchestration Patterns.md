@@ -1,266 +1,136 @@
 ---
 type: theory
-status: concept
+status: implemented
 tags: [theory, director, architecture]
 ---
 
 # Orchestration Patterns
 
-> **Category:** Architectural Pattern  
-> **Status:** Implemented via `IBackend` and Global Agents  
+> **Status:** Implemented
+> **Core files:** `Code/Source/Clients/GOATDirectorComponent.cpp`, `Code/Source/Core/Director/DirectorActions.cpp`
 
 ---
 
-## 💡 Core Concept
+## The problem
 
-**Orchestration Patterns** are architectural approaches for controlling groups of agents from a central authority. In G.O.A.T., this is achieved using the **Backend Abstraction** combined with **Global and Squad Blackboard Scopes**. Instead of adding a complex new system, orchestration leverages the existing planning pipeline.
+Games need a brain above the individual NPC. Waves that escalate, difficulty that scales, a crowd
+that gathers when something happens. Without a pattern for it, that logic ends up scattered across
+a dozen components that each poke at agents directly.
 
----
-
-## 🤔 Why This Matters
-
-Games often need a "brain" that coordinates many NPCs:
-
-- **Wave-based combat:** The game decides when to spawn enemies and how many.
-- **Difficulty scaling:** The game modifies enemy health or speed based on player progress.
-- **Environmental events:** The game triggers earthquakes, ambushes, or patrol changes.
-
-Without a clean pattern, this logic often becomes scattered across many components. Orchestration Patterns provide a **single, unified way** to handle global decisions.
+GOAT's answer is a [[Director AI]] — an agent whose leaves act on *other* agents. It is not a new
+system. It runs an ordinary program on an ordinary agent; only its verbs are different.
 
 ---
 
-## 🗺️ Visual Overview
+## Two patterns, and one is usually right
 
-```mermaid
-graph TD
-    subgraph Director[Director Agent]
-        A[Global Entity] --> B[GOATAgentComponent]
-        B --> C[Band 3 - 1000ms]
-        C --> D[Global Tree]
-        D --> E[delegate Director]
-        E --> F[Director Backend]
-        F --> G[ActionPlan]
-    end
+Everything below is a variation on one choice.
 
-    subgraph Blackboard[Blackboard Scopes]
-        G --> H[Global Scope]
-        H --> I[wave_number]
-        H --> J[game_state]
-        G --> K[Squad Scope]
-        K --> L[Squad Leader]
-        K --> M[Squad Target]
-    end
+### Publish
 
-    subgraph Agents[Individual Agents]
-        I --> N[Agent 1]
-        J --> O[Agent 2]
-        L --> P[Agent 3]
-        M --> Q[Agent 4]
-    end
-```
-
----
-
-## ⚖️ The Three Orchestration Styles
-
-### 1. Global Agent (Entity-Based)
-
-The most direct approach. A single entity runs a tree that delegates to a Director backend.
-
-```mermaid
-graph TD
-    A[Global Entity] --> B[Band 3 Tick]
-    B --> C[Global Tree]
-    C --> D[delegate Director]
-    D --> E[Plan]
-```
-
-**Pros:** Simple, uses existing components.  
-**Cons:** Requires an actual entity in the scene.
-
----
-
-### 2. Backend-Only (Service-Based)
-
-No dedicated entity. Instead, a **service** runs on a high-priority agent and writes to the Global Blackboard.
+The director writes a blackboard variable and stops. Agents that read it react on their own.
 
 ```lua
-service "Director" { interval = 1.0 }
+primitive "Adjust" { script "PaceTheCrowd" }   -- writes crowd_pace, names nobody
 ```
 
-The service polls game state and writes to Global variables.
+- **Costs one write**, however many agents there are.
+- **Interrupts nothing.** Each agent decides what to do about it, when it next ticks.
+- Works because a declared `condition` observes its key, and [[GuardWatch]] counts changes per
+  scope rather than registering callbacks.
 
-**Pros:** No extra entity.  
-**Cons:** Tied to the life of that specific agent.
+### Command
 
----
-
-### 3. Hybrid (Global Agent + Service)
-
-The most flexible. A Global Agent uses a service to monitor state and a `delegate` to execute directives.
+The director puts agents onto another program.
 
 ```lua
-tree "DirectorTree" {
-    selector {
-        service "CheckProgress" { interval = 1.0 },
-        sequence {
-            condition "wave_active" { abort = "lower_priority" },
-            delegate "Director" { goal = "SpawnWave" },
-        },
-    }
-}
+primitive "Order" { order_interrupt "CrowdRally" { limit = 6 } }
 ```
 
-**Pros:** Combines reactive monitoring with planning.  
-**Cons:** Slightly more complex to author.
+- **Costs a walk of the reach**, and stops what those agents were doing.
+- Needs rationing: `limit` per step, a cooldown per director, and a reach it cannot exceed.
+
+**Prefer publishing.** Command when you genuinely need an agent to drop what it is doing right
+now. This is the whole argument the director design rests on, and the Scry test bench ships one
+director of each kind side by side to make the contrast concrete.
 
 ---
 
-## 🧩 How Orchestration Fits G.O.A.T.'s Principles
+## Intensity over time
 
-| Principle | How Orchestration Uses It |
-| :--- | :--- |
-| **Backend Abstraction** | The Director is just a backend (`IBackend`). |
-| **Lua-First Authoring** | Global trees, services, and backend plans are all written in Lua. |
-| **Schema-Driven Blackboard** | Global and Squad scopes allow cross-agent data sharing. |
-| **Performance-Aware** | Band 3 for global agents minimizes CPU cost. |
-| **Behavior-Driven Data** | Agents react to Global keys via conditions and aborts. |
-| **Event-Driven Guards** | `AgentObserver` wakes agents only when watched keys change. |
-
----
-
-## 🧩 Example: Wave Spawning
+The most useful director in the literature is also the simplest: walk a number up and down and let
+everyone read it. Left 4 Dead's director is, at heart, one intensity value.
 
 ```lua
--- Global tree
-return tree "DirectorTree" {
-    sequence {
-        condition "wave_started" { abort = "lower_priority" },
-        delegate "Director" { goal = "SpawnWave" },
-        wait(2.0),
-    },
-}
-
--- Director backend
-backend "Director" {
-    plan = function(me, ctx, goal)
-        local wave = ctx:GetInt("wave_number") or 1
-        return {
-            { action = "script", behavior = "SpawnEnemies", tag = "wave_" .. wave },
-            { action = "wait", seconds = 10.0 },
-        }
-    end,
-}
+if me.rising then
+    me.pace = me.pace + 1
+    if me.pace >= 3 then me.rising = false end
+else
+    me.pace = me.pace - 1
+    if me.pace <= 0 then me.rising = true end
+end
+ctx:SetNumber(crowdPace, me.pace)
 ```
 
----
-
-## 🧩 Example: Difficulty Scaling
-
-```lua
--- Global tree
-return tree "DifficultyTree" {
-    sequence {
-        condition "player_progress" { abort = "lower_priority" },
-        delegate "Director" { goal = "ScaleDifficulty" },
-        wait(5.0),
-    },
-}
-
--- Director backend
-backend "Director" {
-    plan = function(me, ctx, goal)
-        local progress = ctx:GetInt("player_progress") or 1
-        local difficulty = math.floor(progress / 10)
-        return {
-            { action = "script", behavior = "SetDifficulty", tag = "difficulty_" .. difficulty },
-        }
-    end,
-}
-```
+That is twenty lines of Lua on a global variable. It is **content, not machinery** — which is why
+nothing like it exists in the C++ core, and should not.
 
 ---
 
-## 🧩 Example: Squad Coordination
+## Sense, act, report
 
-```lua
--- Global tree
-return tree "SquadTree" {
-    sequence {
-        condition "squad_target" { abort = "lower_priority" },
-        delegate "Director" { goal = "CoordinateSquad" },
-        wait(1.0),
-    },
-}
+A director's program usually has three kinds of step:
 
--- Director backend
-backend "Director" {
-    plan = function(me, ctx, goal)
-        if goal == "CoordinateSquad" then
-            local squad = ctx:GetName("active_squad")
-            return {
-                { action = "script", behavior = "SetSquadFormation", tag = squad },
-                { action = "wait", seconds = 2.0 },
-            }
-        end
-        return nil
-    end,
-}
-```
+| Step | Does | Example |
+| :--- | :--- | :--- |
+| **Sense** | reads the world, writes what it concluded | `script "CallMuster"` |
+| **Act** | publishes or commands | `order_interrupt "CrowdRally"` |
+| **Report** | reads back what the last act achieved | `script "ReportMuster"` |
+
+Reporting is worth doing. Every order writes `director_reach`, `director_changed` and
+`director_refused`, and those are ordinary variables — so a method or a branch can condition on
+"my last order was refused by everyone" using the words it already has.
 
 ---
 
-## ⚖️ Trade-offs
+## Several directors
 
-| ✅ Advantage | ⚠️ Disadvantage |
-| :--- | :--- |
-| Centralized control over game flow | Single point of failure if not designed carefully |
-| Minimal CPU cost (runs at Band 3) | Requires careful management of Global Blackboard state |
-| Uses existing Backend abstraction | Need to design a tree that handles multiple goals |
-| No new C++ components needed | Debugging can be harder with cross-scope effects |
-| Leverages `AgentRegistry` scheduling | Must ensure Director entity is always active |
+Directors are not a hierarchy. Several can govern the same agent, and **priority** settles who
+wins. That is how you compose:
 
----
+- A global pacer at low priority, publishing intensity to the whole level.
+- A local marshal at high priority, narrowed to one area, commanding within it.
 
-## 🧩 Impact on the Codebase
-
-### Lua Layer
-
-- Global trees are authored in Lua like any other tree.
-- Services with `interval` run at fixed rates.
-- Backends are defined in Lua via `backend "Name" { plan = ... }`.
-
-### C++ Core
-
-- `AgentRegistry` schedules the Director entity at Band 3.
-- `BackendRegistry` routes `delegate` intents to the Director backend.
-- `BlackboardSystem` provides Global and Squad storage.
-- `AgentObserver` wakes the Director only when watched Global keys change.
-
-### Extensibility
-
-- New orchestration styles can be added without touching core.
-- Directors can be swapped at runtime by rebinding backend names.
-- Squad coordination uses the same `SquadRegistry` as individual agents.
+Filters combine with AND *within* one director, so two directors is also how you express an OR:
+"squad Alpha, or anyone in the plaza" is two directors, not one clever filter.
 
 ---
 
-## 🗺️ Future Evolution
+## What not to do
 
-- **Director AI** can be extended to support multiple simultaneous goals.
-- **Squad Registry** can be used for dynamic grouping and formation control.
-- **Navigation Library** will allow Directors to move entities (e.g., spawn points, patrol paths).
+**Don't poll.** A service checking a variable every 0.3 s is what reactivity replaced. A
+`condition` notices immediately and costs nothing while nothing happens.
+
+**Don't order every tick.** Switching a program stops whatever the agent was doing. Ordering one
+every tick leaves an agent permanently restarting and never finishing anything. That is what the
+cooldown defaults to five seconds for.
+
+**Don't make the director govern everything by accident.** A director with no filters governs the
+whole level. That is a fine default for a pacer and a terrible one for a marshal.
+
+**Don't reach for a director first.** Most coordination is better as a shared variable that agents
+read. A director is for decisions no single agent can make.
 
 ---
 
-## 🔗 Related Concepts
+## Related
 
 - [[Director AI]]
-- [[Backend Abstraction Theory]]
+- [[Creating a Director AI]]
+- [[Blackboard System]]
+- [[GuardWatch]]
 - [[Design Principles]]
-- [[Performance Model]]
-- [[Extensibility Model]]
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-27*

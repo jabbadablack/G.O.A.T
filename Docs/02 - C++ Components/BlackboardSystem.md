@@ -81,12 +81,12 @@ graph LR
     B --> E[SquadRegistry]
     F[TreeCompiler] -->|FindKey| B
     G[AgentRuntime] -->|FindStorage| B
-    H[AgentObserver] -->|FindStorage| B
+    H[GuardWatch] -->|FindStorage| B
     I[AgentScriptContext] -->|FindStorage| B
 ```
 
 - **Depends on:** `BlackboardSchema`, `BlackboardStorage`, `SquadRegistry`, `IBlackboardSystem`.
-- **Required by:** `GOATSystemComponent`, `TreeCompiler`, `AgentRuntime`, `AgentObserver`, `AgentScriptContext`.
+- **Required by:** `GOATSystemComponent`, `TreeCompiler`, `AgentRuntime`, `GuardWatch`, `AgentScriptContext`.
 - **Interacts with:** `SquadRegistry` (for squad storage), `AgentRegistry` (to create/destroy agent blackboards).
 
 ---

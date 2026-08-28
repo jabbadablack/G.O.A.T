@@ -29,7 +29,7 @@ Following G.O.A.T.'s **Lua-First Authoring** and **Behavior-Driven Data** princi
 - **Performance:** Services run at fixed intervals, reducing CPU cost compared to per-frame checks.
 - **Flexibility:** Designers can compose different sensor services per agent (sight, hearing, touch) by simply attaching them to their tree.
 - **Lua-First:** Designers can customize sensor logic without touching C++.
-- **Event-Driven:** Services write to blackboard keys, which `AgentObserver` watches. This means agents only re-evaluate conditions when a sensed value actually changes.
+- **Event-Driven:** Services write to blackboard keys, which `GuardWatch` watches. This means agents only re-evaluate conditions when a sensed value actually changes.
 
 ---
 
@@ -125,7 +125,7 @@ graph TD
     end
 
     subgraph Reaction[Agent Reaction]
-        E[AgentObserver] -->|Watches target_visible| F[GuardEvaluator]
+        E[GuardWatch] -->|Watches target_visible| F[GuardEvaluator]
         F -->|Aborts lower priority| G[Combat Branch]
         B --> H[AgentRuntime]
     end
@@ -140,7 +140,7 @@ The Perception Module is entirely **Lua-based**. It does not introduce new C++ c
 1. **Services** are defined in Lua using the existing `behavior` DSL.
 2. They are attached to trees using `service "Sight" { interval = 0.1 }`.
 3. They write to blackboard keys via `ctx:SetBool`, `ctx:SetEntity`, etc.
-4. `AgentObserver` watches those keys and wakes the agent only when they change.
+4. `GuardWatch` watches those keys and wakes the agent only when they change.
 5. `GuardEvaluator` re-checks conditions and triggers aborts.
 
 This means the Perception Module is essentially a **library of Lua scripts**, not a C++ module.
@@ -154,7 +154,7 @@ This means the Perception Module is essentially a **library of Lua scripts**, no
 - [ ] Write `TouchService.lua` that polls contact and writes to blackboard.
 - [ ] Provide example trees using these services.
 - [ ] Document supported blackboard keys (e.g., `target_entity`, `target_visible`, `noise_level`, `heard_sound`, `contact_entity`).
-- [ ] Test with `AgentObserver` to ensure agents wake only when sensor values change.
+- [ ] Test with `GuardWatch` to ensure agents wake only when sensor values change.
 
 ---
 
@@ -163,7 +163,7 @@ This means the Perception Module is essentially a **library of Lua scripts**, no
 - [[Design Principles]]
 - [[Performance Model]]
 - [[Behavior DSL]]
-- [[AgentObserver]]
+- [[GuardWatch]]
 - [[GuardEvaluator]]
 
 ---

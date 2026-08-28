@@ -1,205 +1,257 @@
 ---
 type: guide
 status: active
-tags: [guide, tutorial, how-to]
+tags: [guide, tutorial, cpp, backend]
 ---
 
 # Writing Custom Backends
 
-> **Difficulty:** Advanced  
-> **Time to Complete:** 45 minutes  
-> **Prerequisites:** [[IBackend]], [[Extensibility Model]], Basic C++ or Lua knowledge
+> **Time:** an afternoon for a real one
+> **You should have read:** [[Backend Abstraction Theory]], [[IDecisionBackend]]
 
 ---
 
-## 🎯 Objective
+## Which kind do you want?
 
-Learn how to write a custom **planning backend** for G.O.A.T. Backends turn `Intent`s from tree leaves into `ActionPlan`s. This guide covers both **C++ backends** (for complex algorithms like GOAP or HTN) and **Lua backends** (for quick, designer-friendly planning logic).
+Two different jobs share the word "backend". Pick before you start.
 
----
+**A whole paradigm.** Utility AI, GOAP, a state machine — something that decides how an agent
+acts, every tick, instead of a behaviour tree. That is [[IDecisionBackend]], it is C++, and it is
+the rest of this guide.
 
-## 📋 Prerequisites
-
-- [ ] **O3DE Environment:** Set up and ready to build.
-- [ ] **G.O.A.T. Gem:** Activated in your project.
-- [ ] **Understanding of `IBackend`:** Read [[IBackend]] first.
-- **For C++ Backends:** A module to place the code in.
-- **For Lua Backends:** A basic Lua script where you'll define the backend.
+**A planner behind one `delegate` leaf.** Something that turns one goal into a few steps. That is
+[[IBackend]], and you can write it in Lua in about ten lines — see [[Backends]]. Do that instead
+if it fits; it is far less work.
 
 ---
 
-## 🪜 Option A: Writing a C++ Backend
+## Step 1 — Make a gem
 
-### Step 1: Create the Backend Class
+A paradigm belongs in its own gem, so a project that does not want it can delete it. Copy the
+shape of `Code/Source/Backends/Htn/`:
 
-Create a new C++ class that implements `IBackend`.
+```
+Code/Source/Backends/MyParadigm/
+├── gem.json
+├── CMakeLists.txt
+├── Registry/assetprocessor_settings.setreg
+├── Assets/GOAT_MyParadigm/Scripts/MyParadigm.lua
+└── Code/
+    ├── CMakeLists.txt
+    ├── goat_myparadigm_*_files.cmake
+    ├── Platform/
+    └── Source/
+        ├── Clients/GOAT_MyParadigmSystemComponent.{h,cpp}
+        ├── Tools/GOAT_MyParadigmEditorSystemComponent.{h,cpp}
+        └── MyParadigmBackend.{h,cpp}
+```
 
-**Header (MyGoapBackend.h):**
+Then add it to the root `gem.json`'s `external_subdirectories`.
+
+> **Don't skip the Editor variant.** A gem with no Tools target is invisible to the Asset
+> Processor, so its scan folder is never merged and its Lua never compiles. It also won't load in
+> the Editor at all. This costs an hour to diagnose and a minute to avoid.
+
+---
+
+## Step 2 — Decide what per-agent state you need
 
 ```cpp
-#pragma once
-
-#include <GOAT/Interfaces/IBackend.h>
-#include <AzCore/Memory/SystemAllocator.h>
-
-namespace MyModule
+struct MyState final
 {
-    class MyGoapBackend final : public GOAT::IBackend
-    {
-    public:
-        AZ_CLASS_ALLOCATOR(MyGoapBackend, AZ::SystemAllocator);
+    AZ::u16 m_currentGoal = 0;
+    float m_lastScore = 0.0f;
+};
 
-        AZ::Name GetName() const override { return AZ_NAME_LITERAL("MyGoap"); }
-
-        bool Plan(const GOAT::PlanContext& context, const GOAT::Intent& intent, GOAT::ActionPlan& outPlan) override;
-
-        void CollectGuards(
-            const GOAT::PlanContext& context,
-            const GOAT::ActionPlan& plan,
-            GOAT::GuardList& outGuards) const override;
-
-        void Release(const GOAT::PlanContext& context) override;
-    };
-}
+size_t GetStateSize() const override { return sizeof(MyState); }
 ```
 
-**Implementation (MyGoapBackend.cpp):**
+The runtime carves that many bytes out of the agent record and hands them back as a
+`BrainState`, which is just `span<AZ::u8>`. The core never looks inside.
+
+Keep it small. It is per agent, and the whole record is 248 bytes today.
+
+---
+
+## Step 3 — Claim your words
 
 ```cpp
-#include "MyGoapBackend.h"
-#include <AzCore/Name/NameDictionary.h>
-
-namespace MyModule
+AZStd::vector<AZ::Name> GetNodeTypes() const override
 {
-    bool MyGoapBackend::Plan(const GOAT::PlanContext& context, const GOAT::Intent& intent, GOAT::ActionPlan& outPlan)
-    {
-        // Implement your planning algorithm here.
-        // Read goals, check preconditions, generate steps.
-        // If planning fails, return false.
-
-        outPlan.m_steps.clear();
-
-        // Example: A simple plan for "DefeatEnemy"
-        if (intent.m_goal == AZ_NAME_LITERAL("DefeatEnemy"))
-        {
-            GOAT::ActionRequest move;
-            move.m_action = m_moveToActionId; // Resolve via ActionStateRegistry
-            move.m_targetKey = context.m_blackboard->FindKey(AZ::Name("TargetPosition"));
-            outPlan.m_steps.push_back(move);
-
-            GOAT::ActionRequest attack;
-            attack.m_action = m_attackActionId;
-            outPlan.m_steps.push_back(attack);
-
-            return true;
-        }
-
-        return false;
-    }
-
-    void MyGoapBackend::CollectGuards(const GOAT::PlanContext& context, const GOAT::ActionPlan& plan, GOAT::GuardList& outGuards) const
-    {
-        // Report conditions that invalidate the plan while running.
-        // e.g., "Target is dead" or "Health is low"
-    }
-
-    void MyGoapBackend::Release(const GOAT::PlanContext& context)
-    {
-        // Clean up per-agent state if any.
-    }
+    return { AZ::Name("consideration"), AZ::Name("scorer") };
 }
 ```
 
----
+These are the words your backend gives meaning to. Then declare them in Lua so authors can type
+them:
 
-### Step 2: Register the Backend
+```lua
+-- Assets/GOAT_MyParadigm/Scripts/MyParadigm.lua
+GOAT_DeclareNode("consideration", "name")
+GOAT_DeclareNode("scorer", "key")
 
-To make the backend available to the system, you must register it with `IAgentSystem`. This is typically done in your module's system component `Activate()` method.
+function utility(name)
+    return function(body)
+        return GOAT.Compile(name, GOAT.nodeType("utility")(body))
+    end
+end
+```
+
+`GOAT_DeclareNode` auto-declares a global word for a registered node type, with its main property
+first — so most words need one line. Register the file at startup:
 
 ```cpp
-// MyModuleSystemComponent.cpp
-#include <GOAT/Interfaces/IAgentSystem.h>
-#include "MyGoapBackend.h"
+agents->RegisterVocabularyScript("goat_myparadigm/scripts/myparadigm");
+```
 
-void MyModuleSystemComponent::Activate()
+Do **not** put your words in `GOAT.lua`. That file holds only what every paradigm shares.
+
+---
+
+## Step 4 — Compile
+
+```cpp
+CompileOutcome Compile(const AZ::Name& name, const AuthoredNode& root) override
 {
-    if (auto* agentSystem = GOAT::AgentSystemInterface::Get())
+    auto program = AZStd::shared_ptr<MyProgram>(aznew MyProgram());
+    program->m_name = name;
+    program->m_backend = this;
+
+    if (!Flatten(root, *program))
     {
-        agentSystem->RegisterBackend(AZStd::make_unique<MyGoapBackend>());
+        return AZ::Failure(AZStd::string::format("'%s' has no considerations", name.GetCStr()));
     }
+
+    // Which scopes we guard on. Anything else must never wake us.
+    program->m_watchedScopes[static_cast<size_t>(BlackboardScope::Global)] = true;
+
+    return AZ::Success(AZStd::shared_ptr<const AgentProgram>(AZStd::move(program)));
 }
 ```
 
+Two things to get right.
+
+**Fail with a reason.** `CompileOutcome` carries a string. An author reading "'Patrol' has no
+considerations" fixes it; an author reading "compile failed" files a bug.
+
+**Set `m_watchedScopes` from what you actually read.** This is the reactivity switch. Mark a scope
+you only *write* and every agent wakes on its own output — which, for a program whose steps write
+what its own conditions read, is an infinite replan loop.
+
 ---
 
-### Step 3: Use it in Lua
+## Step 5 — Decide
 
-Once registered, the backend can be used in any behavior tree via the `delegate` node.
+```cpp
+Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
+                ActionResult lastResult, float elapsed, ActionPlan& outPlan) override
+{
+    auto& mine = *reinterpret_cast<MyState*>(state.data());
 
-```lua
-delegate "MyGoap" { goal = "DefeatEnemy" }
-```
+    const AZ::u16 best = ScoreEverything(context, program, mine);
+    if (best == None)
+    {
+        // Nothing to do. Say how long before it is worth asking again.
+        return Decision{ false, 0.5f };
+    }
 
----
+    AZStd::fixed_vector<ActionRequest, 16> steps;
+    BuildSteps(best, steps);
 
-## 🪜 Option B: Writing a Lua Backend
-
-### Step 1: Define the Backend in Lua
-
-Lua backends are simpler and can be defined in any script loaded by `GOATAgentComponent`.
-
-```lua
--- MyLuaBackend.lua
-backend "Errand" {
-    plan = function(me, ctx, goal)
-        if goal == "Rest" then
-            return { { action = "wait", seconds = 2.0 } }
-        end
-        return {
-            { action = "script", behavior = "Announce" },
-            { action = "wait", seconds = 0.5 },
-        }
-    end,
+    outPlan = context.m_planStore->Acquire(steps.data(), aznumeric_cast<AZ::u32>(steps.size()));
+    return Decision{ true, 0.0f };
 }
 ```
 
-### Step 2: Register the Script
+`Acquire` borrows a block from the [[PlanStore]] and the runtime gives it back when the plan ends
+or is abandoned. Do not hold the span yourself.
 
-Add the script to the **Scripts** field of your `GOATAgentComponent`. The system automatically detects `backend` declarations and registers them as `LuaBackend` instances.
+Returning `m_planned = false` is a perfectly normal answer. `m_wakeIn` is how long before you are
+worth asking again — return something sensible, not zero, or you will be asked every tick forever.
 
-### Step 3: Use it in Lua
+---
 
-```lua
-delegate "Errand" { goal = "Deliver" }
+## Step 6 — Say when a plan is stale
+
+```cpp
+TickResult Advance(const PlanContext& context, const AgentProgram& program, BrainState state,
+                   float elapsed, size_t runningStep) override
+{
+    if (StillTheBestChoice(context, state)) { return TickResult::Continue; }
+    return TickResult::Abandon;
+}
 ```
 
----
+This is called only when a scope you watch changed, or when `m_wantsTick` is set.
 
-## ✅ Verification
+`Abandon` drops the plan and you get asked to `Decide` again. That is the whole interruption
+contract — you cannot end a step early or reach the state machine, by design.
 
-1. **Build:** The project compiles without errors.
-2. **Console:** Run `goat_listBackends` to see your backend listed.
-3. **Test:** Create a tree with `delegate "YourBackend"` and ensure the plan executes correctly.
-
----
-
-## 🆘 Troubleshooting
-
-| Issue | Cause | Solution |
-| :--- | :--- | :--- |
-| Backend not listed in `goat_listBackends` | Not registered correctly | Check your `Activate()` method and ensure `IAgentSystem::RegisterBackend` is called. |
-| Lua error: `Unknown backend` | The script wasn't loaded or the name doesn't match | Ensure the script is loaded and the backend name matches exactly. |
-| Plan returns `nil` | The backend couldn't plan for the given goal | Add a fallback plan or ensure the goal is handled. |
+> **The trap worth naming.** Do not re-check the conditions that *chose* the plan. Re-check the
+> conditions of what has **not run yet**. A plan whose own steps write the variable its choice was
+> made on will otherwise abandon itself forever. The HTN backend hit exactly this and validates
+> only the remaining primitives.
 
 ---
 
-## 🔗 Related Guides
+## Step 7 — Register it
 
-- [[Adding New Actions]]
-- [[Creating a Director AI]]
-- [[IBackend]]
-- [[LuaBackend]]
+```cpp
+void GOAT_MyParadigmSystemComponent::Activate()
+{
+    auto backend = AZStd::unique_ptr<GOAT::IDecisionBackend>(aznew MyParadigmBackend(...));
+
+    bool registered = false;
+    GOAT::GOATBackendRequestBus::BroadcastResult(
+        registered, &GOAT::GOATBackendRequests::RegisterDecisionBackend, backend);
+
+    AZ_Error("GOAT", registered, "The my_paradigm backend could not be registered");
+}
+```
+
+The parameter is a reference to the `unique_ptr` so ownership survives the bus. Names are unique;
+a taken one fails and says so.
+
+Agents then pick it by putting `my_paradigm` in the **Brain** field.
 
 ---
 
-*Last updated: 2026-08-26*
+## Step 8 — Test it
+
+Unit tests need no entity and no level. `Code/Tests/Backends/HtnTests.cpp` is the pattern; the
+minimum is:
+
+- a program compiles, and a bad one fails with a useful message
+- `Decide` produces the steps you expect
+- `Advance` returns `Abandon` when it should
+- `Advance` returns `Continue` when the agent's **own** step wrote the variable
+
+That last one is the regression test for the trap in step 6. Write it first.
+
+---
+
+## Checklist
+
+- [ ] Own gem, listed in the root `gem.json`, with an Editor variant
+- [ ] `GetStateSize` matches what you actually store
+- [ ] Words declared in your own Lua file, not `GOAT.lua`
+- [ ] `Compile` fails with a reason
+- [ ] `m_watchedScopes` set from what you **read**
+- [ ] `Decide` returns a sensible `m_wakeIn` when it plans nothing
+- [ ] `Advance` re-checks what has not run yet, not what chose the plan
+- [ ] Tests, including the replan-on-own-effects one
+
+---
+
+## Related
+
+- [[IDecisionBackend]]
+- [[Backend Abstraction Theory]]
+- [[Extensibility Model]]
+- [[AgentProgram]]
+- [[PlanStore]]
+- [[Backends]]
+
+---
+
+*Last updated: 2026-08-27*

@@ -1,7 +1,6 @@
 #include "GOAT_NavigationSystemComponent.h"
 
 #include <Navigation/MoveToAction.h>
-#include <Navigation/ReachFilters.h>
 #include <Navigation/SpatialChecks.h>
 
 #include <GOAT_Navigation/GOAT_NavigationTypeIds.h>
@@ -148,20 +147,6 @@ namespace GOAT_Navigation
             InstallNavigationVerb(
                 m_vocabulary, AZStd::unique_ptr<GOAT::IActionState>(aznew DoesPathExistAction(*m_service)),
                 "key", GOAT::BlackboardType::Vector3, "Succeeds when a walkable path to a position exists");
-
-        // A director's reach can then narrow by something the core cannot judge: how far an agent
-        // actually is to walk, and whether it is in front.
-        const auto installFilter = [this, agents](AZStd::unique_ptr<GOAT::IReachFilter> filter)
-        {
-            const AZ::Name name = filter->GetName();
-            if (agents->RegisterReachFilter(AZStd::move(filter)))
-            {
-                m_vocabulary.Own(name);
-            }
-        };
-
-        installFilter(AZStd::unique_ptr<GOAT::IReachFilter>(aznew PathDistanceFilter(*m_service)));
-        installFilter(AZStd::unique_ptr<GOAT::IReachFilter>(aznew AheadOfFilter()));
 
         AZ_Error("GOAT", installed, "The navigation module could not install its full vocabulary");
         return installed;

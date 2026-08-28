@@ -6,7 +6,7 @@ tags: [cpp, core, domain]
 
 # DecisionService
 
-> **File Location:** `Code/Include/GOAT/Domain/DecisionProgram.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Include/GOAT_BehaviorTree/DecisionProgram.h`  
 > **Inherits:** None (Plain struct)
 
 ---
@@ -61,7 +61,7 @@ graph LR
 `TreeCompiler` reads the `behavior` and `interval` properties from an authored service node and stores them in a `DecisionService`:
 
 ```cpp
-// Code/Source/Core/Frontend/TreeCompiler.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.cpp
 DecisionService service;
 if (const AZStd::any* behavior = FindProperty(authoredService, AZ_NAME_LITERAL("behavior")))
 {
