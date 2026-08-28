@@ -14,7 +14,7 @@ This folder documents **theoretical designs for future modules and systems**. Th
 
 | Note | Description |
 | :--- | :--- |
-| [[Navigation Library]] | Theoretical design for movement actions (`MoveTo`, `Wander`, etc.) as `IActionState`s. |
+| [[Navigation Library]] *(superseded — see [[Navigation]])* | Theoretical design for movement actions (`MoveTo`, `Wander`, etc.) as `IActionState`s. |
 | [[Bark System]] | Theoretical design for trigger-volume based social reactions. |
 | [[Perception Module]] | Theoretical design for sensor-based perception via Lua `service` nodes. |
 

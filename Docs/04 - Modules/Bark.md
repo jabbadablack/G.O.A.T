@@ -6,10 +6,8 @@ tags: [module, bark, missing]
 
 # Bark
 
-> **Status:** Planned  
-> **Folder:** `Code/Source/Modules/Animation/` (Potentially)  
-> **Build Flag:** `GOAT_WITH_ANIMATION=ON` (auto-enables if `EMotionFX` gem exists)  
-> **Current State:** Empty (No implementation exists yet)
+> **Status:** Planned — nothing is implemented yet.
+> **Would live in:** `Modules/Bark/`, as its own gem like every other module.
 
 ---
 
