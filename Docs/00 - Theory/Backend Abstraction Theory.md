@@ -6,299 +6,148 @@ tags: [architecture, design, philosophy]
 
 # Backend Abstraction Theory
 
-> **Category:** Architectural Pattern  
-> **Status:** Implemented  
-> **Core Files:** `Code/Include/GOAT/Interfaces/IBackend.h`, `Code/Source/Core/Frontend/DirectBackend.cpp`, `Code/Source/Core/Scripting/LuaBackend.cpp`, `Code/Source/Core/Application/BackendRegistry.cpp`
+> **Status:** Implemented
+> **Core files:** `Code/Include/GOAT/Interfaces/IDecisionBackend.h`, `Code/Include/GOAT/Interfaces/IBackend.h`
 
 ---
 
-## 💡 Core Concept
+## The idea
 
-The **Backend Abstraction** is the single most important architectural pattern in G.O.A.T. It treats all AI decision-making as a **planning problem**. Instead of hardcoding Behavior Trees, HTN, GOAP, or Utility AI as separate systems, G.O.A.T. routes every decision through a unified interface:
+Most AI frameworks pick a paradigm and build everything around it. You get a behaviour tree
+framework, or an HTN framework, and swapping means starting over.
+
+GOAT does not pick. The core knows about **agents, a blackboard, plans, and actions** — and
+nothing about how decisions are made. A paradigm is a backend, a backend is a gem, and a project
+that only wants task networks deletes the behaviour tree gem.
+
+The test of whether that is real: `grep -r 'BehaviorTree\|Htn' Code/Source/Core/` returns nothing.
+
+---
+
+## The contract
 
 ```cpp
-// Code/Include/GOAT/Interfaces/IBackend.h
-class IBackend
+class IDecisionBackend
 {
 public:
-    AZ_RTTI(IBackend, IBackendTypeId);
-
-    virtual ~IBackend() = default;
-
-    // Name this backend is registered under and referenced by from Lua.
     virtual AZ::Name GetName() const = 0;
+    virtual AZStd::vector<AZ::Name> GetNodeTypes() const = 0;
+    virtual CompileOutcome Compile(const AZ::Name& name, const AuthoredNode& root) = 0;
+    virtual size_t GetStateSize() const = 0;
 
-    // Produces a plan for one intent. Returns false when this backend cannot satisfy it.
-    virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
-
-    // Reports the conditions that invalidate the plan while it runs.
-    virtual void CollectGuards(
-        [[maybe_unused]] const PlanContext& context,
-        [[maybe_unused]] const ActionPlan& plan,
-        [[maybe_unused]] GuardList& outGuards) const { }
-
-    // Releases any per agent state held for this agent.
-    virtual void Release([[maybe_unused]] const PlanContext& context) { }
+    virtual void Attach(const PlanContext&, const AgentProgram&, BrainState);
+    virtual TickResult Advance(const PlanContext&, const AgentProgram&, BrainState,
+                               float elapsed, size_t runningStep);
+    virtual Decision Decide(const PlanContext&, const AgentProgram&, BrainState,
+                            ActionResult lastResult, float elapsed, ActionPlan& outPlan);
+    virtual void Release(const PlanContext&);
 };
 ```
 
-Any leaf node in a tree can emit an `Intent`, and any backend can turn that `Intent` into an `ActionPlan`. This unifies all AI paradigms under one contract.
+Strip it down and every paradigm answers the same two questions:
+
+- **`Decide` — what next?**
+- **`Advance` — does what you are doing still hold?**
+
+A behaviour tree answers the first by walking to the next runnable leaf and the second by
+re-checking guards. A task network answers the first by decomposing tasks and the second by
+re-validating the remaining primitives. GOAP would answer them by searching and by checking
+preconditions. Same two questions.
 
 ---
 
-## 🗺️ Visual Overview
+## What makes it work: the runtime owns the plan
 
-```mermaid
-graph TD
-    subgraph Tree[Behavior Tree]
-        A[Action Leaf] -->|Intent| B[Delegate Leaf]
-        B -->|Intent with Goal| C[BackendRegistry]
-    end
+`Advance` returns `Continue` or `Abandon`. That is all a backend can say about a running plan.
 
-    subgraph Backends[Backend Implementations]
-        C --> D[DirectBackend]
-        C --> E[LuaBackend]
-        C --> F[Future GOAP Backend]
-        C --> G[Future HTN Backend]
-        C --> H[Director AI Backend]
-    end
+It cannot end a step early, cannot run one itself, cannot reach `AgentStateMachine`. The
+[[PlanContext]] it is handed contains the agent, the entity, the blackboard, optional scripting,
+and the plan store — deliberately not the agent registry or the state machine.
 
-    subgraph Plans[Action Plans]
-        D --> I[Plan: RunScript/Wait]
-        E --> J[Plan: Custom Steps]
-        F --> K[Plan: Complex Sequence]
-        G --> L[Plan: Hierarchical Tasks]
-        H --> M[Plan: Global Directives]
-    end
-
-    subgraph Execution[Execution]
-        I --> N[AgentStateMachine]
-        J --> N
-        K --> N
-        L --> N
-        M --> N
-        N --> O[IActionState]
-        O --> P[Game World]
-    end
-```
+This is the constraint that does the real work. Because no backend can reach into execution, two
+of them can run in the same level on different agents without knowing about each other. Loosen it
+and paradigms stop composing.
 
 ---
 
-## 🤔 Why This Matters
+## What makes them interoperate: the blackboard
 
-### The Problem with Traditional AI Frameworks
+The two paradigms in the Scry test bench never call each other. A task network writes
+`crowd_pace`; a hundred behaviour trees read it. Nothing is wired up.
 
-In most game AI systems, you have to pick a paradigm upfront:
+Two things make that work without polling:
 
-- **Behavior Trees:** Great for reactive, hierarchical logic, but poor for complex planning.
-- **GOAP:** Great for goal-driven planning, but verbose and hard to author for simple behaviors.
-- **HTN:** Great for structured tasks, but rigid and requires significant setup.
-- **Utility AI:** Great for scoring-based decisions, but lacks deep hierarchy.
+- A declared `condition` **is** a dependency. Compiling one records the scope it reads, so the
+  agent is woken when that scope changes. You do not write `abort` to get this; it is the default.
+- [[GuardWatch]] counts changes per scope rather than registering callbacks. One global write is
+  one increment, not a walk of the level.
 
-If you want a game with a mix of NPC types (some using BT, some using GOAP, some using HTN), you typically have to build separate systems or hack around the limitations.
-
-### The G.O.A.T. Solution
-
-G.O.A.T. makes **all of these paradigms interchangeable** through `IBackend`. A tree can use a simple `script` leaf (handled by `DirectBackend`), or it can `delegate` to a complex GOAP planner. The tree structure doesn't change – only the backend does.
-
-This gives you:
-
-- **Flexibility:** Use the right tool for the right job.
-- **Modularity:** Add new backends without touching the core engine.
-- **Runtime Swapping:** Change an NPC's planning strategy at runtime by swapping backends.
+So "the director changed the pace and the crowd reacted" costs one integer write. That is the
+whole integration story between paradigms.
 
 ---
 
-## 🧩 How It Works in the Code
-
-### The Intent
-
-An `Intent` is the message a tree leaf sends to a backend. It contains either:
-
-- A direct action (from `raw` or `script` leaves), or
-- A backend name + goal (from `delegate` leaves).
+## Per-agent state, without the core knowing what it is
 
 ```cpp
-// Code/Include/GOAT/Domain/Intent.h
-struct Intent
-{
-    AZ::Name m_backend;
-    AZ::Name m_goal;
-    ActionRequest m_direct;
-    NodeIndex m_node = InvalidNodeIndex;
-};
+using BrainState = AZStd::span<AZ::u8>;
 ```
 
-### The PlanContext
+A backend says how many bytes it needs with `GetStateSize()`. The runtime carves that many out of
+the agent record and hands the span back on every call. The core never looks inside.
 
-When a backend plans, it receives a `PlanContext` that gives it access to everything it needs:
-
-```cpp
-// Code/Include/GOAT/Interfaces/IBackend.h
-struct PlanContext
-{
-    AgentId m_agent;
-    AZ::EntityId m_entity;
-    IBlackboardSystem* m_blackboard = nullptr;
-    INodeScripting* m_scripting = nullptr;
-};
-```
-
-- **AgentId:** Identifies which agent is planning.
-- **EntityId:** The entity the agent drives.
-- **Blackboard:** Shared data, allowing the backend to read/write variables.
-- **Scripting:** Allows access to custom Lua control flow (if needed).
-
-### The BackendRegistry
-
-Backends are registered by name and looked up when a `delegate` node is encountered:
-
-```cpp
-// Code/Source/Core/Application/BackendRegistry.cpp
-class BackendRegistry final
-{
-public:
-    bool Register(AZStd::unique_ptr<IBackend> backend);
-    void Unregister(const AZ::Name& name);
-    IBackend* Find(const AZ::Name& name) const;
-    AZStd::vector<AZ::Name> GetNames() const;
-    void Clear();
-};
-```
-
-When the `TreeWalker` hits a `delegate` node, it:
-
-1. Extracts the backend name from the intent.
-2. Looks it up in the `BackendRegistry`.
-3. Calls `IBackend::Plan()` with the intent and context.
-4. Receives an `ActionPlan` or failure.
+A behaviour tree keeps a `DecisionCursor` there. A task network keeps the task indices of the
+plan it is running. Neither type appears anywhere in the core.
 
 ---
 
-## ⚖️ Concrete Examples
+## The other IBackend
 
-### DirectBackend
-
-The simplest backend. It handles `raw` and `script` leaves by producing a one-step plan.
+[[IBackend]] is a second, narrower seam and it still exists:
 
 ```cpp
-// Code/Source/Core/Frontend/DirectBackend.cpp
-bool DirectBackend::Plan(
-    [[maybe_unused]] const PlanContext& context, const Intent& intent, ActionPlan& outPlan)
-{
-    if (intent.m_direct.m_action == CoreActions::Invalid)
-    {
-        return false;
-    }
-
-    outPlan.m_steps.clear();
-    outPlan.m_steps.push_back(intent.m_direct);
-    return true;
-}
+virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
 ```
 
-**When is this used?** Whenever you write a simple tree like:
+One intent in, one plan out. It is what a `delegate` leaf reaches, and [[LuaBackend]] implements
+it so a planner can be written in Lua without touching C++.
 
-```lua
-script "Patrol",
-wait(0.5)
-```
+The two are not competing. `IDecisionBackend` is *how this agent thinks*; `IBackend` is *who
+satisfies this one request*. A behaviour tree that delegates to a Lua planner is using both at
+once.
 
 ---
 
-### LuaBackend
+## What it costs
 
-A backend defined entirely in Lua. Used when you want to write planning logic in scripting.
+Honestly: one virtual call per agent per decision, and a compile step per paradigm that is
+compiled once and shared by every agent running it.
 
-```lua
--- Example from ExampleAdvanced.lua
-backend "Errand" {
-    plan = function(me, ctx, goal)
-        if goal == "Rest" then
-            return { { action = "wait", seconds = 2.0 } }
-        end
-        return {
-            { action = "script", behavior = "Announce" },
-            { action = "wait", seconds = 0.5 },
-        }
-    end,
-}
-```
-
-The C++ side wraps this in a `LuaBackend`:
-
-```cpp
-// Code/Source/Core/Scripting/LuaBackend.cpp
-bool LuaBackend::Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan)
-{
-    m_scriptContext.Bind(context.m_agent, context.m_entity, context.m_blackboard);
-    const ActionPlan* planned = m_dispatch.CallBackendPlan(m_name, intent.m_goal, context.m_agent, m_scriptContext);
-    m_scriptContext.Unbind();
-
-    if (planned == nullptr || planned->IsEmpty())
-    {
-        return false;
-    }
-
-    outPlan = *planned;
-    return true;
-}
-```
-
-### Future Backends
-
-Imagine you want to add full GOAP. You would:
-
-1. Create a new C++ class implementing `IBackend`.
-2. Register it in `GOATSystemComponent` or a module.
-3. Use it in a tree like this:
-
-```lua
-delegate "MyGoap" { goal = "DefeatEnemy" }
-```
-
-No changes to the core engine required.
+`BM_TickBand` measures about **13 ns per agent** for a full band tick, and an agent record is
+**248 bytes**. The abstraction is not where the time goes.
 
 ---
 
-## 🗺️ Impact on Modules
+## The two that ship
 
-This abstraction is what makes **Director AI** possible. A Director is simply a backend running at the **Global** or **Squad** blackboard scope.
+| Backend | Name | Gem | Program type |
+| :--- | :--- | :--- | :--- |
+| `BehaviorTreeBackend` | `tree` | GOAT_BehaviorTree | [[DecisionProgram]] |
+| `HtnBackend` | `htn` | GOAT_Htn | `HtnDomain` |
 
-```mermaid
-graph TD
-    subgraph Agent[Individual Agent]
-        A[Tree] --> B[Delegate Leaf]
-        B --> C[Local Backend]
-        C --> D[Individual Actions]
-    end
-
-    subgraph Director[Director AI]
-        E[Global Tree] --> F[Delegate Leaf]
-        F --> G[Director Backend]
-        G --> H[Global Directives]
-    end
-
-    D --> I[Game World]
-    H --> I
-```
-
-The Director can:
-
-- Read player progress from the Global Blackboard.
-- Spawn enemies (via actions).
-- Write to Squad Blackboards to coordinate groups.
-- Change difficulty by modifying shared variables.
+Both are ordinary gems. Neither is referenced by name anywhere in the core.
 
 ---
 
-## 🔗 Related Concepts
+## Related
 
+- [[IDecisionBackend]]
+- [[IBackend]]
+- [[Extensibility Model]]
+- [[Layered Overview]]
 - [[Design Principles]]
 - [[Performance Model]]
-- [[Extensibility Model]]
-- [[Director AI]]
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-27*
