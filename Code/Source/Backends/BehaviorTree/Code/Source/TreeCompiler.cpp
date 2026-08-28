@@ -509,6 +509,19 @@ namespace GOAT
             node.m_action.m_tag = node.m_tag;
         }
 
+        // What this node names is compiled by whoever owns that word, which is the core's job:
+        // the compiler running here knows one paradigm and the named program may be another.
+        if (descriptor->m_nestsProgram)
+        {
+            const DecisionNode& node = program.m_nodes[index];
+            const bool oneShot = descriptor->m_op == NodeOp::Delegate;
+            const AZ::Name named = oneShot ? node.m_goal : node.m_action.m_tag;
+            if (!named.IsEmpty())
+            {
+                program.m_nested.push_back({ oneShot ? node.m_tag : AZ::Name{}, named, !oneShot });
+            }
+        }
+
         // Guards are the only thing that needs observing, so collect just those keys.
         {
             const DecisionNode& node = program.m_nodes[index];

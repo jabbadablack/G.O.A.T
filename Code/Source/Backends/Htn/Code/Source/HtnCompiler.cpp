@@ -207,6 +207,14 @@ namespace GOAT
                 }
                 task.m_action = request.GetValue();
                 hasOperator = true;
+
+                // What this primitive names is compiled by whoever owns that word, which is the
+                // core's job: the named program may belong to another paradigm entirely.
+                const NodeTypeDescriptor* word = m_host.FindNodeType(AZ::Name(child.m_type));
+                if (word != nullptr && word->m_nestsProgram && !task.m_action.m_tag.IsEmpty())
+                {
+                    domain.m_nested.push_back({ AZ::Name{}, task.m_action.m_tag, true });
+                }
             }
         }
 

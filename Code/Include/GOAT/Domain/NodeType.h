@@ -76,6 +76,10 @@ namespace GOAT
         AZStd::string m_description;
         //! Properties this node type accepts.
         AZStd::vector<NodeParameter> m_parameters;
+        //! This node hands its work to the program its name property points at, rather than
+        //! running a verb here. What compiles that program is the core's business, not a
+        //! compiler's, so a backend opts in by setting this rather than knowing the word.
+        bool m_nestsProgram = false;
     };
 
     //! Reflects the node type enums for serialization and scripting.

@@ -76,6 +76,7 @@ namespace GOAT
             "Hands an intent to a named backend");
         delegate.m_parameters.push_back(Param("backend", BlackboardType::Name, false, true));
         delegate.m_parameters.push_back(Param("goal", BlackboardType::Name));
+        delegate.m_nestsProgram = true;
         Register(AZStd::move(delegate));
     }
 
