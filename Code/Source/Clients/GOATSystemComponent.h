@@ -117,6 +117,10 @@ namespace GOAT
         bool RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend) override;
         void UnregisterDecisionBackend(const AZ::Name& name) override;
         IDecisionBackend* FindDecisionBackend(const AZ::Name& name) const override;
+
+        //! The backend that runs a program: the one that compiled it, or failing that the one
+        //! that owns the word its authored root is written as.
+        IDecisionBackend* FindProgramBackend(const AZ::Name& programName) const;
         AZStd::vector<AZ::Name> GetDecisionBackendNames() const override;
         ////////////////////////////////////////////////////////////////////////
 
@@ -253,6 +257,9 @@ namespace GOAT
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
         AZStd::unique_ptr<DecisionBackendRegistry> m_decisionBackends;
+        //! Which backend gives each authored word meaning, so a program can be placed with the
+        //! paradigm that owns its root without the core ever naming one.
+        AZStd::unordered_map<AZ::Name, IDecisionBackend*> m_nodeTypeOwners;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TreeLibrary> m_trees;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;

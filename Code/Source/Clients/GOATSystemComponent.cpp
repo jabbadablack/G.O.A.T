@@ -910,9 +910,9 @@ namespace GOAT
         size_t recompiled = 0;
         for (const AZ::Name& name : affected)
         {
-            const auto current = m_programs.find(name);
-            const IDecisionBackend* backend =
-                current != m_programs.end() ? current->second->m_backend : nullptr;
+            // Asked of the program when it has one and of its root word when it does not, which
+            // is what lets a tree that never compiled because its slot was unbound compile now.
+            const IDecisionBackend* backend = FindProgramBackend(name);
             if (backend == nullptr)
             {
                 continue;
@@ -1055,15 +1055,75 @@ namespace GOAT
 
     bool GOATSystemComponent::RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend)
     {
-        return m_decisionBackends != nullptr && m_decisionBackends->Register(AZStd::move(backend));
+        if (m_decisionBackends == nullptr || backend == nullptr)
+        {
+            return false;
+        }
+
+        IDecisionBackend* raw = backend.get();
+        if (!m_decisionBackends->Register(AZStd::move(backend)))
+        {
+            return false;
+        }
+
+        // Which paradigm a program belongs to is answered by whoever gave its root word meaning.
+        // That is the only thing the core can ask without naming a backend it must not know.
+        for (const AZ::Name& word : raw->GetNodeTypes())
+        {
+            const auto claimed = m_nodeTypeOwners.find(word);
+            AZ_Warning("GOAT", claimed == m_nodeTypeOwners.end(),
+                "Backends '%s' and '%s' both claim the word '%s'; a program rooted in it cannot be placed",
+                claimed != m_nodeTypeOwners.end() ? claimed->second->GetName().GetCStr() : "",
+                raw->GetName().GetCStr(), word.GetCStr());
+            m_nodeTypeOwners[word] = raw;
+        }
+
+        return true;
     }
 
     void GOATSystemComponent::UnregisterDecisionBackend(const AZ::Name& name)
     {
-        if (m_decisionBackends != nullptr)
+        if (m_decisionBackends == nullptr)
         {
-            m_decisionBackends->Unregister(name);
+            return;
         }
+
+        if (const IDecisionBackend* going = m_decisionBackends->Find(name))
+        {
+            for (const AZ::Name& word : going->GetNodeTypes())
+            {
+                const auto claimed = m_nodeTypeOwners.find(word);
+                if (claimed != m_nodeTypeOwners.end() && claimed->second == going)
+                {
+                    m_nodeTypeOwners.erase(claimed);
+                }
+            }
+        }
+
+        m_decisionBackends->Unregister(name);
+    }
+
+    IDecisionBackend* GOATSystemComponent::FindProgramBackend(const AZ::Name& programName) const
+    {
+        if (const auto compiled = m_programs.find(programName); compiled != m_programs.end())
+        {
+            return compiled->second->m_backend;
+        }
+
+        // Not compiled yet, so ask the word it is rooted in who gives that word meaning.
+        if (m_dispatch == nullptr)
+        {
+            return nullptr;
+        }
+
+        auto emitted = m_dispatch->EmitTree(programName);
+        if (!emitted.IsSuccess() || emitted.GetValue() == nullptr)
+        {
+            return nullptr;
+        }
+
+        const auto owner = m_nodeTypeOwners.find(AZ::Name(emitted.GetValue()->m_type));
+        return owner != m_nodeTypeOwners.end() ? owner->second : nullptr;
     }
 
     IDecisionBackend* GOATSystemComponent::FindDecisionBackend(const AZ::Name& name) const
