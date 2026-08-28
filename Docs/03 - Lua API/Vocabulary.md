@@ -19,7 +19,7 @@ The vocabulary is what you type when you author AI. It is loaded once at startup
 from more than one file.
 
 `GOAT.lua` holds only what **every paradigm shares** — `condition`, `compare`, `wait`, `raw`,
-`script`, `delegate`, plus the machinery (`behavior`, `flow`, `plan`, `backend`, `GOAT.Compile`).
+`script`, `delegate`, `embed`, plus the machinery (`behavior`, `flow`, `plan`, `backend`, `GOAT.Compile`).
 
 Each backend gem ships its own vocabulary file, run straight after:
 
@@ -114,7 +114,8 @@ They come from different places, and it matters: turn a gem off and its words go
 | `wait` | `seconds` | Waits for a number of seconds. |
 | `script` | `behavior` | Runs a named `behavior`. |
 | `raw` | `action` | Runs any registered verb directly, including one a module contributed. |
-| `delegate` | `backend` | Hands an intent to a named `delegate` planner. |
+| `delegate` | `backend` | Hands an intent to a named planner, or to a whole paradigm, for one plan. |
+| `embed` | `goal` | Runs another program, in whatever paradigm owns it, until it is done. |
 
 > **`condition` is a leaf, not a decorator.** It evaluates and reports; what it guards is the
 > branch it *sits in*, not a child of its own. This catches everyone once.

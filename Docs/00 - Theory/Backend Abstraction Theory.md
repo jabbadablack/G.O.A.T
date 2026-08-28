@@ -68,12 +68,18 @@ This is the constraint that does the real work. Because no backend can reach int
 of them can run in the same level on different agents without knowing about each other. Loosen it
 and paradigms stop composing.
 
+It is also what lets them nest. Running one program inside another means owning a second state
+machine, and no backend may own one -- so the thing that does is a **core verb**, `embed`, and a
+plan step is where the handover happens. See [[Mixing Paradigms]].
+
 ---
 
 ## What makes them interoperate: the blackboard
 
-The two paradigms in the Scry test bench never call each other. A task network writes
-`crowd_pace`; a hundred behaviour trees read it. Nothing is wired up.
+Two paradigms need not call each other at all. A task network writes `crowd_pace`; a hundred
+behaviour trees read it. Nothing is wired up. This is still the loosest way to make them work
+together, and the one to reach for first -- nesting is for when one genuinely has to run inside
+the other.
 
 Two things make that work without polling:
 
@@ -116,6 +122,10 @@ The two are not competing. `IDecisionBackend` is *how this agent thinks*; `IBack
 satisfies this one request*. A behaviour tree that delegates to a Lua planner is using both at
 once.
 
+They are also the same question asked at two scales, which is why a whole paradigm can answer a
+single `delegate` leaf: [[DecisionBackendAdapter]] asks it once and takes the one plan it gives
+back. Nothing had to be registered twice for that to work.
+
 ---
 
 ## What it costs
@@ -124,7 +134,7 @@ Honestly: one virtual call per agent per decision, and a compile step per paradi
 compiled once and shared by every agent running it.
 
 `BM_TickBand` measures about **13 ns per agent** for a full band tick, and an agent record is
-**248 bytes**. The abstraction is not where the time goes.
+**192 bytes**. The abstraction is not where the time goes.
 
 ---
 

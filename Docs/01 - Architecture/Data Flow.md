@@ -195,7 +195,7 @@ agents between them at runtime.
 | `Decide` | when a plan ends | backend's business |
 | plan storage | after warm-up | no allocation — blocks are recycled |
 
-Measured: about **13 ns per agent** for a full band tick, **248 bytes** per agent record.
+Measured: about **13 ns per agent** for a full band tick, **192 bytes** per agent record.
 
 ---
 
