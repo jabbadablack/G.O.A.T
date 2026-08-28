@@ -27,7 +27,7 @@ public:
     bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) override;
 
     // Optional: release any per agent state. Called when an agent unregisters.
-    void Release(const PlanContext&) override;
+    void Release(const PlanContext&, BrainState) override;
 };
 ```
 

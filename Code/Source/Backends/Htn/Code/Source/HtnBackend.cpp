@@ -145,11 +145,11 @@ namespace GOAT
 
         AZLOG_INFO("GOAT: domain '%s' compiled to %zu tasks, %zu methods and %zu variables",
             name.GetCStr(), domain->m_tasks.size(), domain->m_methods.size(), domain->m_touchedKeys.size());
-        return AZ::Success(AZStd::shared_ptr<const AgentProgram>(AZStd::move(domain)));
+        return AZ::Success(AZStd::shared_ptr<AgentProgram>(AZStd::move(domain)));
     }
 
     Decision HtnBackend::Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
-        ActionResult, float, ActionPlan& outPlan)
+        ActionResult lastResult, float, ActionPlan& outPlan)
     {
         Decision decision;
 
@@ -171,6 +171,10 @@ namespace GOAT
             AZLOG(GoatHtn, "GOAT: agent %u domain '%s' found no plan from task '%s'",
                 context.m_agent.GetIndex(), domain.m_name.GetCStr(),
                 domain.m_root < domain.m_tasks.size() ? domain.m_tasks[domain.m_root].m_name.GetCStr() : "<none>");
+
+            // A network with nothing left to decompose is done, not idle: it has no clock and no
+            // guards of its own, so waiting could only ever produce this same answer again.
+            decision.m_result = lastResult == ActionResult::Failure ? ActionResult::Failure : ActionResult::Success;
             return decision;
         }
 

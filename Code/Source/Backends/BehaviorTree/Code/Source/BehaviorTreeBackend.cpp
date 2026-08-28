@@ -60,7 +60,7 @@ namespace GOAT
 
         auto program = AZStd::shared_ptr<DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
         program->m_backend = this;
-        return AZ::Success(AZStd::shared_ptr<const AgentProgram>(AZStd::move(program)));
+        return AZ::Success(AZStd::shared_ptr<AgentProgram>(AZStd::move(program)));
     }
 
     void BehaviorTreeBackend::Attach(
@@ -186,6 +186,7 @@ namespace GOAT
                 if (walkedFromRoot)
                 {
                     decision.m_wakeIn = AZStd::max(step.m_wakeAt - cursor.GetNow(), 0.0f);
+                    decision.m_result = step.m_result;
                     return decision;
                 }
 
@@ -194,6 +195,7 @@ namespace GOAT
                 if (step.m_outcome == WalkOutcome::Finished)
                 {
                     decision.m_wakeIn = AZStd::max(step.m_wakeAt - cursor.GetNow(), 0.0f);
+                    decision.m_result = step.m_result;
                     return decision;
                 }
             }
