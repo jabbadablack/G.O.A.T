@@ -4,8 +4,12 @@ set(FILES
     Source/Clients/AgentBootstrap.cpp
     Source/Clients/AgentBootstrap.h
     Source/Clients/GOATAgentComponent.cpp
+    Source/Clients/GOATDirectorAreaFilterComponent.cpp
+    Source/Clients/GOATDirectorAreaFilterComponent.h
     Source/Clients/GOATDirectorComponent.cpp
     Source/Clients/GOATDirectorComponent.h
+    Source/Clients/GOATDirectorSquadFilterComponent.cpp
+    Source/Clients/GOATDirectorSquadFilterComponent.h
     Source/Clients/GOATAgentComponent.h
     Source/Clients/GOATSystemComponent.cpp
     Source/Clients/GOATSystemComponent.h
@@ -31,7 +35,6 @@ set(FILES
     Source/Core/Application/NamedRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
-    Source/Core/Application/ReachFilterRegistry.h
     Source/Core/Director/DirectorActions.cpp
     Source/Core/Director/DirectorActions.h
     Source/Core/Director/DirectorKeys.cpp

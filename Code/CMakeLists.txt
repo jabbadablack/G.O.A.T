@@ -52,6 +52,7 @@ ly_add_target(
             AZ::AzCore
             AZ::AzFramework
             Gem::${gem_name}.API
+            Gem::LmbrCentral.API
 )
 
 # Here add ${gem_name} target, it depends on the Private Object library and Public API interface

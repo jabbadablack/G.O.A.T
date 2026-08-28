@@ -85,9 +85,8 @@ namespace GOAT
         void UnregisterDirector(AgentId) override {}
         size_t GetReachSize(AgentId) override { return 0; }
         AgentId GetInReach(AgentId, size_t) override { return AgentId{}; }
-        bool RegisterReachFilter(AZStd::unique_ptr<IReachFilter>) override { return false; }
-        void UnregisterReachFilter(const AZ::Name&) override {}
-        AZStd::vector<AZ::Name> GetReachFilterNames() const override { return {}; }
+        bool AttachDirectorFilter(AgentId, IDirectorFilter&) override { return false; }
+        void DetachDirectorFilter(AgentId, IDirectorFilter&) override {}
         void WakeAgents(AZStd::span<const AgentId>) override {}
         bool RegisterBackend(AZStd::unique_ptr<IBackend>) override { return false; }
         void UnregisterBackend(const AZ::Name&) override {}

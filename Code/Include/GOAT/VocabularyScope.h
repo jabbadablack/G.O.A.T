@@ -91,9 +91,6 @@ namespace GOAT
             return true;
         }
 
-        //! Remembers a reach filter so it leaves with the rest.
-        void Own(const AZ::Name& reachFilter) { m_reachFilters.push_back(reachFilter); }
-
         //! Takes everything back out, in the reverse of the order it went in.
         void Clear()
         {
@@ -101,17 +98,10 @@ namespace GOAT
             if (agents == nullptr)
             {
                 // The core shut down first, which takes its registries with it.
-                m_reachFilters.clear();
                 m_nodeTypes.clear();
                 m_actions.clear();
                 return;
             }
-
-            for (const AZ::Name& name : m_reachFilters)
-            {
-                agents->UnregisterReachFilter(name);
-            }
-            m_reachFilters.clear();
 
             for (const AZ::Name& name : m_nodeTypes)
             {
@@ -129,7 +119,6 @@ namespace GOAT
     private:
         AZStd::vector<ActionStateId> m_actions;
         AZStd::vector<AZ::Name> m_nodeTypes;
-        AZStd::vector<AZ::Name> m_reachFilters;
         const char* m_noun = "module";
     };
 } // namespace GOAT

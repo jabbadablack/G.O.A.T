@@ -1,12 +1,11 @@
 #pragma once
 
 #include <Core/Application/AgentRegistry.h>
-#include <Core/Application/ReachFilterRegistry.h>
 
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/DirectorProfile.h>
-#include <GOAT/Interfaces/IBlackboardSystem.h>
+#include <GOAT/Interfaces/IDirectorFilter.h>
 
 #include <AzCore/Time/ITime.h>
 #include <AzCore/std/containers/unordered_map.h>
@@ -22,7 +21,7 @@ namespace GOAT
     class DirectorRegistry final
     {
     public:
-        DirectorRegistry(AgentRegistry& agents, IBlackboardSystem& blackboard, ReachFilterRegistry& filters);
+        explicit DirectorRegistry(AgentRegistry& agents);
 
         //! Makes an agent a director. Fails when it already is one.
         bool Register(AgentId director, const DirectorProfile& profile);
@@ -33,6 +32,14 @@ namespace GOAT
 
         //! Every director, for console output.
         AZStd::vector<AgentId> GetDirectors() const;
+
+        //! Narrows what a director governs. The filter is not owned: the component attaching it
+        //! is the filter, and it detaches before it goes.
+        bool AttachFilter(AgentId director, IDirectorFilter& filter);
+        void DetachFilter(AgentId director, IDirectorFilter& filter);
+
+        //! The filters narrowing a director, for console output.
+        AZStd::vector<const IDirectorFilter*> GetFilters(AgentId director) const;
 
         //! The agents a director governs.
         //!
@@ -77,6 +84,8 @@ namespace GOAT
         struct DirectorRecord final
         {
             DirectorProfile m_profile;
+            //! What narrows this director. Empty means it governs the whole level.
+            AZStd::vector<IDirectorFilter*> m_filters;
             //! The agents governed as of m_resolvedAt.
             AZStd::vector<AgentId> m_reach;
             AZ::TimeMs m_resolvedAt{ 0 };
@@ -84,18 +93,14 @@ namespace GOAT
             AZStd::unordered_map<CooldownKey, AZ::TimeMs, CooldownHash> m_cooldowns;
         };
 
-        //! Fills a record's reach from the roster.
-        //! Cheapest filter first -- squad and tree are map lookups, radius is a distance squared,
-        //! and a named filter may be a path query -- so the expensive one runs for a handful of
-        //! candidates rather than for every agent in the level.
+        //! Fills a record's reach from the roster: every agent but this one, less what any
+        //! attached filter rejects.
         void Evaluate(AgentId director, DirectorRecord& record);
 
         //! Drops cooldown entries for agents that are gone, while already walking the roster.
         void SweepCooldowns(DirectorRecord& record);
 
         AgentRegistry& m_agents;
-        IBlackboardSystem& m_blackboard;
-        ReachFilterRegistry& m_filters;
         AZStd::unordered_map<AgentId, DirectorRecord> m_directors;
 
         //! Returned for an agent that is not a director, so Resolve can hand back a reference.

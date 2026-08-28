@@ -5,7 +5,9 @@
 #include <GOAT/GOATTypeIds.h>
 
 #include <Clients/GOATAgentComponent.h>
+#include <Clients/GOATDirectorAreaFilterComponent.h>
 #include <Clients/GOATDirectorComponent.h>
+#include <Clients/GOATDirectorSquadFilterComponent.h>
 #include <Clients/GOATSystemComponent.h>
 
 namespace GOAT
@@ -25,6 +27,8 @@ namespace GOAT
             GOATSystemComponent::CreateDescriptor(),
             GOATAgentComponent::CreateDescriptor(),
             GOATDirectorComponent::CreateDescriptor(),
+            GOATDirectorAreaFilterComponent::CreateDescriptor(),
+            GOATDirectorSquadFilterComponent::CreateDescriptor(),
             });
     }
 

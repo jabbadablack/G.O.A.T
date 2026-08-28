@@ -8,7 +8,6 @@
 #include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
-#include <Core/Application/ReachFilterRegistry.h>
 #include <Core/Director/DirectorKeys.h>
 #include <Core/Director/DirectorRegistry.h>
 #include <Core/Frontend/TreeLibrary.h>
@@ -77,9 +76,8 @@ namespace GOAT
         void UnregisterDirector(AgentId director) override;
         size_t GetReachSize(AgentId director) override;
         AgentId GetInReach(AgentId director, size_t index) override;
-        bool RegisterReachFilter(AZStd::unique_ptr<IReachFilter> filter) override;
-        void UnregisterReachFilter(const AZ::Name& name) override;
-        AZStd::vector<AZ::Name> GetReachFilterNames() const override;
+        bool AttachDirectorFilter(AgentId director, IDirectorFilter& filter) override;
+        void DetachDirectorFilter(AgentId director, IDirectorFilter& filter) override;
         bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) override;
         void UnregisterBackend(const AZ::Name& name) override;
         bool RegisterNodeType(NodeTypeDescriptor descriptor) override;
@@ -144,7 +142,6 @@ namespace GOAT
         void SetAgentBandCommand(const AZ::ConsoleCommandContainer& arguments);
         void ListDirectors(const AZ::ConsoleCommandContainer& arguments);
         void DumpDirector(const AZ::ConsoleCommandContainer& arguments);
-        void ListReachFilters(const AZ::ConsoleCommandContainer& arguments);
         void ListSquads(const AZ::ConsoleCommandContainer& arguments);
         void RebindSubtreeCommand(const AZ::ConsoleCommandContainer& arguments);
         void SetVariable(const AZ::ConsoleCommandContainer& arguments);
@@ -175,11 +172,9 @@ namespace GOAT
         AZ_CONSOLEFUNC(GOATSystemComponent, SetAgentBandCommand, AZ::ConsoleFunctorFlags::Null,
             "Moves one agent to another pacing band, by entity id and band index");
         AZ_CONSOLEFUNC(GOATSystemComponent, ListDirectors, AZ::ConsoleFunctorFlags::Null,
-            "Lists every director, its reach and how many agents it governs");
+            "Lists every director, what narrows it and how many agents it governs");
         AZ_CONSOLEFUNC(GOATSystemComponent, DumpDirector, AZ::ConsoleFunctorFlags::Null,
             "Lists exactly the agents one director governs, by entity id");
-        AZ_CONSOLEFUNC(GOATSystemComponent, ListReachFilters, AZ::ConsoleFunctorFlags::Null,
-            "Lists the reach filters modules have contributed");
         AZ_CONSOLEFUNC(GOATSystemComponent, ListSquads, AZ::ConsoleFunctorFlags::Null,
             "Lists every squad that currently has a member");
         AZ_CONSOLEFUNC(GOATSystemComponent, RebindSubtreeCommand, AZ::ConsoleFunctorFlags::Null,
@@ -252,7 +247,6 @@ namespace GOAT
         //! Where every plan's steps live. Outlives the agents, because their plans are spans
         //! into it rather than copies.
         AZStd::unique_ptr<PlanStore> m_planStore;
-        AZStd::unique_ptr<ReachFilterRegistry> m_reachFilters;
         AZStd::unique_ptr<DirectorRegistry> m_directors;
         DirectorKeys m_directorKeys;
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;

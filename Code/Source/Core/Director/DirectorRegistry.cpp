@@ -1,32 +1,12 @@
 #include <Core/Director/DirectorRegistry.h>
 
-#include <AzCore/Component/TransformBus.h>
 #include <AzCore/Console/ILogger.h>
+#include <AzCore/std/algorithm.h>
 
 namespace GOAT
 {
-    namespace
-    {
-        //! An agent's world position, or false when it has no transform to read.
-        //! Checked rather than inferred from the result: an entity with no transform handler
-        //! leaves the identity in place, which would put every agent at the origin.
-        bool FindPosition(AZ::EntityId entity, AZ::Vector3& outPosition)
-        {
-            if (!entity.IsValid() || !AZ::TransformBus::HasHandlers(entity))
-            {
-                return false;
-            }
-
-            AZ::TransformBus::EventResult(outPosition, entity, &AZ::TransformInterface::GetWorldTranslation);
-            return true;
-        }
-    } // namespace
-
-    DirectorRegistry::DirectorRegistry(
-        AgentRegistry& agents, IBlackboardSystem& blackboard, ReachFilterRegistry& filters)
+    DirectorRegistry::DirectorRegistry(AgentRegistry& agents)
         : m_agents(agents)
-        , m_blackboard(blackboard)
-        , m_filters(filters)
     {
     }
 
@@ -61,6 +41,60 @@ namespace GOAT
         // Every cooldown this director owned goes with the record, which is the point of holding
         // them here rather than on the agents it was commanding.
         m_directors.erase(director);
+    }
+
+    bool DirectorRegistry::AttachFilter(AgentId director, IDirectorFilter& filter)
+    {
+        const auto found = m_directors.find(director);
+        if (found == m_directors.end())
+        {
+            AZ_Error("GOAT", false, "Agent %u is not a director, so nothing can narrow it", director.GetIndex());
+            return false;
+        }
+
+        AZStd::vector<IDirectorFilter*>& filters = found->second.m_filters;
+        if (AZStd::find(filters.begin(), filters.end(), &filter) != filters.end())
+        {
+            return false;
+        }
+
+        filters.push_back(&filter);
+
+        // The cached reach was resolved without this filter, so it has to be resolved again
+        // rather than waiting out the band it was cached for.
+        found->second.m_resolvedOnce = false;
+        return true;
+    }
+
+    void DirectorRegistry::DetachFilter(AgentId director, IDirectorFilter& filter)
+    {
+        const auto found = m_directors.find(director);
+        if (found == m_directors.end())
+        {
+            return;
+        }
+
+        AZStd::vector<IDirectorFilter*>& filters = found->second.m_filters;
+        const auto at = AZStd::find(filters.begin(), filters.end(), &filter);
+        if (at == filters.end())
+        {
+            return;
+        }
+
+        filters.erase(at);
+        found->second.m_resolvedOnce = false;
+    }
+
+    AZStd::vector<const IDirectorFilter*> DirectorRegistry::GetFilters(AgentId director) const
+    {
+        const auto found = m_directors.find(director);
+        if (found == m_directors.end())
+        {
+            return {};
+        }
+
+        return AZStd::vector<const IDirectorFilter*>(
+            found->second.m_filters.begin(), found->second.m_filters.end());
     }
 
     const DirectorProfile* DirectorRegistry::FindProfile(AgentId director) const
@@ -113,29 +147,6 @@ namespace GOAT
     {
         record.m_reach.clear();
 
-        const DirectorReach& reach = record.m_profile.m_reach;
-        const AgentRecord* self = m_agents.Find(director);
-        AZ_Assert(self != nullptr, "A director is an agent, so its own record must exist");
-        if (self == nullptr)
-        {
-            return;
-        }
-
-        AZ::Vector3 directorPosition = AZ::Vector3::CreateZero();
-        const bool haveDirectorPosition = FindPosition(self->m_entity, directorPosition);
-
-        AZ_Warning("GOAT", reach.m_radius <= 0.0f || haveDirectorPosition,
-            "Director %u reaches by radius but its entity has no transform, so distance is ignored",
-            director.GetIndex());
-
-        const IReachFilter* filter = reach.m_filter.IsEmpty() ? nullptr : m_filters.Find(reach.m_filter);
-        AZ_Warning("GOAT", reach.m_filter.IsEmpty() || filter != nullptr,
-            "Director %u names reach filter '%s', which no module registered; falling back to "
-            "straight line distance",
-            director.GetIndex(), reach.m_filter.GetCStr());
-
-        const float radiusSq = reach.m_radius * reach.m_radius;
-
         // Slots, not agents: a released slot stays as a hole so every per agent index keeps
         // meaning the same thing, and a hole hands back a null handle to step over.
         const size_t slotCount = m_agents.GetSlotCount();
@@ -160,35 +171,20 @@ namespace GOAT
                 continue;
             }
 
-            if (!reach.m_squad.IsEmpty() && m_blackboard.GetSquad(candidate) != reach.m_squad)
+            bool governed = true;
+            for (const IDirectorFilter* filter : record.m_filters)
             {
-                continue;
-            }
-
-            if (!reach.m_tree.IsEmpty() && agent->GetTreeName() != reach.m_tree)
-            {
-                continue;
-            }
-
-            AZ::Vector3 agentPosition = AZ::Vector3::CreateZero();
-            const bool havePosition = FindPosition(agent->m_entity, agentPosition);
-
-            if (reach.m_radius > 0.0f && haveDirectorPosition)
-            {
-                if (!havePosition || directorPosition.GetDistanceSq(agentPosition) > radiusSq)
+                if (!filter->Accepts(candidate, agent->m_entity))
                 {
-                    continue;
+                    governed = false;
+                    break;
                 }
             }
 
-            // Last, because it is the only one that may cost a query.
-            if (filter != nullptr && havePosition &&
-                !filter->IsInReach(director, directorPosition, candidate, agentPosition, reach.m_radius))
+            if (governed)
             {
-                continue;
+                record.m_reach.push_back(candidate);
             }
-
-            record.m_reach.push_back(candidate);
         }
     }
 
