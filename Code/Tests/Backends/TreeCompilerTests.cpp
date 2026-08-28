@@ -1,5 +1,5 @@
-#include <Backends/BehaviorTree/BehaviorTreeWords.h>
-#include <Backends/BehaviorTree/TreeCompiler.h>
+#include <BehaviorTreeWords.h>
+#include <TreeCompiler.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
 #include <TestAgentSystem.h>

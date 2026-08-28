@@ -1,0 +1,24 @@
+
+set(FILES
+    Source/GOAT_BehaviorTreeModuleInterface.cpp
+    Source/GOAT_BehaviorTreeModuleInterface.h
+    Source/Clients/GOAT_BehaviorTreeSystemComponent.cpp
+    Source/Clients/GOAT_BehaviorTreeSystemComponent.h
+    Source/BehaviorTreeBackend.cpp
+    Source/BehaviorTreeBackend.h
+    Source/BehaviorTreeWords.cpp
+    Source/BehaviorTreeWords.h
+    Source/DecisionCursor.cpp
+    Source/DecisionCursor.h
+    Source/Guard.cpp
+    Source/GuardEvaluator.cpp
+    Source/GuardEvaluator.h
+    Source/NodePredicate.cpp
+    Source/NodePredicate.h
+    Source/ServiceTracker.cpp
+    Source/ServiceTracker.h
+    Source/TreeCompiler.cpp
+    Source/TreeCompiler.h
+    Source/TreeWalker.cpp
+    Source/TreeWalker.h
+)

@@ -19,6 +19,7 @@
 #include <AzCore/RTTI/RTTI.h>
 #include <AzCore/Script/ScriptAsset.h>
 #include <AzCore/std/containers/span.h>
+#include <AzCore/std/smart_ptr/shared_ptr.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 #include <AzCore/std/string/string.h>
 

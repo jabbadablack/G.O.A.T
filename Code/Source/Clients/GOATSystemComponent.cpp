@@ -16,7 +16,6 @@
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Domain/BlackboardKey.h>
 #include <GOAT/Domain/BlackboardTypes.h>
-#include <GOAT/Domain/Guard.h>
 #include <GOAT/Domain/Intent.h>
 #include <GOAT/Domain/NodeType.h>
 #include <GOAT/GOATTypeIds.h>
@@ -56,7 +55,6 @@ namespace GOAT
     {
         ReflectBlackboardTypes(context);
         ReflectActionTypes(context);
-        ReflectGuardTypes(context);
         ReflectNodeTypes(context);
         BlackboardKey::Reflect(context);
         Intent::Reflect(context);
@@ -139,13 +137,6 @@ namespace GOAT
 
         m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
 
-        InstallBehaviorTreeWords(m_treeWords);
-
-        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*this, *m_blackboardSystem);
-        m_treeBackend = treeBackend.get();
-        AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
-        m_decisionBackends->Register(AZStd::move(installed));
-
         auto htnBackend = AZStd::make_unique<HtnBackend>(*this, *m_blackboardSystem);
         AZStd::unique_ptr<IDecisionBackend> htn = AZStd::move(htnBackend);
         m_decisionBackends->Register(AZStd::move(htn));
@@ -187,9 +178,7 @@ namespace GOAT
         }
         m_dispatch.reset();
         m_trees.reset();
-        m_treeWords.Clear();
         m_nodeTypes.reset();
-        m_treeBackend = nullptr;
         m_decisionBackends.reset();
         m_backends.reset();
         m_actions.reset();

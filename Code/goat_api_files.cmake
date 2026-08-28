@@ -16,8 +16,6 @@ set(FILES
     Include/GOAT/Domain/BlackboardStorage.h
     Include/GOAT/Domain/BlackboardTraits.h
     Include/GOAT/Domain/BlackboardTypes.h
-    Include/GOAT/Domain/DecisionProgram.h
-    Include/GOAT/Domain/Guard.h
     Include/GOAT/Domain/Handle.h
     Include/GOAT/Domain/Intent.h
     Include/GOAT/Domain/NodeType.h
@@ -29,4 +27,11 @@ set(FILES
     Include/GOAT/Interfaces/IBlackboardSystem.h
     Include/GOAT/Interfaces/IDecisionBackend.h
     Include/GOAT/Interfaces/INodeScripting.h
+    Source/Core/Domain/ActionState.cpp
+    Source/Core/Domain/BlackboardKey.cpp
+    Source/Core/Domain/BlackboardStorage.cpp
+    Source/Core/Domain/BlackboardTypes.cpp
+    Source/Core/Domain/Intent.cpp
+    Source/Core/Domain/NodeType.cpp
+    Source/Core/Domain/PlanStore.cpp
 )

@@ -1,0 +1,18 @@
+{
+    "Amazon": {
+        "AssetProcessor": {
+            "Settings": {
+                "ScanFolder GOAT_BehaviorTree/Assets": {
+                    "watch": "@GEMROOT:GOAT_BehaviorTree@/Assets",
+                    "recursive": 1,
+                    "order": 101
+                },
+                "ScanFolder GOAT_BehaviorTree/Registry": {
+                    "watch": "@GEMROOT:GOAT_BehaviorTree@/Registry",
+                    "recursive": 1,
+                    "order": 102
+                }
+            }
+        }
+    }
+}

@@ -35,22 +35,6 @@ set(FILES
     Source/Backends/Htn/HtnDomain.h
     Source/Backends/Htn/HtnPlanner.cpp
     Source/Backends/Htn/HtnPlanner.h
-    Source/Backends/BehaviorTree/BehaviorTreeBackend.h
-    Source/Backends/BehaviorTree/BehaviorTreeWords.cpp
-    Source/Backends/BehaviorTree/BehaviorTreeWords.h
-    Source/Backends/BehaviorTree/BehaviorTreeBackend.cpp
-    Source/Backends/BehaviorTree/DecisionCursor.h
-    Source/Backends/BehaviorTree/DecisionCursor.cpp
-    Source/Backends/BehaviorTree/GuardEvaluator.h
-    Source/Backends/BehaviorTree/GuardEvaluator.cpp
-    Source/Backends/BehaviorTree/NodePredicate.h
-    Source/Backends/BehaviorTree/NodePredicate.cpp
-    Source/Backends/BehaviorTree/ServiceTracker.h
-    Source/Backends/BehaviorTree/ServiceTracker.cpp
-    Source/Backends/BehaviorTree/TreeCompiler.h
-    Source/Backends/BehaviorTree/TreeCompiler.cpp
-    Source/Backends/BehaviorTree/TreeWalker.h
-    Source/Backends/BehaviorTree/TreeWalker.cpp
     Source/Core/Application/NamedRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
@@ -69,17 +53,9 @@ set(FILES
     Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Assets/BlackboardAssetHandler.cpp
     Source/Core/Assets/BlackboardAssetHandler.h
-    Source/Core/Domain/PlanStore.cpp
-    Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/AgentStateMachine.cpp
-    Source/Core/Domain/BlackboardKey.cpp
     Source/Core/Domain/BlackboardSchema.cpp
     Source/Core/Domain/BlackboardSchema.h
-    Source/Core/Domain/BlackboardStorage.cpp
-    Source/Core/Domain/BlackboardTypes.cpp
-    Source/Core/Domain/Guard.cpp
-    Source/Core/Domain/Intent.cpp
-    Source/Core/Domain/NodeType.cpp
     Source/Core/Frontend/TreeLibrary.cpp
     Source/Core/Frontend/TreeLibrary.h
     Source/Core/Scripting/AgentScriptContext.cpp

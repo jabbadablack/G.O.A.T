@@ -1,8 +1,8 @@
 #include <Core/Application/BlackboardSystem.h>
-#include <Backends/BehaviorTree/DecisionCursor.h>
-#include <Backends/BehaviorTree/TreeWalker.h>
+#include <DecisionCursor.h>
+#include <TreeWalker.h>
 
-#include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT_BehaviorTree/DecisionProgram.h>
 
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/UnitTest/TestTypes.h>

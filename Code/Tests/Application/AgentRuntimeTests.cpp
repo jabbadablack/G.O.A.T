@@ -1,4 +1,4 @@
-#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
+#include <BehaviorTreeBackend.h>
 #include <Core/Application/ActionStateRegistry.h>
 #include <Core/Application/AgentArchetype.h>
 #include <Core/Application/AgentRecord.h>
@@ -11,7 +11,7 @@
 #include <Core/Scripting/LuaDispatch.h>
 #include <Core/Scripting/LuaNodeScripting.h>
 
-#include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT_BehaviorTree/DecisionProgram.h>
 #include <GOAT/Domain/PlanStore.h>
 
 #include <AzCore/Name/NameDictionary.h>

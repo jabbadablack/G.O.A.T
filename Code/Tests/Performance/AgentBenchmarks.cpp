@@ -12,11 +12,11 @@
 #include <Core/Scripting/LuaNodeScripting.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/GuardWatch.h>
-#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
-#include <Backends/BehaviorTree/DecisionCursor.h>
-#include <Backends/BehaviorTree/TreeWalker.h>
+#include <BehaviorTreeBackend.h>
+#include <DecisionCursor.h>
+#include <TreeWalker.h>
 
-#include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT_BehaviorTree/DecisionProgram.h>
 #include <GOAT/Domain/PlanStore.h>
 
 #include <AzCore/Name/NameDictionary.h>
