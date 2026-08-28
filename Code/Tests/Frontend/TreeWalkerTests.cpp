@@ -1,5 +1,6 @@
 #include <Core/Application/BlackboardSystem.h>
 #include <DecisionCursor.h>
+#include <GuardEvaluator.h>
 #include <TreeWalker.h>
 
 #include <GOAT_BehaviorTree/DecisionProgram.h>
@@ -221,5 +222,70 @@ namespace GOAT
         const WalkStep after = m_walker.Begin(program, cursor, Context());
         EXPECT_EQ(after.m_outcome, WalkOutcome::Intent);
         EXPECT_EQ(cursor.GetActiveLeaf(), body);
+    }
+
+    //! A condition guards the branch it sits in, so a running sibling is dropped the moment the
+    //! condition stops holding. This is what lets an agent hold on a write rather than a poll.
+    TEST_F(TreeWalkerFixture, Guard_FailsTheRunningBranchWhenItStopsHolding)
+    {
+        const BlackboardKey gate = DeclareBool("gate", true);
+
+        DecisionProgram program;
+        program.m_name = AZ::Name("Test");
+        const NodeIndex root = Add(program, NodeOp::Sequence, InvalidNodeIndex);
+        const NodeIndex guard = Add(program, NodeOp::Condition, root);
+        const NodeIndex body = Add(program, NodeOp::Action, root);
+        Finish(program);
+
+        program.m_nodes[guard].m_key = gate;
+        program.m_nodes[guard].m_abort = AbortMode::Self;
+        program.m_guardNodes.push_back(guard);
+
+        DecisionCursor cursor;
+        cursor.Reset(program);
+        ASSERT_EQ(m_walker.Begin(program, cursor, Context()).m_outcome, WalkOutcome::Intent);
+        ASSERT_EQ(cursor.GetActiveLeaf(), body);
+
+        const GuardEvaluator evaluator;
+        EXPECT_EQ(evaluator.Evaluate(program, cursor, Context()).m_action, AbortAction::None);
+
+        m_blackboard->Set<bool>(gate, false, m_agent);
+
+        const AbortDecision decision = evaluator.Evaluate(program, cursor, Context());
+        EXPECT_EQ(decision.m_action, AbortAction::Fail);
+        EXPECT_EQ(decision.m_node, guard);
+    }
+
+    //! A guard only reaches the branch it sits in. A leaf past its parent's extent is untouched.
+    TEST_F(TreeWalkerFixture, Guard_LeavesARunningLeafOutsideItsBranchAlone)
+    {
+        const BlackboardKey gate = DeclareBool("gate", true);
+
+        DecisionProgram program;
+        program.m_name = AZ::Name("Test");
+        const NodeIndex root = Add(program, NodeOp::Selector, InvalidNodeIndex);
+        const NodeIndex guarded = Add(program, NodeOp::Sequence, root);
+        const NodeIndex guard = Add(program, NodeOp::Condition, guarded);
+        const NodeIndex inside = Add(program, NodeOp::Action, guarded);
+        const NodeIndex outside = Add(program, NodeOp::Action, root);
+        Finish(program);
+
+        program.m_nodes[guard].m_key = gate;
+        program.m_nodes[guard].m_abort = AbortMode::Self;
+        program.m_guardNodes.push_back(guard);
+
+        DecisionCursor cursor;
+        cursor.Reset(program);
+        ASSERT_EQ(m_walker.Begin(program, cursor, Context()).m_outcome, WalkOutcome::Intent);
+        ASSERT_EQ(cursor.GetActiveLeaf(), inside);
+
+        // Park the walk on the branch the guard does not own.
+        cursor.Reset(program);
+        m_blackboard->Set<bool>(gate, false, m_agent);
+        ASSERT_EQ(m_walker.Begin(program, cursor, Context()).m_outcome, WalkOutcome::Intent);
+        ASSERT_EQ(cursor.GetActiveLeaf(), outside);
+
+        const GuardEvaluator evaluator;
+        EXPECT_EQ(evaluator.Evaluate(program, cursor, Context()).m_action, AbortAction::None);
     }
 } // namespace GOAT
