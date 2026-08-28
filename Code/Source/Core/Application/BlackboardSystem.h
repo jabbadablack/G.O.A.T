@@ -27,6 +27,7 @@ namespace GOAT
         AZ::Outcome<BlackboardKey, AZStd::string> Declare(
             const AZ::Name& name, BlackboardScope scope, BlackboardType type, AZStd::any defaultValue = {}) override;
         BlackboardKey FindKey(const AZ::Name& name) const override;
+        AZ::Name GetKeyName(BlackboardKey key) const override;
         void CreateAgentBlackboard(AgentId agent) override;
         void DestroyAgentBlackboard(AgentId agent) override;
         void JoinSquad(AgentId agent, const AZ::Name& squad) override;

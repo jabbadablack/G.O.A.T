@@ -130,7 +130,9 @@ namespace GOAT
         if (dirty || wantsTick)
         {
             agent.m_observer.Clear();
-            if (backend->Advance(planContext, *agent.m_program, agent.GetState(), backendElapsed) ==
+            const size_t runningStep =
+                agent.m_machine.HasPlan() ? agent.m_machine.GetStepIndex() : NoRunningStep;
+            if (backend->Advance(planContext, *agent.m_program, agent.GetState(), backendElapsed, runningStep) ==
                 TickResult::Abandon)
             {
                 AbortAgent(agent);

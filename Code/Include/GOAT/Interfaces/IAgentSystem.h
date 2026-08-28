@@ -2,6 +2,7 @@
 
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/Domain/ActionState.h>
+#include <GOAT/Assets/BehaviorTreeAsset.h>
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/DirectorProfile.h>
 #include <GOAT/Domain/NodeType.h>
@@ -18,8 +19,10 @@
 #include <AzCore/RTTI/RTTI.h>
 #include <AzCore/Script/ScriptAsset.h>
 #include <AzCore/std/containers/span.h>
+#include <AzCore/std/smart_ptr/shared_ptr.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
 #include <AzCore/std/string/string.h>
+#include <AzCore/std/string/string_view.h>
 
 namespace GOAT
 {
@@ -123,6 +126,24 @@ namespace GOAT
         //! Wakes agents whose running action was waiting to be told something.
         virtual void WakeAgents(AZStd::span<const AgentId> agents) = 0;
 
+        //! What a backend may reach of the core while compiling and deciding.
+        //! @{
+        //! The authored node tree a program was declared as.
+        virtual AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitProgram(
+            const AZ::Name& name) = 0;
+        //! What a named slot currently points at, or an empty name when nothing is bound.
+        virtual AZ::Name GetSubtreeBinding(const AZ::Name& slot) const = 0;
+        //! The verb a word runs, or Invalid when no module registered one.
+        virtual ActionStateId FindVerb(const AZ::Name& name) const = 0;
+        //! What a word declares it accepts, or nullptr.
+        virtual const NodeTypeDescriptor* FindNodeType(const AZ::Name& name) const = 0;
+        //! The backend a delegate named, or nullptr.
+        virtual IBackend* FindBackend(const AZ::Name& name) const = 0;
+        //! Runs one authored behaviour for one agent.
+        virtual ActionResult CallBehavior(
+            const AZ::Name& behavior, const char* phase, AgentId agent, float deltaTime) = 0;
+        //! @}
+
         //! Installs a backend. Removing one is what makes backends decoupled.
         virtual bool RegisterBackend(AZStd::unique_ptr<IBackend> backend) = 0;
         virtual void UnregisterBackend(const AZ::Name& name) = 0;
@@ -131,6 +152,11 @@ namespace GOAT
         //! A leaf whose name matches a registered verb runs that verb.
         virtual bool RegisterNodeType(NodeTypeDescriptor descriptor) = 0;
         virtual void UnregisterNodeType(const AZ::Name& name) = 0;
+
+        //! Installs a Lua vocabulary file, run right after the core's own words.
+        //! @assetPath the cache path without an extension; the compiled form is preferred.
+        virtual void RegisterVocabularyScript(AZStd::string_view assetPath) = 0;
+        virtual void UnregisterVocabularyScript(AZStd::string_view assetPath) = 0;
 
         //! Installs an action verb, which is how a module contributes vocabulary.
         virtual ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) = 0;

@@ -1,4 +1,4 @@
-#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
+#include <BehaviorTreeBackend.h>
 #include <Core/Application/ActionStateRegistry.h>
 #include <Core/Application/AgentArchetype.h>
 #include <Core/Application/AgentRecord.h>
@@ -6,11 +6,12 @@
 #include <Core/Application/BackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
+#include <TestAgentSystem.h>
 #include <Core/Scripting/AgentScriptContext.h>
 #include <Core/Scripting/LuaDispatch.h>
 #include <Core/Scripting/LuaNodeScripting.h>
 
-#include <GOAT/Domain/DecisionProgram.h>
+#include <GOAT_BehaviorTree/DecisionProgram.h>
 #include <GOAT/Domain/PlanStore.h>
 
 #include <AzCore/Name/NameDictionary.h>
@@ -44,6 +45,7 @@ namespace GOAT
         }
 
         BlackboardKey FindKey(const AZ::Name& name) const override { return m_inner.FindKey(name); }
+        AZ::Name GetKeyName(BlackboardKey key) const override { return m_inner.GetKeyName(key); }
         void CreateAgentBlackboard(AgentId agent) override { m_inner.CreateAgentBlackboard(agent); }
         void DestroyAgentBlackboard(AgentId agent) override { m_inner.DestroyAgentBlackboard(agent); }
         void JoinSquad(AgentId agent, const AZ::Name& squad) override { m_inner.JoinSquad(agent, squad); }
@@ -130,9 +132,8 @@ namespace GOAT
             m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
             m_planStore = AZStd::make_unique<PlanStore>();
             m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
-            m_trees = AZStd::make_unique<TreeLibrary>();
-            m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
-                *m_nodeTypes, *m_blackboard, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_scriptContext);
+            m_host = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions, m_backends.get());
+            m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*m_host, *m_blackboard);
 
             m_runtime = AZStd::make_unique<AgentRuntime>(
                 *m_blackboard, *m_actions, *m_backends, *m_scripting, *m_planStore);
@@ -154,7 +155,7 @@ namespace GOAT
         {
             m_runtime.reset();
             m_treeBackend.reset();
-            m_trees.reset();
+            m_host.reset();
             m_nodeTypes.reset();
             m_planStore.reset();
             m_scripting.reset();
@@ -249,7 +250,7 @@ namespace GOAT
         AZStd::unique_ptr<LuaNodeScripting> m_scripting;
         AZStd::unique_ptr<PlanStore> m_planStore;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
-        AZStd::unique_ptr<TreeLibrary> m_trees;
+        AZStd::unique_ptr<TestAgentSystem> m_host;
         AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
     };

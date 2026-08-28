@@ -1,4 +1,4 @@
--- GOAT behaviour tree authoring vocabulary.
+-- GOAT authoring vocabulary, shared by every paradigm.
 -- Executed once into the script context at startup, so tree files need no require.
 
 -- rawget avoids O3DE's "access to undeclared global variable" warning, which fires on the
@@ -24,23 +24,11 @@ GOAT._state = GOAT._state or {}
 local defaultProperty = {
     script = "behavior",
     behavior = "behavior",
-    service = "behavior",
     condition = "key",
-    composite = "behavior",
-    decorator = "behavior",
-    conditional_loop = "key",
     compare = "key",
     delegate = "backend",
     raw = "action",
-    subtree = "tree",
     wait = "seconds",
-    cooldown = "seconds",
-    time_limit = "seconds",
-    loop = "count",
-    task = "name",
-    primitive = "name",
-    subtask = "task",
-    effect = "key",
 }
 
 --! Lets a node be written as `name "x"`, as `name { ... }`, or as `name "x" { ... }`.
@@ -84,39 +72,18 @@ local function nodeType(typeName, isService)
     end
 end
 
--- Composites.
-selector = nodeType("selector")
-sequence = nodeType("sequence")
-composite = nodeType("composite")
-parallel = nodeType("parallel")
+--! Shared so a backend's own vocabulary file can build its words the same way, including the
+--! forms GOAT_DeclareNode cannot reach -- a service attaches to a composite rather than becoming
+--! a child of one.
+GOAT.nodeType = nodeType
 
--- Decorators.
-invert = nodeType("invert")
-force_success = nodeType("force_success")
-cooldown = nodeType("cooldown")
-loop = nodeType("loop")
-conditional_loop = nodeType("conditional_loop")
-time_limit = nodeType("time_limit")
+-- Words every paradigm shares. A backend gem ships its own.
 condition = nodeType("condition")
 compare = nodeType("compare")
-decorator = nodeType("decorator")
-
--- Leaves.
 wait = nodeType("wait")
 raw = nodeType("raw")
 script = nodeType("script")
 delegate = nodeType("delegate")
-subtree = nodeType("subtree")
-
--- Services attach to a composite rather than sitting in its child list.
-service = nodeType("service", true)
-
--- Task networks. A domain is a node tree like any other, so it reaches C++ the same way.
-task = nodeType("task")
-method = nodeType("method")
-primitive = nodeType("primitive")
-subtask = nodeType("subtask")
-effect = nodeType("effect")
 
 --! Declares a node word contributed by a module gem, so `move_to "player_pos"` reads the same
 --! as a built-in. @mainProperty names the property the single string argument fills.
@@ -124,11 +91,11 @@ effect = nodeType("effect")
 --! A word this file already defines is left alone, because the built-ins carry forms this
 --! cannot reproduce -- `service` attaches to a composite rather than becoming a child.
 function GOAT_DeclareNode(typeName, mainProperty)
-    if rawget(_G, typeName) ~= nil then
-        return
-    end
     if mainProperty and mainProperty ~= "" then
         defaultProperty[typeName] = mainProperty
+    end
+    if rawget(_G, typeName) ~= nil then
+        return
     end
     _G[typeName] = nodeType(typeName)
 end
@@ -224,30 +191,6 @@ function backend(name)
     return function(body)
         GOAT._backends[name] = body
         return body
-    end
-end
-
---! Declares a tree: `tree "Guard" { selector { ... } }`.
---! Declares a task network: `domain "Soldier" { task "Engage" { ... }, primitive "Slam" { ... } }`.
---! Planning starts at the first task unless `root` names another.
-function domain(name)
-    return function(body)
-        assert(type(body) == "table", "a domain takes a table of tasks")
-        assert(GOAT._trees[name] == nil, "'" .. name .. "' is already declared")
-
-        local compiled = GOAT.Compile(name, nodeType("domain")(body))
-        GOAT._trees[name] = compiled
-        return compiled
-    end
-end
-
-function tree(name)
-    return function(body)
-        local root = body[1]
-        assert(root ~= nil, "tree '" .. tostring(name) .. "' has no root node")
-        local compiled = GOAT.Compile(name, root)
-        GOAT._trees[name] = compiled
-        return compiled
     end
 end
 

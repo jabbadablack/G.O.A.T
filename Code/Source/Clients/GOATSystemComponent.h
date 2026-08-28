@@ -5,8 +5,6 @@
 #include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
-#include <Backends/BehaviorTree/BehaviorTreeBackend.h>
-#include <Backends/Htn/HtnBackend.h>
 #include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
@@ -86,6 +84,8 @@ namespace GOAT
         void UnregisterBackend(const AZ::Name& name) override;
         bool RegisterNodeType(NodeTypeDescriptor descriptor) override;
         void UnregisterNodeType(const AZ::Name& name) override;
+        void RegisterVocabularyScript(AZStd::string_view assetPath) override;
+        void UnregisterVocabularyScript(AZStd::string_view assetPath) override;
         ActionStateId RegisterAction(AZStd::unique_ptr<IActionState> action) override;
         void UnregisterAction(ActionStateId id) override;
         AZStd::vector<AZ::Name> GetBackendNames() const override;
@@ -101,6 +101,17 @@ namespace GOAT
         //! System components activate before the asset catalog loads, so the vocabulary is
         //! picked up here rather than at activation.
         void OnCatalogLoaded(const char* catalogFile) override;
+        ////////////////////////////////////////////////////////////////////////
+
+        //! What a backend may reach of the core.
+        AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitProgram(
+            const AZ::Name& name) override;
+        AZ::Name GetSubtreeBinding(const AZ::Name& slot) const override;
+        ActionStateId FindVerb(const AZ::Name& name) const override;
+        const NodeTypeDescriptor* FindNodeType(const AZ::Name& name) const override;
+        IBackend* FindBackend(const AZ::Name& name) const override;
+        ActionResult CallBehavior(
+            const AZ::Name& behavior, const char* phase, AgentId agent, float deltaTime) override;
         ////////////////////////////////////////////////////////////////////////
 
         ////////////////////////////////////////////////////////////////////////
@@ -192,6 +203,9 @@ namespace GOAT
         //! Loads the Lua authoring vocabulary shipped with the gem.
         bool LoadVocabulary();
 
+        //! Runs a script from its cache path, preferring the compiled form.
+        bool RunScript(AZStd::string_view assetPath, const char* what);
+
         //! Asks for a tree change, deferred to the agent's next tick because a request can
         //! arrive from Lua running inside that agent's current one.
         bool RequestTreeSwitch(AgentId agent, const AZ::Name& treeName, TreeSwitchKind kind, AZ::u8 priority);
@@ -245,8 +259,6 @@ namespace GOAT
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
         AZStd::unique_ptr<DecisionBackendRegistry> m_decisionBackends;
-        //! Owned by m_decisionBackends; what a tree agent is compiled and run by.
-        IDecisionBackend* m_treeBackend = nullptr;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TreeLibrary> m_trees;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;
@@ -259,6 +271,8 @@ namespace GOAT
         //! Trees compiled so far, shared by every agent running the same one.
         AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const AgentProgram>> m_programs;
         AZStd::vector<AZStd::unique_ptr<AZ::Data::AssetHandler>> m_assetHandlers;
+        //! Vocabulary files backend gems ship, run in the order they registered.
+        AZStd::vector<AZStd::string> m_vocabularyScripts;
         //! Whether the authoring vocabulary is loaded into the script context.
         bool m_vocabularyLoaded = false;
     };

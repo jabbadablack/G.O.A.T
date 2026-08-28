@@ -20,16 +20,16 @@ endif()
 
 # The ${gem_name}.API target declares the common interface that users of this gem should depend on in their targets
 ly_add_target(
-    NAME ${gem_name}.API INTERFACE
+    NAME ${gem_name}.API STATIC
     NAMESPACE Gem
     FILES_CMAKE
         goat_api_files.cmake
         ${pal_dir}/goat_api_files.cmake
     INCLUDE_DIRECTORIES
-        INTERFACE
+        PUBLIC
             Include
     BUILD_DEPENDENCIES
-        INTERFACE
+        PUBLIC
            AZ::AzCore
 )
 
@@ -51,6 +51,7 @@ ly_add_target(
         PUBLIC
             AZ::AzCore
             AZ::AzFramework
+            Gem::${gem_name}.API
 )
 
 # Here add ${gem_name} target, it depends on the Private Object library and Public API interface
@@ -203,11 +204,17 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
                     Tests
                     Source
                     Include
+                    Source/Backends/BehaviorTree/Code/Source
+                    Source/Backends/Htn/Code/Source
             BUILD_DEPENDENCIES
                 PRIVATE
                     AZ::AzTest
                     AZ::AzFramework
                     Gem::${gem_name}.Private.Object
+                    # The behaviour tree is a gem of its own, but its walker and compiler are
+                    # still covered here. A test harness may depend on a gem; the core does not.
+                    Gem::GOAT_BehaviorTree.Private.Object
+                    Gem::GOAT_Htn.Private.Object
         )
 
         # Add ${gem_name}.Tests to googletest

@@ -1,0 +1,13 @@
+set(FILES
+    Source/GOAT_HtnModuleInterface.cpp
+    Source/GOAT_HtnModuleInterface.h
+    Source/Clients/GOAT_HtnSystemComponent.cpp
+    Source/Clients/GOAT_HtnSystemComponent.h
+    Source/HtnBackend.cpp
+    Source/HtnBackend.h
+    Source/HtnCompiler.cpp
+    Source/HtnCompiler.h
+    Source/HtnDomain.h
+    Source/HtnPlanner.cpp
+    Source/HtnPlanner.h
+)

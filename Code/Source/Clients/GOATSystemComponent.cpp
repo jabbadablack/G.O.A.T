@@ -16,7 +16,6 @@
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Domain/BlackboardKey.h>
 #include <GOAT/Domain/BlackboardTypes.h>
-#include <GOAT/Domain/Guard.h>
 #include <GOAT/Domain/Intent.h>
 #include <GOAT/Domain/NodeType.h>
 #include <GOAT/GOATTypeIds.h>
@@ -27,6 +26,7 @@
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/std/algorithm.h>
 #include <AzFramework/Asset/GenericAssetHandler.h>
 
 namespace GOAT
@@ -56,7 +56,6 @@ namespace GOAT
     {
         ReflectBlackboardTypes(context);
         ReflectActionTypes(context);
-        ReflectGuardTypes(context);
         ReflectNodeTypes(context);
         BlackboardKey::Reflect(context);
         Intent::Reflect(context);
@@ -139,16 +138,6 @@ namespace GOAT
 
         m_scripting = AZStd::make_unique<LuaNodeScripting>(*m_dispatch, *m_scriptContext);
 
-        auto treeBackend = AZStd::make_unique<BehaviorTreeBackend>(
-            *m_nodeTypes, *m_blackboardSystem, *m_trees, *m_actions, *m_backends, *m_dispatch, *m_scriptContext);
-        m_treeBackend = treeBackend.get();
-        AZStd::unique_ptr<IDecisionBackend> installed = AZStd::move(treeBackend);
-        m_decisionBackends->Register(AZStd::move(installed));
-
-        auto htnBackend = AZStd::make_unique<HtnBackend>(*m_nodeTypes, *m_blackboardSystem, *m_actions);
-        AZStd::unique_ptr<IDecisionBackend> htn = AZStd::move(htnBackend);
-        m_decisionBackends->Register(AZStd::move(htn));
-
         m_runtime = AZStd::make_unique<AgentRuntime>(
             *m_blackboardSystem, *m_actions, *m_backends, *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
@@ -187,7 +176,6 @@ namespace GOAT
         m_dispatch.reset();
         m_trees.reset();
         m_nodeTypes.reset();
-        m_treeBackend = nullptr;
         m_decisionBackends.reset();
         m_backends.reset();
         m_actions.reset();
@@ -357,6 +345,39 @@ namespace GOAT
         return false;
     }
 
+    bool GOATSystemComponent::RunScript(AZStd::string_view assetPath, const char* what)
+    {
+        const AZStd::string compiled = AZStd::string(assetPath) + ".luac";
+        const AZStd::string source = AZStd::string(assetPath) + ".lua";
+        const char* paths[] = { compiled.c_str(), source.c_str() };
+        return RunFirstAvailable(paths, AZStd::size(paths), what);
+    }
+
+    void GOATSystemComponent::RegisterVocabularyScript(AZStd::string_view assetPath)
+    {
+        AZStd::string path(assetPath);
+        if (AZStd::find(m_vocabularyScripts.begin(), m_vocabularyScripts.end(), path) != m_vocabularyScripts.end())
+        {
+            return;
+        }
+
+        m_vocabularyScripts.push_back(path);
+
+        // A gem that arrives after the vocabulary loaded gets its words now rather than never.
+        if (m_vocabularyLoaded)
+        {
+            AZ_Warning("GOAT", RunScript(path, "a gem's vocabulary"),
+                "Could not load the vocabulary script at '%s'", path.c_str());
+        }
+    }
+
+    void GOATSystemComponent::UnregisterVocabularyScript(AZStd::string_view assetPath)
+    {
+        const AZStd::string path(assetPath);
+        m_vocabularyScripts.erase(
+            AZStd::remove(m_vocabularyScripts.begin(), m_vocabularyScripts.end(), path), m_vocabularyScripts.end());
+    }
+
     bool GOATSystemComponent::LoadVocabulary()
     {
         if (!RunFirstAvailable(VocabularyAssetPaths, AZStd::size(VocabularyAssetPaths), "the authoring vocabulary"))
@@ -365,6 +386,13 @@ namespace GOAT
                 "GOAT", false,
                 "Could not load the GOAT Lua vocabulary; check that the Asset Processor produced goat/scripts/goat.luac");
             return false;
+        }
+
+        // A backend gem's words load after the ones they are written in and before any user script.
+        for (const AZStd::string& path : m_vocabularyScripts)
+        {
+            AZ_Warning("GOAT", RunScript(path, "a gem's vocabulary"),
+                "Could not load the vocabulary script at '%s'", path.c_str());
         }
 
         // The backends the gem ships load straight after the words they are written in, and
@@ -856,13 +884,7 @@ namespace GOAT
                 continue;
             }
 
-            const auto* tree = azrtti_cast<const DecisionProgram*>(program.get());
-            if (tree == nullptr)
-            {
-                continue;
-            }
-
-            const auto& slots = tree->m_boundSlots;
+            const auto& slots = program->m_boundSlots;
             if (AZStd::find(slots.begin(), slots.end(), slot) != slots.end())
             {
                 affected.push_back(name);
@@ -984,6 +1006,50 @@ namespace GOAT
         {
             m_agents->JoinSquad(agent, squad);
         }
+    }
+
+    AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> GOATSystemComponent::EmitProgram(
+        const AZ::Name& name)
+    {
+        if (m_dispatch == nullptr)
+        {
+            return AZ::Failure(AZStd::string("scripting is not running, so nothing can be emitted"));
+        }
+        return m_dispatch->EmitTree(name);
+    }
+
+    AZ::Name GOATSystemComponent::GetSubtreeBinding(const AZ::Name& slot) const
+    {
+        return m_trees != nullptr ? m_trees->GetBinding(slot) : AZ::Name{};
+    }
+
+    ActionStateId GOATSystemComponent::FindVerb(const AZ::Name& name) const
+    {
+        return m_actions != nullptr ? m_actions->FindId(name) : CoreActions::Invalid;
+    }
+
+    const NodeTypeDescriptor* GOATSystemComponent::FindNodeType(const AZ::Name& name) const
+    {
+        return m_nodeTypes != nullptr ? m_nodeTypes->Find(name) : nullptr;
+    }
+
+    IBackend* GOATSystemComponent::FindBackend(const AZ::Name& name) const
+    {
+        return m_backends != nullptr ? m_backends->Find(name) : nullptr;
+    }
+
+    ActionResult GOATSystemComponent::CallBehavior(
+        const AZ::Name& behavior, const char* phase, AgentId agent, float deltaTime)
+    {
+        if (m_dispatch == nullptr || m_scriptContext == nullptr)
+        {
+            return ActionResult::Failure;
+        }
+
+        m_scriptContext->Bind(agent, GetAgentEntity(agent), m_blackboardSystem.get());
+        const ActionResult result = m_dispatch->CallBehavior(behavior, phase, agent, *m_scriptContext, deltaTime);
+        m_scriptContext->Unbind();
+        return result;
     }
 
     void GOATSystemComponent::WakeAgents(AZStd::span<const AgentId> agents)
@@ -1511,11 +1577,10 @@ namespace GOAT
         for (const AZ::Name& name : GetTreeNames())
         {
             const auto program = m_programs.find(name);
-            const auto* tree = azrtti_cast<const DecisionProgram*>(program->second.get());
-            AZLOG_INFO(
-                "tree: %s (%zu nodes, %zu guards, %zu services)", name.GetCStr(),
-                tree != nullptr ? tree->m_nodes.size() : 0, tree != nullptr ? tree->m_guardNodes.size() : 0,
-                tree != nullptr ? tree->m_services.size() : 0);
+            const IDecisionBackend* backend = program->second->m_backend;
+            AZLOG_INFO("program: %s (%s, %zu bound slot(s))", name.GetCStr(),
+                backend != nullptr ? backend->GetName().GetCStr() : "no backend",
+                program->second->m_boundSlots.size());
         }
     }
 
