@@ -113,20 +113,37 @@ selector {
 
 ## 🧪 Conditions and Aborts
 
-Conditions are **decorators that check blackboard keys** and can abort lower-priority branches.
+A `condition` is a **leaf** that checks a blackboard value. It is not a decorator and has no
+child — what it guards is the branch it *sits in*.
 
 ```lua
-condition "target_seen" { abort = "lower_priority" }
+sequence {
+    condition "crowd_rallying",
+    move_to { key = "rally_point" },
+}
 ```
 
-**Abort Modes:**
+If `crowd_rallying` goes false while `move_to` is running, that sequence is dropped.
+
+**Declaring a condition declares a dependency.** Compiling one records the key it reads, and the
+agent is woken when that scope changes. You do **not** write `abort` to get this. It is the
+default, and it is why nothing in GOAT needs a service polling a variable on an interval.
+
+**Abort modes:**
 
 | Mode | Description |
 | :--- | :--- |
-| `none` | No abort (default). |
-| `self` | Aborts the condition itself if it becomes false. |
-| `lower_priority` | Aborts any lower-priority sibling branches. |
-| `both` | Aborts both the condition and lower-priority branches. |
+| *(unwritten)* | `self` — the default. Drops the branch this condition sits in. |
+| `self` | The same, written out. |
+| `lower_priority` | Also aborts lower-priority sibling branches. |
+| `both` | Both of the above. |
+| `none` | The explicit opt-out. This condition is checked on entry and never again. |
+
+An unrecognised mode **fails the compile**. It used to fall through to `none` silently, which
+turned a typo into a tree that quietly stopped reacting — the worst possible failure to debug.
+
+One exception: inside a `parallel`'s background branch, `abort` is a compile error. Keys there are
+already observed.
 
 ---
 
