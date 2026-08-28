@@ -6,8 +6,8 @@ tags: [cpp, core, component]
 
 # TreeCompiler
 
-> **File Location:** `Code/Source/Core/Frontend/TreeCompiler.cpp`  
-> **Header:** `Code/Source/Core/Frontend/TreeCompiler.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.cpp`  
+> **Header:** `Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.h`  
 > **Inherits:** None (Plain class, instantiated by `GOATSystemComponent`)
 
 ---

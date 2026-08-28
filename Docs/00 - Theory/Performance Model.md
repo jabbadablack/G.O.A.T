@@ -8,7 +8,7 @@ tags: [performance, architecture, design]
 
 > **Category:** Performance Model  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Application/AgentRegistry.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`, `Code/Source/Core/Memory/AgentStore.h`
+> **Core Files:** `Code/Source/Backends/BehaviorTree/Code/Source/TreeWalker.cpp`, `Code/Source/Core/Application/AgentRegistry.cpp`, `Code/Source/Core/Application/AgentRuntime.cpp`, `Code/Source/Core/Application/AgentStore.h`
 
 ---
 
@@ -85,7 +85,7 @@ Trees are compiled into a contiguous `AZStd::vector<DecisionNode>` array with pr
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Core/Frontend/TreeCompiler.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.cpp
 const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
 program.m_nodes.emplace_back();
 {
@@ -132,7 +132,7 @@ The `TreeWalker` executes trees using a loop, not recursion. This avoids stack o
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Core/Frontend/TreeWalker.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/TreeWalker.cpp
 WalkStep TreeWalker::Run(
     const DecisionProgram& program,
     DecisionCursor& cursor,
@@ -220,7 +220,7 @@ Services attached to composites run at fixed intervals, not every frame. This re
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Core/Frontend/ServiceTracker.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/ServiceTracker.cpp
 void ServiceTracker::CollectDue(
     const DecisionProgram& program, DecisionCursor& cursor, AZStd::vector<AZ::u32>& outServices) const
 {
@@ -313,7 +313,7 @@ Multiple agents running the same tree share an immutable `DecisionProgram`. This
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Core/Application/GOATSystemComponent.cpp
+// Code/Source/Clients/GOATSystemComponent.cpp
 m_programs[treeName] =
     AZStd::shared_ptr<const DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
 ```
@@ -358,7 +358,7 @@ void BlackboardStorage::EnsureCapacity(const BlackboardLayout& layout)
 **How it works in the code:**
 
 ```cpp
-// Code/Source/Core/Memory/AgentStore.h
+// Code/Source/Core/Application/AgentStore.h
 template<typename T, typename Tag>
 class AgentStore final
 {

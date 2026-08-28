@@ -6,8 +6,8 @@ tags: [cpp, core, component]
 
 # GuardEvaluator
 
-> **File Location:** `Code/Source/Core/Frontend/GuardEvaluator.cpp`  
-> **Header:** `Code/Source/Core/Frontend/GuardEvaluator.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Source/GuardEvaluator.cpp`  
+> **Header:** `Code/Source/Backends/BehaviorTree/Code/Source/GuardEvaluator.h`  
 > **Inherits:** None (Plain class)
 
 ---
@@ -86,7 +86,7 @@ graph LR
 2. **Leaf Lower Priority:** If the running leaf is *outside* the guard's subtree and the guard's condition now holds, it returns `AbortAction::Restart`.
 
 ```cpp
-// Code/Source/Core/Frontend/GuardEvaluator.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/GuardEvaluator.cpp
 AbortDecision GuardEvaluator::Evaluate(...) const
 {
     AbortDecision decision;

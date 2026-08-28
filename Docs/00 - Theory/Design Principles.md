@@ -8,7 +8,7 @@ tags: [architecture, design, philosophy]
 
 > **Category:** Design Principles  
 > **Status:** Implemented  
-> **Core Files:** `Code/Source/Core/Frontend/TreeCompiler.cpp`, `Code/Source/Core/Frontend/TreeWalker.cpp`, `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Include/GOAT/Interfaces/IBackend.h`
+> **Core Files:** `Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.cpp`, `Code/Source/Backends/BehaviorTree/Code/Source/TreeWalker.cpp`, `Code/Source/Core/Scripting/LuaDispatch.cpp`, `Code/Include/GOAT/Interfaces/IBackend.h`
 
 ---
 
@@ -108,7 +108,7 @@ public:
 
 | Backend | Type | Usage |
 | :--- | :--- | :--- |
-| `DirectBackend` | C++ | Handles `raw` and `script` leaves. Converts a single action into a one-step plan. |
+| *(inline)* | C++ | `raw` and `script` leaves need no backend: the leaf's own request becomes a one-step plan. |
 | `LuaBackend` | Lua | User-defined planning in Lua via `backend "MyGoap" { plan = ... }`. |
 | `FutureGoapBackend` | Planned | Could implement full GOAP planning, reusable across all trees. |
 
@@ -319,7 +319,7 @@ Behaviors declare which blackboard keys they need. The system dynamically provis
 
 - `TreeCompiler` validates authored trees and flattens them into `DecisionProgram`s.
 - `TreeWalker` executes these flat programs iteratively, emitting `Intent`s.
-- `BackendRegistry` and `DirectBackend` interpret these `Intent`s and produce `ActionPlan`s.
+- An `Intent` with no backend named becomes a one-step plan inline; one that names a backend goes through `BackendRegistry`.
 - `AgentStateMachine` executes `ActionPlan`s, calling `IActionState::Begin`, `Step`, `End`.
 - `GuardEvaluator` re-checks guards when observed keys change.
 - `ServiceTracker` determines which services are due to run.

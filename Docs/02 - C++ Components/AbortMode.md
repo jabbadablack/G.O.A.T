@@ -6,7 +6,7 @@ tags: [cpp, core, domain]
 
 # AbortMode
 
-> **File Location:** `Code/Include/GOAT/Domain/Guard.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Include/GOAT_BehaviorTree/Guard.h`  
 > **Inherits:** None (Enum class)
 
 ---

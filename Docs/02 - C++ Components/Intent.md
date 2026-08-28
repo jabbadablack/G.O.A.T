@@ -14,7 +14,9 @@ tags: [cpp, core, domain]
 
 ## Overview
 
-`Intent` is the **message a tree leaf sends to a backend**. It represents what the tree wants done next. When the `TreeWalker` encounters an `Action`, `Script`, or `Delegate` node, it constructs an `Intent` and hands it to the `BackendRegistry` (or the `DirectBackend` if no backend is named).
+`Intent` is the **message a leaf sends when it wants something done**. The walker builds one when it reaches an `Action`, `Script` or `Delegate` node.
+
+What happens next depends on `m_backend`. **Empty means the leaf is the whole plan already** — the tree backend acquires a one-step plan from the [[PlanStore]] and runs it, with no round trip through anything. A name means a [[IBackend]] is asked to satisfy it, which is how a `delegate` reaches a Lua planner.
 
 It contains either a direct action (from `raw` or `script` leaves) or a backend name plus a goal (from `delegate` leaves).
 
@@ -26,7 +28,7 @@ It contains either a direct action (from `raw` or `script` leaves) or a backend 
 | :--- | :--- | :--- |
 | 1 | **Backend Selection** | Names the backend that should satisfy this intent (`m_backend`). |
 | 2 | **Goal Specification** | Provides a goal for planning backends (`m_goal`). |
-| 3 | **Direct Action** | Carries a direct `ActionRequest` for the `DirectBackend` (`m_direct`). |
+| 3 | **Inline leaf** | An empty `m_backend`, satisfied straight from the node's own `ActionRequest`. |
 | 4 | **Source Tracking** | Records which tree node produced this intent (`m_node`) for debugging and resuming. |
 
 ---
@@ -37,7 +39,7 @@ It contains either a direct action (from `raw` or `script` leaves) or a backend 
 
 | Member | Type | Description |
 | :--- | :--- | :--- |
-| `m_backend` | `AZ::Name` | Backend asked to satisfy this intent. Empty means the built-in `DirectBackend`. |
+| `m_backend` | `AZ::Name` | Backend asked to satisfy this intent. Empty means the leaf is satisfied inline. |
 | `m_goal` | `AZ::Name` | What to achieve, interpreted by the backend. A goal name for a planner. |
 | `m_direct` | `ActionRequest` | Action the tree authored inline, used by the direct backend as a one-step plan. |
 | `m_node` | `NodeIndex` | Tree node this intent came from, for debugging and for resuming the walk. |
@@ -81,11 +83,11 @@ Intent TreeWalker::MakeIntent(const DecisionNode& node, NodeIndex index) const
     switch (node.m_op)
     {
     case NodeOp::Action:
-        intent.m_backend = DirectBackend::GetBackendName();
+        intent.m_backend = AZ::Name();  // inline
         intent.m_direct = node.m_action;
         break;
     case NodeOp::Script:
-        intent.m_backend = DirectBackend::GetBackendName();
+        intent.m_backend = AZ::Name();  // inline
         intent.m_direct.m_action = CoreActions::RunScript;
         intent.m_direct.m_tag = node.m_tag;
         break;
@@ -128,7 +130,6 @@ Unit tests should cover:
 ## Related Notes
 
 - [[IBackend]]
-- [[DirectBackend]]
 - [[TreeWalker]]
 - [[ActionRequest]]
 

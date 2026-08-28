@@ -6,8 +6,8 @@ tags: [cpp, core, domain]
 
 # Guard
 
-> **File Location:** `Code/Include/GOAT/Domain/Guard.h`  
-> **Source:** `Code/Source/Core/Domain/Guard.cpp`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Include/GOAT_BehaviorTree/Guard.h`  
+> **Source:** `Code/Source/Backends/BehaviorTree/Code/Source/Guard.cpp`  
 > **Inherits:** None (Plain struct and enum)
 
 ---

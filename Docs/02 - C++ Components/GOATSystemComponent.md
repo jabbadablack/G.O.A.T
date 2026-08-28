@@ -101,7 +101,7 @@ Enforces a **strict initialization order**:
 
 1. Create `BlackboardSystem`, `ActionStateRegistry`, `BackendRegistry`, `NodeTypeRegistry`, `TreeLibrary`.
 2. Create `LuaDispatch` and `AgentScriptContext`.
-3. Register `DirectBackend` and core `IActionState`s (`WaitAction`, `RunScriptAction`).
+3. Register the core `IActionState`s (`WaitAction`, `RunScriptAction`) and the director verbs.
 4. Create `LuaNodeScripting`, `AgentRuntime`, and `AgentRegistry`.
 5. Configure the `LuaPlanBuilder`.
 6. Connect `LuaDispatch` to the script context.
@@ -118,7 +118,6 @@ void GOATSystemComponent::StartServices()
     m_dispatch = AZStd::make_unique<LuaDispatch>();
     m_scriptContext = AZStd::make_unique<AgentScriptContext>();
 
-    auto direct = AZStd::make_unique<DirectBackend>();
     m_directBackend = AZStd::move(direct);
 
     m_actions->RegisterAt(CoreActions::Wait, AZStd::make_unique<WaitAction>());

@@ -77,7 +77,8 @@ graph LR
 
 - **Depends on:** `PlanContext`, `Intent`, `ActionPlan`, `GuardList`.
 - **Interacts with:** `BackendRegistry` (for registration/lookup), `AgentStateMachine` (to execute the produced plan).
-- **Implemented by:** `DirectBackend`, `LuaBackend`, and any future C++ backends (e.g., GOAP, HTN).
+- **Implemented by:** `LuaBackend`, and any C++ planner you write for a `delegate` leaf.
+- **Not the same as** [[IDecisionBackend]], which is a whole paradigm. See [[Backends]] for the difference.
 
 ---
 
@@ -87,7 +88,7 @@ graph LR
 
 The `Plan()` method is the core entry point. It receives an `Intent` and must populate `outPlan` with a sequence of `ActionRequest`s.
 
-- **DirectBackend:** Converts a single `ActionRequest` (from `raw` or `script` leaves) into a one-step plan.
+- **Inline leaves** (`raw`, `script`) need no backend at all: an `Intent` with an empty `m_backend` is turned straight into a one-step plan from the [[PlanStore]]. Handing it to a backend to be copied back out again was a round trip that decided nothing.
 - **LuaBackend:** Bridges to Lua, calling the user's `backend "Name" { plan = ... }` function. The returned table of steps is validated by `LuaPlanBuilder` and converted into an `ActionPlan`.
 
 ### Performance Considerations
@@ -127,7 +128,7 @@ Unit tests for `IBackend` should cover:
 
 ## Related Notes
 
-- [[DirectBackend]]
+- [[IDecisionBackend]]
 - [[LuaBackend]]
 - [[BackendRegistry]]
 - [[Extensibility Model]]

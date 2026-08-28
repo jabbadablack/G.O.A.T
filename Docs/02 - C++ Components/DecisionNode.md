@@ -6,7 +6,7 @@ tags: [cpp, core, domain]
 
 # DecisionNode
 
-> **File Location:** `Code/Include/GOAT/Domain/DecisionProgram.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Include/GOAT_BehaviorTree/DecisionProgram.h`  
 > **Inherits:** None (Plain struct)
 
 ---

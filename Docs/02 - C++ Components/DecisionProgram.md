@@ -6,7 +6,7 @@ tags: [cpp, core, domain]
 
 # DecisionProgram
 
-> **File Location:** `Code/Include/GOAT/Domain/DecisionProgram.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Include/GOAT_BehaviorTree/DecisionProgram.h`  
 > **Inherits:** None (Plain class)
 
 ---
@@ -122,7 +122,7 @@ graph LR
 `TreeCompiler` fills `m_nodes` via pre-order traversal. `TreeWalker` indexes directly into `m_nodes` using `NodeIndex`.
 
 ```cpp
-// Code/Source/Core/Frontend/TreeCompiler.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/TreeCompiler.cpp
 const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
 program.m_nodes.emplace_back();
 {

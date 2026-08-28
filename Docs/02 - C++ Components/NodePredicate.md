@@ -6,8 +6,8 @@ tags: [cpp, core, component]
 
 # NodePredicate
 
-> **File Location:** `Code/Source/Core/Frontend/NodePredicate.cpp`  
-> **Header:** `Code/Source/Core/Frontend/NodePredicate.h`  
+> **File Location:** `Code/Source/Backends/BehaviorTree/Code/Source/NodePredicate.cpp`  
+> **Header:** `Code/Source/Backends/BehaviorTree/Code/Source/NodePredicate.h`  
 > **Inherits:** None (Free function)
 
 ---
@@ -68,7 +68,7 @@ graph LR
 `EvaluateNodePredicate()` first checks if the blackboard and key are valid. If the node is a `Compare`, it calls `SlotsAreEqual()` which compares two slots of the same type. Otherwise, it reads a boolean value from the key.
 
 ```cpp
-// Code/Source/Core/Frontend/NodePredicate.cpp
+// Code/Source/Backends/BehaviorTree/Code/Source/NodePredicate.cpp
 bool EvaluateNodePredicate(const DecisionNode& node, const PlanContext& context)
 {
     if (context.m_blackboard == nullptr || !node.m_key.IsValid())

@@ -7,7 +7,7 @@ tags: [cpp, core, domain]
 # BlackboardSchema
 
 > **File Location:** `Code/Source/Core/Domain/BlackboardSchema.cpp`  
-> **Header:** `Code/Include/GOAT/Domain/BlackboardSchema.h`  
+> **Header:** `Code/Source/Core/Domain/BlackboardSchema.h`  
 > **Inherits:** None (Plain class, owned by `BlackboardSystem`)
 
 ---
