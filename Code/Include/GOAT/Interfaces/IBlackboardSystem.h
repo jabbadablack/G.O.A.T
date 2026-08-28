@@ -31,6 +31,9 @@ namespace GOAT
         //! Resolves a name to its key, or an invalid key when the name is undeclared.
         virtual BlackboardKey FindKey(const AZ::Name& name) const = 0;
 
+        //! Names a key, for diagnostics. Scans, so it is not for a hot path.
+        virtual AZ::Name GetKeyName(BlackboardKey key) const = 0;
+
         //! Creates the per agent storage used by agent scoped variables.
         virtual void CreateAgentBlackboard(AgentId agent) = 0;
 

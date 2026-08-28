@@ -32,6 +32,16 @@ namespace GOAT
     //! is on the task, so this is the plan and the record of how it was reached at once.
     using HtnPlanBuffer = AZStd::fixed_vector<AZ::u16, MaxPlanTasks>;
 
+    //! One compound task and the method chosen for it. The record of how a plan was reached,
+    //! which is the only account of why an agent is doing what it is doing.
+    struct HtnChoice final
+    {
+        AZ::u16 m_task = InvalidTask;
+        AZ::u16 m_method = 0;
+    };
+
+    using HtnChoiceTrail = AZStd::fixed_vector<HtnChoice, MaxDecomposeDepth>;
+
     //! Decomposes a domain into a plan of primitive steps.
     //!
     //! Depth first and total order, with no heuristic and no sorting: the hierarchy is what culls
@@ -40,7 +50,9 @@ namespace GOAT
     {
     public:
         //! Plans from a task. False when no decomposition of it holds.
-        bool Plan(const HtnDomain& domain, AZ::u16 rootTask, WorkingState& state, HtnPlanBuffer& outPlan) const;
+        //! @param outChoices the methods that were chosen, when a caller wants to report them.
+        bool Plan(const HtnDomain& domain, AZ::u16 rootTask, WorkingState& state, HtnPlanBuffer& outPlan,
+            HtnChoiceTrail* outChoices = nullptr) const;
 
     private:
         //! One compound task that was decomposed, and what to undo to take it back.

@@ -45,6 +45,7 @@ namespace GOAT
         }
 
         BlackboardKey FindKey(const AZ::Name& name) const override { return m_inner.FindKey(name); }
+        AZ::Name GetKeyName(BlackboardKey key) const override { return m_inner.GetKeyName(key); }
         void CreateAgentBlackboard(AgentId agent) override { m_inner.CreateAgentBlackboard(agent); }
         void DestroyAgentBlackboard(AgentId agent) override { m_inner.DestroyAgentBlackboard(agent); }
         void JoinSquad(AgentId agent, const AZ::Name& squad) override { m_inner.JoinSquad(agent, squad); }

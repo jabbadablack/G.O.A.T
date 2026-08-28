@@ -2,9 +2,56 @@
 
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
+#include <AzCore/std/string/string.h>
 
 namespace GOAT
 {
+    namespace
+    {
+        //! Names the primitive steps a plan holds, in the order they will run.
+        //! Only ever called from inside an AZLOG, so it costs nothing with the tag off.
+        AZStd::string DescribeSteps(const HtnDomain& domain, const AZ::u16* tasks, AZ::u16 count)
+        {
+            AZStd::string described;
+            for (AZ::u16 i = 0; i < count; ++i)
+            {
+                described += i == 0 ? "" : " -> ";
+                described += domain.m_tasks[tasks[i]].m_name.GetCStr();
+            }
+            return described.empty() ? AZStd::string("<empty>") : described;
+        }
+
+        //! Names the method each compound task was carried out by.
+        AZStd::string DescribeChoices(const HtnDomain& domain, const HtnChoiceTrail& choices)
+        {
+            AZStd::string described;
+            for (const HtnChoice& choice : choices)
+            {
+                described += described.empty() ? "" : ", ";
+                described += AZStd::string::format(
+                    "%s#%u", domain.m_tasks[choice.m_task].m_name.GetCStr(), static_cast<AZ::u32>(choice.m_method));
+            }
+            return described.empty() ? AZStd::string("<none>") : described;
+        }
+
+        //! Names the first condition of a task that no longer holds.
+        AZStd::string DescribeBrokenCondition(
+            const HtnDomain& domain, const HtnTask& task, const WorkingState& world,
+            const IBlackboardSystem& blackboard)
+        {
+            for (AZ::u16 i = 0; i < task.m_conditionCount; ++i)
+            {
+                const HtnCondition& condition = domain.m_conditions[task.m_firstCondition + i];
+                if (world.Get(domain, condition.m_key) != condition.m_expected)
+                {
+                    return AZStd::string::format("%s is not %s", blackboard.GetKeyName(condition.m_key).GetCStr(),
+                        condition.m_expected ? "true" : "false");
+                }
+            }
+            return "its conditions";
+        }
+    } // namespace
+
     HtnBackend::HtnBackend(IAgentSystem& host, IBlackboardSystem& blackboard)
         : m_host(host)
         , m_blackboard(blackboard)
@@ -72,8 +119,10 @@ namespace GOAT
             const HtnTask& task = domain.m_tasks[record.m_tasks[i]];
             if (!HtnPlanner::Allows(domain, task, world))
             {
-                AZLOG(GoatPlan, "GOAT: domain '%s' dropped agent %u's plan at step %u",
-                    domain.m_name.GetCStr(), context.m_agent.GetIndex(), static_cast<AZ::u32>(i));
+                AZLOG(GoatHtn, "GOAT: agent %u domain '%s' dropped its plan at step %u of %u ('%s'): %s",
+                    context.m_agent.GetIndex(), domain.m_name.GetCStr(), static_cast<AZ::u32>(i),
+                    static_cast<AZ::u32>(record.m_count), task.m_name.GetCStr(),
+                    DescribeBrokenCondition(domain, task, world, *context.m_blackboard).c_str());
                 return TickResult::Abandon;
             }
             HtnPlanner::ApplyEffects(domain, task, world);
@@ -116,10 +165,12 @@ namespace GOAT
         world.Snapshot(domain, *context.m_blackboard, context.m_agent);
 
         HtnPlanBuffer trail;
-        if (!m_planner.Plan(domain, domain.m_root, world, trail))
+        HtnChoiceTrail choices;
+        if (!m_planner.Plan(domain, domain.m_root, world, trail, &choices))
         {
-            AZLOG(GoatPlan, "GOAT: domain '%s' found nothing for agent %u", domain.m_name.GetCStr(),
-                context.m_agent.GetIndex());
+            AZLOG(GoatHtn, "GOAT: agent %u domain '%s' found no plan from task '%s'",
+                context.m_agent.GetIndex(), domain.m_name.GetCStr(),
+                domain.m_root < domain.m_tasks.size() ? domain.m_tasks[domain.m_root].m_name.GetCStr() : "<none>");
             return decision;
         }
 
@@ -135,8 +186,10 @@ namespace GOAT
         outPlan.m_span = context.m_planStore->Acquire(steps.data(), aznumeric_cast<AZ::u32>(steps.size()));
         decision.m_planned = true;
 
-        AZLOG(GoatPlan, "GOAT: domain '%s' planned %zu step(s) for agent %u", domain.m_name.GetCStr(),
-            steps.size(), context.m_agent.GetIndex());
+        AZLOG(GoatHtn, "GOAT: agent %u domain '%s' planned %zu step(s): %s [chose %s]",
+            context.m_agent.GetIndex(), domain.m_name.GetCStr(), steps.size(),
+            DescribeSteps(domain, record.m_tasks, record.m_count).c_str(),
+            DescribeChoices(domain, choices).c_str());
         return decision;
     }
 } // namespace GOAT

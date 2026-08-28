@@ -225,6 +225,47 @@ namespace GOAT
         EXPECT_EQ(verbs[0], AZ::Name("wait"));
     }
 
+    //! An agent's plan says what it will do; the choices say why. Without them a log can only
+    //! report the steps, which is the one thing a task network does not explain on its own.
+    TEST_F(HtnFixture, Plan_ReportsTheMethodItChose)
+    {
+        DeclareBool("loud", false);
+
+        AuthoredNode root = Node("domain");
+        AuthoredNode engage = Node("task");
+        Text(engage, "name", "Engage");
+
+        AuthoredNode first = Node("method");
+        first.m_children.push_back(Condition("loud"));
+        first.m_children.push_back(Subtask("Shout"));
+        engage.m_children.push_back(first);
+
+        AuthoredNode fallback = Node("method");
+        fallback.m_children.push_back(Subtask("Rest"));
+        engage.m_children.push_back(fallback);
+
+        root.m_children.push_back(engage);
+        root.m_children.push_back(Primitive("Shout", "shout"));
+        root.m_children.push_back(Primitive("Rest", "wait"));
+
+        const auto compiled = Compile(root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+        const HtnDomain& domain = compiled.GetValue();
+
+        WorkingState state;
+        state.Snapshot(domain, *m_blackboard, m_agent);
+
+        HtnPlanBuffer steps;
+        HtnChoiceTrail choices;
+        const HtnPlanner planner;
+        ASSERT_TRUE(planner.Plan(domain, domain.m_root, state, steps, &choices));
+
+        // "loud" is false, so the second method is the one that carried Engage.
+        ASSERT_EQ(choices.size(), 1u);
+        EXPECT_EQ(domain.m_tasks[choices[0].m_task].m_name, AZ::Name("Engage"));
+        EXPECT_EQ(choices[0].m_method, 1u);
+    }
+
     //! The property a tree cannot express: a step's effect is visible to a later condition,
     //! so the planner reasons about a world its own plan will have changed.
     TEST_F(HtnFixture, Plan_LetsAnEffectSatisfyALaterCondition)

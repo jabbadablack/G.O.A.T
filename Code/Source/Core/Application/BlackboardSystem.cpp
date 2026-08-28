@@ -64,6 +64,18 @@ namespace GOAT
         return m_schema.Find(name);
     }
 
+    AZ::Name BlackboardSystem::GetKeyName(BlackboardKey key) const
+    {
+        for (const auto& [name, declared] : m_schema.GetVariables())
+        {
+            if (declared == key)
+            {
+                return name;
+            }
+        }
+        return AZ::Name();
+    }
+
     void BlackboardSystem::CreateAgentBlackboard(AgentId agent)
     {
         AZ_Assert(!agent.IsNull(), "Agent scoped storage cannot be created for a null agent");

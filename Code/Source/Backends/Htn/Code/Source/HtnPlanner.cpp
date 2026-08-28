@@ -66,7 +66,8 @@ namespace GOAT
     }
 
     bool HtnPlanner::Plan(
-        const HtnDomain& domain, AZ::u16 rootTask, WorkingState& state, HtnPlanBuffer& outPlan) const
+        const HtnDomain& domain, AZ::u16 rootTask, WorkingState& state, HtnPlanBuffer& outPlan,
+        HtnChoiceTrail* outChoices) const
     {
         outPlan.clear();
         if (rootTask >= domain.m_tasks.size())
@@ -181,6 +182,15 @@ namespace GOAT
             {
                 outPlan.clear();
                 return false;
+            }
+        }
+
+        if (outChoices != nullptr)
+        {
+            outChoices->clear();
+            for (const Decomposed& record : history)
+            {
+                outChoices->push_back(HtnChoice{ record.m_task, record.m_method });
             }
         }
 
