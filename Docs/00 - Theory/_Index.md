@@ -15,7 +15,7 @@ This folder documents the **conceptual foundations** of G.O.A.T. It explains *wh
 | Note | Description |
 | :--- | :--- |
 | [[Design Principles]] | The 6 core pillars that guide every architectural decision in G.O.A.T. |
-| [[Backend Abstraction Theory]] | The unifying concept that all AI paradigms (BT, HTN, GOAP, Utility) are just `IBackend` implementations. |
+| [[Backend Abstraction Theory]] | Why the core knows nothing about paradigms, and how two coexist. |
 | [[Performance Model]] | How G.O.A.T. achieves high performance through flat programs, tick bands, and interval services. |
 | [[Extensibility Model]] | How modules add new actions, node types, and backends without modifying the core engine. |
 

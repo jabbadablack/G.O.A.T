@@ -42,10 +42,8 @@ AgentRuntime(
     IBlackboardSystem& blackboard,
     const ActionStateRegistry& actions,
     const BackendRegistry& backends,
-    IBackend& directBackend,
-    LuaDispatch& dispatch,
-    AgentScriptContext& scriptContext,
-    INodeScripting& scripting);
+    INodeScripting& scripting,
+    PlanStore& planStore);
 ```
 
 ### Methods
@@ -155,36 +153,27 @@ void AgentRuntime::Tick(AgentRecord& agent, float deltaTime)
 }
 ```
 
-#### `StartPlan()` – Backend Routing
+#### Deciding
+
+Routing an intent to a backend is no longer the runtime's job. The runtime asks the agent's
+[[IDecisionBackend]] and takes what it gets:
 
 ```cpp
-bool AgentRuntime::StartPlan(AgentRecord& agent, const PlanContext& planContext, const Intent& intent)
+ActionPlan plan;
+const Decision decision =
+    backend->Decide(planContext, *agent.m_program, agent.GetState(), lastResult, elapsed, plan);
+
+if (!decision.m_planned || plan.IsEmpty())
 {
-    IBackend* backend = intent.m_backend.IsEmpty() ? &m_directBackend : m_backends.Find(intent.m_backend);
-    if (backend == nullptr)
-    {
-        AZ_Warning("GOAT", false, "No backend named '%s' is installed", intent.m_backend.GetCStr());
-        return false;
-    }
-
-    ActionPlan plan;
-    if (!backend->Plan(planContext, intent, plan) || plan.IsEmpty())
-    {
-        return false;
-    }
-
-    agent.m_intent = intent;
-    agent.m_machine.SetPlan(plan);
-    return true;
+    agent.m_wakeIn = decision.m_wakeIn;
+    return;
 }
+
+agent.m_machine.SetPlan(m_planStore, plan);
 ```
 
-### Performance Considerations
-
-- **Allocation:** No per-tick allocations; reuses existing vectors.
-- **Tick Rate:** Called every tick for each agent in a band.
-- **Concurrency:** Main thread only.
-- **Work Bounding:** `MaxIntentsPerTick = 8` prevents a tree of instantly-completing leaves from spinning the frame.
+Whether that plan came from walking a tree, decomposing a task network, or delegating to a Lua
+planner is entirely the backend's business. The runtime never sees an `Intent`.
 
 ---
 
