@@ -64,7 +64,6 @@ void ReflectGuardTypes(AZ::ReflectContext* context);
 ### Type Alias
 
 ```cpp
-using GuardList = AZStd::vector<Guard>;
 ```
 
 ---
@@ -116,7 +115,7 @@ Unit tests should cover:
 
 - **AbortMode Reflection:** Correctly reflects all four modes.
 - **Guard Struct:** Correctly stores key, node, and abort mode.
-- **GuardList:** Correctly stores a vector of guards.
+- **Guards live in the compiled program.** `DecisionProgram::m_guardNodes` lists the node indices that carry one, so re-checking walks a short list instead of the whole tree.
 
 ---
 

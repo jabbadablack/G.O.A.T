@@ -386,9 +386,9 @@ public:
 
 ```cpp
 // Code/Source/Core/Application/AgentRuntime.cpp
-constexpr int MaxIntentsPerTick = 8;
+constexpr int MaxIntentsPerDecision = 8;
 
-for (int attempt = 0; attempt < MaxIntentsPerTick; ++attempt)
+for (int attempt = 0; attempt < MaxIntentsPerDecision; ++attempt)
 {
     if (step.m_outcome == WalkOutcome::Finished) { ... }
     if (StartPlan(agent, planContext, step.m_intent)) { return; }

@@ -41,11 +41,6 @@ virtual AZ::Name GetName() const = 0;
 // Produces a plan for one intent. Returns false when this backend cannot satisfy it.
 virtual bool Plan(const PlanContext& context, const Intent& intent, ActionPlan& outPlan) = 0;
 
-// Reports the conditions that invalidate the plan while it runs.
-virtual void CollectGuards(
-    [[maybe_unused]] const PlanContext& context,
-    [[maybe_unused]] const ActionPlan& plan,
-    [[maybe_unused]] GuardList& outGuards) const { }
 
 // Releases any per agent state held for this agent.
 virtual void Release([[maybe_unused]] const PlanContext& context) { }
@@ -75,7 +70,7 @@ graph LR
     D --> E[AgentStateMachine]
 ```
 
-- **Depends on:** `PlanContext`, `Intent`, `ActionPlan`, `GuardList`.
+- **Depends on:** `PlanContext`, `Intent`, `ActionPlan`.
 - **Interacts with:** `BackendRegistry` (for registration/lookup), `AgentStateMachine` (to execute the produced plan).
 - **Implemented by:** `LuaBackend`, and any C++ planner you write for a `delegate` leaf.
 - **Not the same as** [[IDecisionBackend]], which is a whole paradigm. See [[Backends]] for the difference.

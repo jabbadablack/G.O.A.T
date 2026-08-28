@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`AgentRuntime` is the **core execution engine** that runs one tick of the entire AI pipeline for a single agent. It orchestrates guards, services, the action state machine, and the tree walker, ensuring that each agent makes progress within a bounded amount of work per frame (`MaxIntentsPerTick`).
+`AgentRuntime` is the **core execution engine** that runs one tick of the entire AI pipeline for a single agent. It orchestrates guards, services, the action state machine, and the tree walker, ensuring that each agent makes progress within a bounded amount of work per frame (`MaxIntentsPerDecision`).
 
 It is constructed once by `GOATSystemComponent` and passed to `AgentRegistry`, which calls `Tick()` on it for every agent in a band.
 
@@ -138,7 +138,7 @@ void AgentRuntime::Tick(AgentRecord& agent, float deltaTime)
         haveStep = true;
     }
 
-    for (int attempt = 0; attempt < MaxIntentsPerTick; ++attempt)
+    for (int attempt = 0; attempt < MaxIntentsPerDecision; ++attempt)
     {
         if (step.m_outcome == WalkOutcome::Finished)
         {
@@ -191,7 +191,7 @@ Unit tests should cover:
 - **Tick with Active Plan:** Action is advanced until it completes.
 - **Guard Interrupt:** A guard stops holding and aborts the current action.
 - **Service Due:** Services are collected and run at the correct interval.
-- **Bounded Work:** Tree of instant leaves stops after `MaxIntentsPerTick`.
+- **Bounded Work:** Tree of instant leaves stops after `MaxIntentsPerDecision`.
 - **Backend Failure:** An intent with no backend fails gracefully.
 
 ---
