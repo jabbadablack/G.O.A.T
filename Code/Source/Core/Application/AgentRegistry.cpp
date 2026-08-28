@@ -3,6 +3,7 @@
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/std/algorithm.h>
+#include <AzCore/std/limits.h>
 
 namespace GOAT
 {
@@ -98,6 +99,8 @@ namespace GOAT
         }
 
         raw->m_observer.Connect(*raw->m_program, m_blackboard, id);
+
+        raw->ResetBrain(*program);
         program->m_backend->Attach(m_runtime.MakePlanContext(*raw), *program, raw->GetState());
 
         AddToBand(id, band);
@@ -294,6 +297,10 @@ namespace GOAT
 
         record->m_observer.Disconnect();
         record->m_observer.Connect(*record->m_program, m_blackboard, agent);
+
+        // Safe to resize here only because the abort and release above tore down every nested
+        // run, so nothing is left holding a pointer into the block being replaced.
+        record->ResetBrain(*program);
         program->m_backend->Attach(m_runtime.MakePlanContext(*record), *program, record->GetState());
 
         AZLOG(GoatAgent, "GOAT: agent %u is now running tree '%s' (%zu interrupted)",

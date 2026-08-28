@@ -101,6 +101,7 @@ namespace GOAT
         AgentId GetAgentAtSlot(size_t slot) const;
 
     private:
+
         //! Takes an agent out of whichever band currently lists it.
         void RemoveFromBand(AgentId agent, size_t band);
 

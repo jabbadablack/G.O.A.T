@@ -34,5 +34,13 @@ namespace GOAT
         AZStd::vector<AZ::Name> m_boundSlots;
         //! True when this needs a call every tick, not only when a watched slot changed.
         bool m_wantsTick = false;
+        //! Brain state one agent needs to run this, which the core fills in once it knows.
+        size_t m_stateBytes = 0;
     };
+
+    //! Rounds a brain state size up to what the block after it needs to stay aligned.
+    inline constexpr size_t AlignState(size_t bytes)
+    {
+        return (bytes + 7u) & ~static_cast<size_t>(7u);
+    }
 } // namespace GOAT

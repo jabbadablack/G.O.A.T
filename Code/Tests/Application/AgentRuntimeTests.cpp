@@ -229,11 +229,13 @@ namespace GOAT
             m_agent.m_archetype = archetype;
             m_agent.m_tree = 0;
             m_agent.m_program = archetype->GetProgram(0);
+
+            m_agent.ResetBrain(*m_agent.m_program);
             m_treeBackend->Attach(m_runtime->MakePlanContext(m_agent), *m_agent.m_program, m_agent.GetState());
         }
 
         //! The cursor the tree backend keeps in the agent's brain state.
-        DecisionCursor& Cursor() { return *reinterpret_cast<DecisionCursor*>(m_agent.m_brainState.data()); }
+        DecisionCursor& Cursor() { return *reinterpret_cast<DecisionCursor*>(m_agent.GetState().data()); }
 
         BlackboardKey m_gate;
         ActionStateId m_holdId = CoreActions::Invalid;
