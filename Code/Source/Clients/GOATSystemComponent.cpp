@@ -1,5 +1,6 @@
 #include "GOATSystemComponent.h"
 
+#include <Core/Application/NestedRun.h>
 #include <Core/Assets/BlackboardAssetHandler.h>
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
@@ -508,9 +509,87 @@ namespace GOAT
         return AZ::Success();
     }
 
+    AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileNested(AgentProgram& program)
+    {
+        program.m_stateBytes = AlignState(program.m_backend->GetStateSize());
+
+        size_t deepest = 0;
+        for (const NestedProgram& nested : program.m_nested)
+        {
+            // A delegate naming something that is not a paradigm is a plain planner behind one
+            // leaf. It compiles nothing and is looked up when the leaf runs, which is what lets
+            // a backend declared in Lua register after the programs that name it have compiled.
+            if (!nested.m_backend.IsEmpty() && m_decisionBackends->Find(nested.m_backend) == nullptr)
+            {
+                continue;
+            }
+
+            const IDecisionBackend* owner = nested.m_backend.IsEmpty()
+                ? FindProgramBackend(nested.m_program)
+                : m_decisionBackends->Find(nested.m_backend);
+
+            if (owner == nullptr)
+            {
+                return AZ::Failure(AZStd::string::format(
+                    "'%s' hands work to '%s', which no installed backend claims", program.m_name.GetCStr(),
+                    nested.m_program.GetCStr()));
+            }
+
+            if (auto ran = CompileProgram(owner->GetName(), nested.m_program); !ran.IsSuccess())
+            {
+                return AZ::Failure(AZStd::string::format("'%s' hands work to '%s': %s", program.m_name.GetCStr(),
+                    nested.m_program.GetCStr(), ran.GetError().c_str()));
+            }
+
+            const auto inner = m_programs.find(nested.m_program);
+            AZ_Assert(inner != m_programs.end(), "A program that just compiled must be findable by name");
+
+            // What the nested one watches, the host has to watch too, or the agent sleeps
+            // through the very change the nested program is guarding on. What slots it was
+            // compiled against the host has to own too, or a rebind cannot find whoever used it.
+            for (size_t scope = 0; scope < inner->second->m_watchedScopes.size(); ++scope)
+            {
+                program.m_watchedScopes[scope] = program.m_watchedScopes[scope] || inner->second->m_watchedScopes[scope];
+            }
+
+            for (const AZ::Name& slot : inner->second->m_boundSlots)
+            {
+                if (AZStd::find(program.m_boundSlots.begin(), program.m_boundSlots.end(), slot) ==
+                    program.m_boundSlots.end())
+                {
+                    program.m_boundSlots.push_back(slot);
+                }
+            }
+
+            // The most any one of them needs, not the sum: two of these in different branches
+            // run one at a time, and a chain of them is a stack.
+            const size_t frame = nested.m_runsToCompletion ? NestedFrameBytes() : 0;
+            deepest = AZStd::max(deepest, frame + inner->second->m_stateBytes);
+        }
+
+        program.m_stateBytes += deepest;
+        return AZ::Success();
+    }
+
     AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileProgram(
         const AZ::Name& backendName, const AZ::Name& programName)
     {
+        if (AZStd::find(m_compiling.begin(), m_compiling.end(), programName) != m_compiling.end())
+        {
+            return AZ::Failure(AZStd::string::format(
+                "'%s' hands work back to itself, directly or through another program", programName.GetCStr()));
+        }
+
+        if (m_compiling.size() >= MaxNestDepth)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "'%s' is %zu programs deep in handing work on, which is a loop rather than a chain",
+                programName.GetCStr(), m_compiling.size()));
+        }
+
+        m_compiling.push_back(programName);
+        const CompileFrame frame{ m_compiling };
+
         if (m_dispatch == nullptr || m_trees == nullptr)
         {
             return AZ::Failure(AZStd::string("The scripting services are not running"));
@@ -545,7 +624,13 @@ namespace GOAT
             return AZ::Failure(compiled.TakeError());
         }
 
-        AZStd::shared_ptr<const AgentProgram> program = compiled.TakeValue();
+        AZStd::shared_ptr<AgentProgram> built = compiled.TakeValue();
+        if (auto folded = CompileNested(*built); !folded.IsSuccess())
+        {
+            return AZ::Failure(folded.TakeError());
+        }
+
+        AZStd::shared_ptr<const AgentProgram> program = AZStd::move(built);
         m_programs[programName] = program;
 
         // An entity may have registered before this tree compiled, leaving its archetype holding

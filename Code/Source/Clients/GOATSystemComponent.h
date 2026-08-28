@@ -121,6 +121,9 @@ namespace GOAT
         //! The backend that runs a program: the one that compiled it, or failing that the one
         //! that owns the word its authored root is written as.
         IDecisionBackend* FindProgramBackend(const AZ::Name& programName) const;
+
+        //! Compiles every program one names and folds what they need into it.
+        AZ::Outcome<void, AZStd::string> CompileNested(AgentProgram& program);
         AZStd::vector<AZ::Name> GetDecisionBackendNames() const override;
         ////////////////////////////////////////////////////////////////////////
 
@@ -256,7 +259,17 @@ namespace GOAT
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
+        //! Unwinds the compile stack however the compile it belongs to ends.
+        struct CompileFrame final
+        {
+            AZStd::vector<AZ::Name>& m_stack;
+            ~CompileFrame() { m_stack.pop_back(); }
+        };
+
         AZStd::unique_ptr<DecisionBackendRegistry> m_decisionBackends;
+        //! Programs being compiled right now, outermost first, so one that hands work back to
+        //! itself is caught rather than compiled forever.
+        AZStd::vector<AZ::Name> m_compiling;
         //! Which backend gives each authored word meaning, so a program can be placed with the
         //! paradigm that owns its root without the core ever naming one.
         AZStd::unordered_map<AZ::Name, IDecisionBackend*> m_nodeTypeOwners;

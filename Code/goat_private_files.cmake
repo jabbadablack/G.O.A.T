@@ -25,6 +25,8 @@ set(FILES
     Source/Core/Application/AgentArchetype.cpp
     Source/Core/Application/AgentArchetype.h
     Source/Core/Application/AgentRegistry.cpp
+    Source/Core/Application/NestedRun.cpp
+    Source/Core/Application/NestedRun.h
     Source/Core/Application/AgentStore.cpp
     Source/Core/Application/AgentStore.h
     Source/Core/Application/AgentRegistry.h
