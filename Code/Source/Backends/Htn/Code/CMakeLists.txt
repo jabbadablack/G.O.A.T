@@ -3,8 +3,8 @@
 # Get the platform specific folder ${pal_dir} for the current folder: ${CMAKE_CURRENT_LIST_DIR}/Platform/${PAL_PLATFORM_NAME}
 # Note: o3de_pal_dir will take care of the details for us, as this may be a restricted platform
 #       in which case it will see if that platform is present here or in the restricted folder.
-#       i.e. It could here in our gem : Gems/GOAT/Code/Platform/<platorm_name>  or
-#            <restricted_folder>/<platform_name>/Gems/GOAT/Code
+#       i.e. It could here in our gem : Gems/GOAT_Htn/Code/Platform/<platorm_name>  or
+#            <restricted_folder>/<platform_name>/Gems/GOAT_Htn/Code
 o3de_pal_dir(pal_dir ${CMAKE_CURRENT_LIST_DIR}/Platform/${PAL_PLATFORM_NAME} "${gem_restricted_path}" "${gem_path}" "${gem_parent_relative_path}")
 
 # Now that we have the platform abstraction layer (PAL) folder for this folder, thats where we will find the
@@ -13,24 +13,24 @@ o3de_pal_dir(pal_dir ${CMAKE_CURRENT_LIST_DIR}/Platform/${PAL_PLATFORM_NAME} "${
 include(${pal_dir}/PAL_${PAL_PLATFORM_NAME_LOWERCASE}.cmake)
 
 # Check to see if building the Gem Modules are supported for the current platform
-if(NOT PAL_TRAIT_GOAT_SUPPORTED)
+if(NOT PAL_TRAIT_GOAT_HTN_SUPPORTED)
     return()
 endif()
 
-
 # The ${gem_name}.API target declares the common interface that users of this gem should depend on in their targets
 ly_add_target(
-    NAME ${gem_name}.API STATIC
+    NAME ${gem_name}.API INTERFACE
     NAMESPACE Gem
     FILES_CMAKE
-        goat_api_files.cmake
-        ${pal_dir}/goat_api_files.cmake
+        goat_htn_api_files.cmake
+        ${pal_dir}/goat_htn_api_files.cmake
     INCLUDE_DIRECTORIES
-        PUBLIC
+        INTERFACE
             Include
     BUILD_DEPENDENCIES
-        PUBLIC
+        INTERFACE
            AZ::AzCore
+           Gem::GOAT.API
 )
 
 # The ${gem_name}.Private.Object target is an internal target
@@ -39,8 +39,8 @@ ly_add_target(
     NAME ${gem_name}.Private.Object STATIC
     NAMESPACE Gem
     FILES_CMAKE
-        goat_private_files.cmake
-        ${pal_dir}/goat_private_files.cmake
+        goat_htn_private_files.cmake
+        ${pal_dir}/goat_htn_private_files.cmake
     TARGET_PROPERTIES
         O3DE_PRIVATE_TARGET TRUE
     INCLUDE_DIRECTORIES
@@ -51,6 +51,7 @@ ly_add_target(
         PUBLIC
             AZ::AzCore
             AZ::AzFramework
+            Gem::GOAT.API
             Gem::${gem_name}.API
 )
 
@@ -59,8 +60,8 @@ ly_add_target(
     NAME ${gem_name} ${PAL_TRAIT_MONOLITHIC_DRIVEN_MODULE_TYPE}
     NAMESPACE Gem
     FILES_CMAKE
-        goat_shared_files.cmake
-        ${pal_dir}/goat_shared_files.cmake
+        goat_htn_shared_files.cmake
+        ${pal_dir}/goat_htn_shared_files.cmake
     INCLUDE_DIRECTORIES
         PUBLIC
             Include
@@ -80,7 +81,7 @@ ly_add_target(
 # is used to bootstrap the gem in monolithic builds to link to the new gem name
 ly_add_source_properties(
 SOURCES
-    Source/Clients/GOATModule.cpp
+    Source/Clients/GOAT_HtnModule.cpp
 PROPERTY COMPILE_DEFINITIONS
     VALUES
         O3DE_GEM_NAME=${gem_name}
@@ -109,8 +110,8 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
         NAME ${gem_name}.Editor.API INTERFACE
         NAMESPACE Gem
         FILES_CMAKE
-            goat_editor_api_files.cmake
-            ${pal_dir}/goat_editor_api_files.cmake
+            goat_htn_editor_api_files.cmake
+            ${pal_dir}/goat_htn_editor_api_files.cmake
         INCLUDE_DIRECTORIES
             INTERFACE
                 Include
@@ -126,7 +127,7 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
         NAME ${gem_name}.Editor.Private.Object STATIC
         NAMESPACE Gem
         FILES_CMAKE
-            goat_editor_private_files.cmake
+            goat_htn_editor_private_files.cmake
         TARGET_PROPERTIES
             O3DE_PRIVATE_TARGET TRUE
         INCLUDE_DIRECTORIES
@@ -136,7 +137,6 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
         BUILD_DEPENDENCIES
             PUBLIC
                 AZ::AzToolsFramework
-                AZ::AssetBuilderSDK
                 ${gem_name}.Private.Object
     )
 
@@ -145,7 +145,7 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
         NAMESPACE Gem
         AUTOMOC
         FILES_CMAKE
-            goat_editor_shared_files.cmake
+            goat_htn_editor_shared_files.cmake
         INCLUDE_DIRECTORIES
             PRIVATE
                 Source
@@ -165,7 +165,7 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
     # is used to bootstrap the gem in monolithic builds to link to the new gem name
     ly_add_source_properties(
     SOURCES
-        Source/Tools/GOATEditorModule.cpp
+        Source/Tools/GOAT_HtnEditorModule.cpp
     PROPERTY COMPILE_DEFINITIONS
         VALUES
             O3DE_GEM_NAME=${gem_name}
@@ -192,55 +192,42 @@ endif()
 # See if globally, tests are supported
 if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
     # We globally support tests, see if we support tests on this platform for ${gem_name}.Tests
-    if(PAL_TRAIT_GOAT_TEST_SUPPORTED)
+    if(PAL_TRAIT_GOAT_HTN_TEST_SUPPORTED)
         # We support ${gem_name}.Tests on this platform, add dependency on the Private Object target
         ly_add_target(
             NAME ${gem_name}.Tests ${PAL_TRAIT_TEST_TARGET_TYPE}
             NAMESPACE Gem
             FILES_CMAKE
-                goat_tests_files.cmake
+                goat_htn_tests_files.cmake
             INCLUDE_DIRECTORIES
                 PRIVATE
                     Tests
                     Source
                     Include
-                    Source/Backends/BehaviorTree/Code/Source
-                    Source/Backends/Htn/Code/Source
             BUILD_DEPENDENCIES
                 PRIVATE
                     AZ::AzTest
                     AZ::AzFramework
                     Gem::${gem_name}.Private.Object
-                    # The behaviour tree is a gem of its own, but its walker and compiler are
-                    # still covered here. A test harness may depend on a gem; the core does not.
-                    Gem::GOAT_BehaviorTree.Private.Object
-                    Gem::GOAT_Htn.Private.Object
         )
 
         # Add ${gem_name}.Tests to googletest
         ly_add_googletest(
             NAME Gem::${gem_name}.Tests
         )
-
-        # The same target carries the benchmarks: AZ_UNIT_TEST_HOOK already expands to the
-        # benchmark hook, so they need no target of their own.
-        ly_add_googlebenchmark(
-            NAME Gem::${gem_name}.Benchmarks
-            TARGET Gem::${gem_name}.Tests
-        )
     endif()
 
     # If we are a host platform we want to add tools test like editor tests here
     if(PAL_TRAIT_BUILD_HOST_TOOLS)
         # We are a host platform, see if Editor tests are supported on this platform
-        if(PAL_TRAIT_GOAT_EDITOR_TEST_SUPPORTED)
+        if(PAL_TRAIT_GOAT_HTN_EDITOR_TEST_SUPPORTED)
             # We support ${gem_name}.Editor.Tests on this platform, add ${gem_name}.Editor.Tests target which depends on
             # private ${gem_name}.Editor.Private.Object target
             ly_add_target(
                 NAME ${gem_name}.Editor.Tests ${PAL_TRAIT_TEST_TARGET_TYPE}
                 NAMESPACE Gem
                 FILES_CMAKE
-                    goat_editor_tests_files.cmake
+                    goat_htn_editor_tests_files.cmake
                 INCLUDE_DIRECTORIES
                     PRIVATE
                         Tests

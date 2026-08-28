@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Backends/Htn/HtnDomain.h>
+#include <HtnDomain.h>
 
 #include <GOAT/Assets/BehaviorTreeAsset.h>
 #include <GOAT/Interfaces/IAgentSystem.h>

@@ -1,4 +1,4 @@
-#include <Backends/Htn/HtnBackend.h>
+#include <HtnBackend.h>
 
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>

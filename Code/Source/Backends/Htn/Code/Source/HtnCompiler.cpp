@@ -1,4 +1,4 @@
-#include <Backends/Htn/HtnCompiler.h>
+#include <HtnCompiler.h>
 
 #include <AzCore/std/algorithm.h>
 #include <AzCore/std/limits.h>

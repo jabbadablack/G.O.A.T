@@ -1,18 +1,18 @@
 {
-    "gem_name": "GOAT_BehaviorTree",
+    "gem_name": "GOAT_Htn",
     "version": "1.0.0",
-    "display_name": "GOAT_BehaviorTree",
+    "display_name": "GOAT_Htn",
     "license": "License used i.e. Apache-2.0 or MIT",
     "license_url": "Link to the license web site i.e. https://opensource.org/licenses/Apache-2.0",
     "origin": "The name of the originator or creator",
     "origin_url": "The website for this Gem",
     "type": "Code",
-    "summary": "Behaviour tree backend for GOAT agents: a reactive tree decides what an agent does next.",
+    "summary": "Task network backend for GOAT agents: a hierarchical planner decides what an agent does next.",
     "canonical_tags": [
         "Gem"
     ],
     "user_tags": [
-        "GOAT_BehaviorTree"
+        "GOAT_Htn"
     ],
     "platforms": [
         ""

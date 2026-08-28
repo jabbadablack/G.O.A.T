@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Backends/Htn/HtnCompiler.h>
-#include <Backends/Htn/HtnPlanner.h>
+#include <HtnCompiler.h>
+#include <HtnPlanner.h>
 
 #include <GOAT/Interfaces/IDecisionBackend.h>
 

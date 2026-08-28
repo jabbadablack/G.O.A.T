@@ -5,7 +5,6 @@
 #include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
-#include <Backends/Htn/HtnBackend.h>
 #include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>

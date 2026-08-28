@@ -1,8 +1,8 @@
-#include <Backends/Htn/HtnBackend.h>
-#include <Backends/Htn/HtnCompiler.h>
+#include <HtnBackend.h>
+#include <HtnCompiler.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Scripting/LuaNodeScripting.h>
-#include <Backends/Htn/HtnPlanner.h>
+#include <HtnPlanner.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
 #include <TestAgentSystem.h>

@@ -1,4 +1,4 @@
-#include <Backends/Htn/HtnPlanner.h>
+#include <HtnPlanner.h>
 
 #include <AzCore/Debug/Trace.h>
 #include <AzCore/std/algorithm.h>

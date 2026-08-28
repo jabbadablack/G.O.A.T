@@ -28,13 +28,6 @@ set(FILES
     Source/Core/Application/AgentRuntime.h
     Source/Core/Application/BackendRegistry.h
     Source/Core/Application/DecisionBackendRegistry.h
-    Source/Backends/Htn/HtnBackend.cpp
-    Source/Backends/Htn/HtnBackend.h
-    Source/Backends/Htn/HtnCompiler.cpp
-    Source/Backends/Htn/HtnCompiler.h
-    Source/Backends/Htn/HtnDomain.h
-    Source/Backends/Htn/HtnPlanner.cpp
-    Source/Backends/Htn/HtnPlanner.h
     Source/Core/Application/NamedRegistry.h
     Source/Core/Application/NodeTypeRegistry.cpp
     Source/Core/Application/NodeTypeRegistry.h
