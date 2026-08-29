@@ -26,6 +26,10 @@ namespace GOAT::GraphEditor
     //! never depends on a canvas existing.
     using PositionLookup = AZStd::function<AZ::Vector2(GraphModel::ConstNodePtr)>;
 
+    //! True when anything in the program says where it should sit. A program Lua declared, or
+    //! one just created, says nothing, and the window lays it out from measured node sizes.
+    bool HasAuthoredLayout(const AuthoredNode& root);
+
     //! Turns an authored program into the nodes a canvas should hold.
     //! Nodes with no authored position are laid out left to right, in execution order downwards.
     AZStd::vector<PlacedNode> FromAuthored(const AuthoredNode& root, GraphModel::GraphPtr graph);

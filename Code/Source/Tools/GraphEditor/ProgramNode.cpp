@@ -12,10 +12,6 @@ namespace GOAT::GraphEditor
 {
     namespace
     {
-        //! How many children a word of this kind may hold, as a slot count.
-        //! A composite is open ended, a decorator holds one, a leaf holds none.
-        constexpr int MaxCompositeChildren = 32;
-
         const NodeTypeDescriptor* FindDescriptor(const AZStd::string& typeName)
         {
             IAgentSystem* agents = AgentSystemInterface::Get();
@@ -124,15 +120,11 @@ namespace GOAT::GraphEditor
             "The node this one runs under", GraphModel::DataTypeList{ execution }));
 
         // Arity is the slot layout, so a leaf cannot be given a child at all.
-        const int maxChildren = descriptor->m_kind == NodeKind::Composite ? MaxCompositeChildren
-            : descriptor->m_kind == NodeKind::Decorator                   ? 1
-                                                                          : 0;
-        if (maxChildren > 0)
+        if (descriptor->m_kind == NodeKind::Composite || descriptor->m_kind == NodeKind::Decorator)
         {
             RegisterSlot(AZStd::make_shared<GraphModel::SlotDefinition>(
                 GraphModel::SlotDirection::Output, GraphModel::SlotType::Event, ChildrenSlotId, "Children",
-                "What runs under this node, in order from the top", GraphModel::DataTypeList{ execution },
-                AZStd::any{}, 1, maxChildren));
+                "What runs under this node, in order from the top", GraphModel::DataTypeList{ execution }));
         }
 
         // Services are a list of their own on an authored node, and only a composite carries them.
@@ -140,8 +132,7 @@ namespace GOAT::GraphEditor
         {
             RegisterSlot(AZStd::make_shared<GraphModel::SlotDefinition>(
                 GraphModel::SlotDirection::Output, GraphModel::SlotType::Event, ServicesSlotId, "Services",
-                "Services ticked while this subtree is active", GraphModel::DataTypeList{ execution },
-                AZStd::any{}, 1, MaxCompositeChildren));
+                "Services ticked while this subtree is active", GraphModel::DataTypeList{ execution }));
         }
 
         // Properties sit on the node face rather than becoming wires: an authored property is a

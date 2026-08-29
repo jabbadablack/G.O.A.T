@@ -132,6 +132,37 @@ namespace GOAT
         EXPECT_NE(node->GetSlot(ProgramNode::PropertySlotId("seconds")), nullptr);
     }
 
+    TEST_F(ProgramGraphFixture, ANodeIsTitledWithItsWordAndCategory)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        auto node = AZStd::make_shared<ProgramNode>(graph, "sequence");
+
+        EXPECT_STREQ(node->GetTitle(), "sequence");
+        EXPECT_STREQ(node->GetSubTitle(), "Composite");
+    }
+
+    TEST_F(ProgramGraphFixture, OneChildSlotTakesEveryChild)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        auto root = AZStd::make_shared<ProgramNode>(graph, "sequence");
+        graph->AddNode(root);
+
+        GraphModel::SlotPtr children = root->GetSlot(ChildrenSlotId);
+        ASSERT_NE(children, nullptr);
+        EXPECT_FALSE(children->SupportsExtendability())
+            << "an extendable slot would make the author add one slot per child";
+
+        for (int i = 0; i < 3; ++i)
+        {
+            auto child = AZStd::make_shared<ProgramNode>(graph, "wait");
+            graph->AddNode(child);
+            EXPECT_NE(graph->AddConnection(children, child->GetSlot(ParentSlotId)), nullptr);
+        }
+        EXPECT_EQ(children->GetConnections().size(), 3u);
+
+        graph->ClearCachedData();
+    }
+
     TEST_F(ProgramGraphFixture, ACompositeHoldsChildrenAndServices)
     {
         auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
@@ -148,6 +179,21 @@ namespace GOAT
 
         EXPECT_NE(node->GetSlot(ChildrenSlotId), nullptr);
         EXPECT_EQ(node->GetSlot(ServicesSlotId), nullptr);
+    }
+
+    TEST_F(ProgramGraphFixture, AProgramWithoutPositionsIsLaidOutRatherThanTrusted)
+    {
+        AuthoredNode lua = TwoWaits();
+        lua.m_metadata.m_position = AZ::Vector2::CreateZero();
+        lua.m_children[0].m_metadata.m_position = AZ::Vector2::CreateZero();
+        lua.m_children[1].m_metadata.m_position = AZ::Vector2::CreateZero();
+        EXPECT_FALSE(HasAuthoredLayout(lua)) << "nothing in it says where anything sits";
+
+        // One placed node anywhere in the tree is enough to call the layout the author's.
+        lua.m_children[1].m_metadata.m_position = AZ::Vector2(10.0f, 20.0f);
+        EXPECT_TRUE(HasAuthoredLayout(lua));
+
+        EXPECT_TRUE(HasAuthoredLayout(TwoWaits()));
     }
 
     TEST_F(ProgramGraphFixture, FlatteningKeepsTheAuthoredTreeShape)

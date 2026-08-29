@@ -186,6 +186,29 @@ namespace GOAT::GraphEditor
         }
     } // namespace
 
+    bool HasAuthoredLayout(const AuthoredNode& root)
+    {
+        if (!root.m_metadata.m_position.IsZero())
+        {
+            return true;
+        }
+        for (const AuthoredNode& service : root.m_services)
+        {
+            if (HasAuthoredLayout(service))
+            {
+                return true;
+            }
+        }
+        for (const AuthoredNode& child : root.m_children)
+        {
+            if (HasAuthoredLayout(child))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     AZStd::vector<PlacedNode> FromAuthored(const AuthoredNode& root, GraphModel::GraphPtr graph)
     {
         AZStd::vector<PlacedNode> placed;
