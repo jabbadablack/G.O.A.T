@@ -3,6 +3,10 @@
 The **GOAT Program Editor**, under *Tools* in the O3DE Editor. It authors `.goat` files, which are
 `ProgramAsset`s holding an `AuthoredNode` root.
 
+A program is made in the **Asset Browser** — right click a folder, *Create*, *GOAT Program* — which
+writes the file and opens it here. Double clicking a `.goat` opens it here too. `ProgramAsset`
+deliberately does not set `EnableForAssetEditor`: a program is a graph, not a property grid.
+
 ## Where it sits
 
 Authoring and execution are separate, so this is an additional producer rather than a replacement:

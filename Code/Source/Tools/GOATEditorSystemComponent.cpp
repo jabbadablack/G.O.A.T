@@ -17,6 +17,7 @@
 #include <GOAT/GOATProgramEditorBus.h>
 
 #include <AzCore/IO/Path/Path.h>
+#include <AzCore/StringFunc/StringFunc.h>
 #include <AzToolsFramework/API/ViewPaneOptions.h>
 #include <AzToolsFramework/AssetBrowser/AssetBrowserBus.h>
 
