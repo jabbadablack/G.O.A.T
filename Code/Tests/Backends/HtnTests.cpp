@@ -170,6 +170,72 @@ namespace GOAT
         AZStd::unique_ptr<TestAgentSystem> m_host;
     };
 
+    //! What a tool watching an agent is told: which authored task the plan is up to.
+    TEST_F(HtnFixture, TheRunningTaskIsReportedByWhereItWasAuthored)
+    {
+        DeclareBool("ready", true);
+
+        AuthoredNode root = Node("domain");
+        AuthoredNode engage = Node("task");
+        Text(engage, "name", "Engage");
+        AuthoredNode method = Node("method");
+        method.m_children.push_back(Condition("ready"));
+        method.m_children.push_back(Subtask("Shout"));
+        method.m_children.push_back(Subtask("Rest"));
+        engage.m_children.push_back(method);
+        root.m_children.push_back(engage);
+        root.m_children.push_back(Primitive("Shout", "shout"));
+        root.m_children.push_back(Primitive("Rest", "wait"));
+
+        const auto compiled = Compile(root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        const HtnDomain& domain = compiled.GetValue();
+        ASSERT_EQ(domain.m_authored.size(), domain.m_tasks.size());
+
+        // Every task's path must lead back to the node that declared it.
+        for (size_t i = 0; i < domain.m_tasks.size(); ++i)
+        {
+            ASSERT_EQ(domain.m_authored[i].m_path.size(), 1u);
+            const AuthoredNode* at = StepInto(root, domain.m_authored[i].m_path[0]);
+            ASSERT_NE(at, nullptr);
+
+            AZStd::string declared;
+            for (const AuthoredProperty& property : at->m_properties)
+            {
+                if (property.m_name == "name")
+                {
+                    declared = AZStd::any_cast<AZStd::string>(property.m_value);
+                }
+            }
+            EXPECT_EQ(AZ::Name(declared), domain.m_tasks[i].m_name);
+        }
+
+        // Parked on the second step of the plan, the backend names the task running there.
+        const HtnPlanBuffer steps = Steps(domain);
+        ASSERT_EQ(steps.size(), 2u);
+
+        HtnPlanRecord record;
+        record.m_count = aznumeric_cast<AZ::u16>(steps.size());
+        for (size_t i = 0; i < steps.size(); ++i)
+        {
+            record.m_tasks[i] = steps[i];
+        }
+
+        HtnBackend backend(*m_host, *m_blackboard);
+        AZStd::vector<ProgramNodeRef> path;
+        backend.DescribePosition(domain, BrainState(reinterpret_cast<AZ::u8*>(&record), sizeof(record)), 1, path);
+
+        ASSERT_EQ(path.size(), 1u) << "a domain is one level deep";
+        EXPECT_EQ(path[0].m_program, domain.m_authored[steps[1]].m_program);
+        EXPECT_EQ(path[0].m_path, domain.m_authored[steps[1]].m_path);
+
+        path.clear();
+        backend.DescribePosition(domain, BrainState(reinterpret_cast<AZ::u8*>(&record), sizeof(record)),
+            NoRunningStep, path);
+        EXPECT_TRUE(path.empty()) << "an agent running no plan is running no task";
+    }
+
     TEST_F(HtnFixture, Plan_DecomposesACompoundTaskIntoItsSubtasks)
     {
         DeclareBool("ready", true);

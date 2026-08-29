@@ -1,4 +1,6 @@
+#include <BehaviorTreeBackend.h>
 #include <BehaviorTreeWords.h>
+#include <DecisionCursor.h>
 #include <TreeCompiler.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
@@ -104,6 +106,123 @@ namespace GOAT
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TestAgentSystem> m_agents;
     };
+
+    //! What a tool needs to point at a node: which authored node each compiled one came from.
+    TEST_F(TreeCompilerFixture, EveryCompiledNodeRemembersWhereItWasAuthored)
+    {
+        // sequence { watch (service), condition "gate", wait }
+        AuthoredNode root = GuardedSequence(nullptr);
+        AuthoredNode service = Node("service");
+        Text(service, "behavior", "look");
+        root.m_services.push_back(service);
+
+        const auto compiled = Compile(root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        const DecisionProgram& program = compiled.GetValue();
+        ASSERT_EQ(program.m_authored.size(), program.m_nodes.size());
+        ASSERT_EQ(program.m_nodes.size(), 3u);
+
+        EXPECT_EQ(program.m_authored[0].m_program, AZ::Name("Test"));
+        EXPECT_TRUE(program.m_authored[0].m_path.empty()) << "the root is the program itself";
+
+        // One service, so the children start at 1 rather than 0.
+        ASSERT_EQ(program.m_authored[1].m_path.size(), 1u);
+        EXPECT_EQ(program.m_authored[1].m_path[0], 1u);
+        ASSERT_EQ(program.m_authored[2].m_path.size(), 1u);
+        EXPECT_EQ(program.m_authored[2].m_path[0], 2u);
+
+        // Walking each path over the authored tree must arrive at the node that was compiled.
+        for (size_t i = 0; i < program.m_nodes.size(); ++i)
+        {
+            const AuthoredNode* at = &root;
+            for (const AZ::u16 step : program.m_authored[i].m_path)
+            {
+                at = StepInto(*at, step);
+                ASSERT_NE(at, nullptr) << "step " << step << " of node " << i;
+            }
+            EXPECT_EQ(AZ::Name(at->m_type), m_nodeTypes->Find(AZ::Name(at->m_type))->m_name);
+            EXPECT_EQ(program.m_nodes[i].m_op, m_nodeTypes->Find(AZ::Name(at->m_type))->m_op);
+        }
+    }
+
+    //! A subtree leaves no compiled node of its own: the tree it names is spliced in where it
+    //! stood. So the nodes there were authored somewhere else, and saying otherwise would point
+    //! a tool at whatever unrelated node happens to sit at that index in the host.
+    TEST_F(TreeCompilerFixture, AnInlinedSubtreeSaysWhichProgramItsNodesCameFrom)
+    {
+        AuthoredNode inner = Node("sequence");
+        AuthoredNode leaf = Node("wait");
+        AuthoredProperty seconds;
+        seconds.m_name = "seconds";
+        seconds.m_value = 1.0;
+        leaf.m_properties.push_back(seconds);
+        inner.m_children.push_back(leaf);
+        m_agents->DeclareProgram(AZ::Name("Inner"), inner);
+
+        AuthoredNode root = Node("sequence");
+        AuthoredNode reference = Node("subtree");
+        Text(reference, "tree", "Inner");
+        root.m_children.push_back(reference);
+
+        const auto compiled = Compile(root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        const DecisionProgram& program = compiled.GetValue();
+        ASSERT_EQ(program.m_authored.size(), program.m_nodes.size());
+        ASSERT_EQ(program.m_nodes.size(), 3u) << "the subtree node itself compiles to nothing";
+
+        EXPECT_EQ(program.m_authored[0].m_program, AZ::Name("Test"));
+        EXPECT_EQ(program.m_authored[1].m_program, AZ::Name("Inner"))
+            << "the inlined root belongs to the tree it was written in";
+        EXPECT_TRUE(program.m_authored[1].m_path.empty()) << "and its path starts again from there";
+        EXPECT_EQ(program.m_authored[2].m_program, AZ::Name("Inner"));
+        ASSERT_EQ(program.m_authored[2].m_path.size(), 1u);
+        EXPECT_EQ(program.m_authored[2].m_path[0], 0u);
+    }
+
+    //! The whole point of the side table: turn where an agent actually is back into nodes a
+    //! tool can find. The path runs root first, ending at the leaf that is running.
+    TEST_F(TreeCompilerFixture, TheReportedPathRunsFromTheRootToTheRunningLeaf)
+    {
+        // sequence { condition "gate", wait } -- the wait is node 2 and the leaf that runs.
+        const auto compiled = Compile(GuardedSequence(nullptr));
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        DecisionProgram program = compiled.GetValue();
+        ASSERT_EQ(program.m_nodes.size(), 3u);
+
+        DecisionCursor cursor;
+        cursor.Reset(program);
+        cursor.SetActiveLeaf(2);
+
+        BehaviorTreeBackend backend(*m_agents, *m_blackboard);
+        AZStd::vector<ProgramNodeRef> path;
+        backend.DescribePosition(program, BrainState(reinterpret_cast<AZ::u8*>(&cursor), sizeof(cursor)),
+            NoRunningStep, path);
+
+        ASSERT_EQ(path.size(), 2u) << "the root, then the leaf under it";
+        EXPECT_TRUE(path[0].m_path.empty()) << "root first, not leaf first";
+        ASSERT_EQ(path[1].m_path.size(), 1u);
+        EXPECT_EQ(path[1].m_path[0], 1u) << "the second child of the root";
+    }
+
+    TEST_F(TreeCompilerFixture, AnIdleAgentIsReportedAsRunningNothing)
+    {
+        const auto compiled = Compile(GuardedSequence(nullptr));
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        DecisionProgram program = compiled.GetValue();
+        DecisionCursor cursor;
+        cursor.Reset(program);
+
+        BehaviorTreeBackend backend(*m_agents, *m_blackboard);
+        AZStd::vector<ProgramNodeRef> path;
+        backend.DescribePosition(program, BrainState(reinterpret_cast<AZ::u8*>(&cursor), sizeof(cursor)),
+            NoRunningStep, path);
+
+        EXPECT_TRUE(path.empty()) << "nothing running is not the same as running the root";
+    }
 
     //! Writing a condition is saying the branch needs it. Nothing else should be required to
     //! make the agent notice when it stops being true.

@@ -25,9 +25,21 @@ namespace GOAT
         {
         }
 
-        AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitProgram(const AZ::Name&) override
+        //! Declares a tree another one may name, for the tests that compile a subtree.
+        void DeclareProgram(const AZ::Name& name, const AuthoredNode& root)
         {
-            return AZ::Failure(AZStd::string("a test declares its programs in C++"));
+            m_declared[name] = AZStd::shared_ptr<const AuthoredNode>(aznew AuthoredNode(root));
+        }
+
+        AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitProgram(
+            const AZ::Name& name) override
+        {
+            const auto found = m_declared.find(name);
+            if (found == m_declared.end())
+            {
+                return AZ::Failure(AZStd::string("a test declares its programs in C++"));
+            }
+            return AZ::Success(found->second);
         }
 
         AZ::Name GetSubtreeBinding(const AZ::Name&) const override { return {}; }
@@ -132,6 +144,7 @@ namespace GOAT
         ////////////////////////////////////////////////////////////////////////
 
     private:
+        AZStd::unordered_map<AZ::Name, AZStd::shared_ptr<const AuthoredNode>> m_declared;
         const NodeTypeRegistry& m_nodeTypes;
         const ActionStateRegistry& m_actions;
         const BackendRegistry* m_backends = nullptr;

@@ -164,6 +164,40 @@ namespace GOAT
     ////////////////////////////////////////////////////////////////////////////////////////////
     // Compiling.
 
+    //! What a tool watching an agent is told: which authored choice it settled on.
+    TEST_F(UtilityFixture, TheChosenOptionIsReportedByWhereItWasAuthored)
+    {
+        AuthoredNode root = Program();
+        root.m_children.push_back(Choice("Flee"));
+        root.m_children.push_back(Choice("Fight"));
+
+        const auto compiled = Compile(root);
+        ASSERT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+
+        const UtilityProgram& program = compiled.GetValue();
+        ASSERT_EQ(program.m_authored.size(), program.m_choices.size());
+        ASSERT_EQ(program.m_choices.size(), 2u);
+        ASSERT_EQ(program.m_authored[1].m_path.size(), 1u);
+        EXPECT_EQ(program.m_authored[1].m_path[0], 1u);
+        EXPECT_EQ(program.m_authored[1].m_program, AZ::Name("Test"));
+
+        UtilityBackend backend(*m_host, *m_blackboard);
+
+        UtilityCursor cursor;
+        cursor.m_choice = 1;
+        AZStd::vector<ProgramNodeRef> path;
+        backend.DescribePosition(program, BrainState(reinterpret_cast<AZ::u8*>(&cursor), sizeof(cursor)),
+            NoRunningStep, path);
+        ASSERT_EQ(path.size(), 1u) << "a utility program is one level deep";
+        EXPECT_EQ(path[0].m_path, program.m_authored[1].m_path);
+
+        cursor.m_choice = InvalidChoice;
+        path.clear();
+        backend.DescribePosition(program, BrainState(reinterpret_cast<AZ::u8*>(&cursor), sizeof(cursor)),
+            NoRunningStep, path);
+        EXPECT_TRUE(path.empty()) << "an agent that has chosen nothing is running nothing";
+    }
+
     TEST_F(UtilityFixture, Compile_RefusesAProgramWithNothingToChooseBetween)
     {
         const auto compiled = Compile(Program());
