@@ -161,6 +161,8 @@ The `ctx` object is passed to behaviors and backends.
 | `GOAT_TreeNames()` | Returns a list of declared tree names. |
 | `GOAT_Plan(backendName, agentKey, ctx, goal, builder)` | Runs a Lua backend and pushes steps into a builder. |
 | `GOAT_HasBackend(backendName)` | Returns true if the backend is defined. |
+| `GOAT_HasBehavior(behaviorName)` | Returns true if the behavior is declared. Asked while a program compiles. |
+| `GOAT_Measure(behaviorName, phase, agentKey, ctx, ...)` | Runs a phase that answers with a number. Returns the number and whether anything answered — a behavior answering zero and one that is not there mean different things. |
 | `GOAT_EmitBackendNames(collector)` | Hands every backend name to a C++ collector. |
 | `GOAT_FlowBegin/Advance/Filter` | Runs custom flow logic. |
 
@@ -214,4 +216,4 @@ return tree "ExampleAgent" {
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-29*

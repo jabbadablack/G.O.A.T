@@ -111,6 +111,9 @@ namespace GOAT
         IBackend* FindBackend(const AZ::Name& name) const override;
         ActionResult CallBehavior(
             const AZ::Name& behavior, const char* phase, AgentId agent, float deltaTime) override;
+        bool HasBehavior(const AZ::Name& behavior) const override;
+        bool MeasureBehavior(const AZ::Name& behavior, const char* phase, AgentId agent,
+            AZStd::span<const float> values, float& outValue) override;
         ////////////////////////////////////////////////////////////////////////
 
         ////////////////////////////////////////////////////////////////////////

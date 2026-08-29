@@ -15,9 +15,10 @@ tags: [guide, tutorial, cpp, backend]
 
 Two different jobs share the word "backend". Pick before you start.
 
-**A whole paradigm.** Utility AI, GOAP, a state machine — something that decides how an agent
-acts, every tick, instead of a behaviour tree. That is [[IDecisionBackend]], it is C++, and it is
-the rest of this guide.
+**A whole paradigm.** GOAP, a state machine — something that decides how an agent acts, every
+tick, instead of a behaviour tree. That is [[IDecisionBackend]], it is C++, and it is the rest of
+this guide. [[Utility AI]] is the most recent one written this way, and its gem is the smallest
+worked example of everything below.
 
 **A planner behind one `delegate` leaf.** Something that turns one goal into a few steps. That is
 [[IBackend]], and you can write it in Lua in about ten lines — see [[Backends]]. Do that instead
@@ -87,12 +88,15 @@ them:
 
 ```lua
 -- Assets/GOAT_MyParadigm/Scripts/MyParadigm.lua
-GOAT_DeclareNode("consideration", "name")
-GOAT_DeclareNode("scorer", "key")
+GOAT_DeclareNode("state", "name")
+GOAT_DeclareNode("transition", "to")
 
-function utility(name)
+function machine(name)
     return function(body)
-        return GOAT.Compile(name, GOAT.nodeType("utility")(body))
+        local compiled = GOAT.Compile(name, GOAT.nodeType("machine")(body))
+        -- Without this nothing can look the program up, and GOAT_EmitTree will never find it.
+        GOAT._trees[name] = compiled
+        return compiled
     end
 end
 ```
@@ -125,7 +129,7 @@ CompileOutcome Compile(const AZ::Name& name, const AuthoredNode& root) override
     // Which scopes we guard on. Anything else must never wake us.
     program->m_watchedScopes[static_cast<size_t>(BlackboardScope::Global)] = true;
 
-    return AZ::Success(AZStd::shared_ptr<const AgentProgram>(AZStd::move(program)));
+    return AZ::Success(AZStd::shared_ptr<AgentProgram>(AZStd::move(program)));
 }
 ```
 
@@ -158,7 +162,7 @@ Decision Decide(const PlanContext& context, const AgentProgram& program, BrainSt
     AZStd::fixed_vector<ActionRequest, 16> steps;
     BuildSteps(best, steps);
 
-    outPlan = context.m_planStore->Acquire(steps.data(), aznumeric_cast<AZ::u32>(steps.size()));
+    outPlan.m_span = context.m_planStore->Acquire(steps.data(), aznumeric_cast<AZ::u32>(steps.size()));
     return Decision{ true, 0.0f };
 }
 ```
@@ -240,6 +244,13 @@ That last one is the regression test for the trap in step 6. Write it first.
 - [ ] `Decide` returns a sensible `m_wakeIn` when it plans nothing
 - [ ] `Advance` re-checks what has not run yet, not what chose the plan
 - [ ] Tests, including the replan-on-own-effects one
+- [ ] Your words do not already exist. `GOAT_DeclareNode` leaves an existing global alone rather
+      than taking it over, so a word `GOAT.lua` already defines fails silently at author time.
+      `option`, `plan`, `backend`, `behavior` and `flow` are taken.
+- [ ] Your root declaration writes `GOAT._trees[name]`, or nothing can find the program
+- [ ] No `delegate` in a plan step. The core reserves the name (`RegisterAction` asserts on it)
+      because a plan step naming it would let a plan re-enter the tree that asked for it. A
+      program reaches another paradigm from a plan step with `embed`.
 
 ---
 
@@ -254,4 +265,4 @@ That last one is the regression test for the trap in step 6. Write it first.
 
 ---
 
-*Last updated: 2026-08-27*
+*Last updated: 2026-08-29*

@@ -184,6 +184,81 @@ namespace GOAT
         return ToActionResult(status);
     }
 
+    bool LuaDispatch::HasBehavior(const AZ::Name& behavior)
+    {
+        AZ_Assert(!behavior.IsEmpty(), "A behaviour is always asked for by name");
+
+        AZ::ScriptDataContext call;
+        if (!BeginCall("GOAT_HasBehavior", call))
+        {
+            return false;
+        }
+
+        call.PushArg(AZStd::string(behavior.GetStringView()));
+
+        if (!call.CallExecute() || call.GetNumResults() < 1)
+        {
+            return false;
+        }
+
+        bool declared = false;
+        call.ReadResult(0, declared);
+        return declared;
+    }
+
+    bool LuaDispatch::MeasureBehavior(const AZ::Name& behavior, const char* phase, AgentId agent,
+        AgentScriptContext& context, AZStd::span<const float> values, float& outValue)
+    {
+        outValue = 0.0f;
+        AZ_Assert(!behavior.IsEmpty(), "A behaviour is always called by name");
+        AZ_Assert(phase != nullptr, "A behaviour call always names a lifecycle phase");
+        AZ_Assert(values.size() <= MaxMeasuredValues,
+            "A measured behaviour was handed %zu numbers, which is more than one may be given", values.size());
+
+        AZ::ScriptDataContext call;
+        if (!BeginCall("GOAT_Measure", call))
+        {
+            AZ_Error("GOAT", false,
+                "GOAT_Measure is missing, so behaviour '%s' cannot be asked for a number; the vocabulary did not load",
+                behavior.GetCStr());
+            return false;
+        }
+
+        call.PushArg(AZStd::string(behavior.GetStringView()));
+        call.PushArg(AZStd::string(phase));
+        call.PushArg(AgentKey(agent));
+        call.PushArg(context);
+
+        // Pushed one at a time rather than as a list, so nothing new has to cross this boundary
+        // for a call that is only ever handed a handful of numbers.
+        for (size_t i = 0; i < values.size() && i < MaxMeasuredValues; ++i)
+        {
+            call.PushArg(static_cast<double>(values[i]));
+        }
+
+        if (!call.CallExecute())
+        {
+            AZ_Error("GOAT", false, "Behaviour '%s' raised a Lua error in its %s phase for agent %u",
+                behavior.GetCStr(), phase, agent.GetIndex());
+            return false;
+        }
+
+        if (call.GetNumResults() < 2)
+        {
+            AZ_Error("GOAT", false, "Behaviour '%s' must answer its %s phase with a number and whether it answered",
+                behavior.GetCStr(), phase);
+            return false;
+        }
+
+        double measured = 0.0;
+        bool answered = false;
+        call.ReadResult(0, measured);
+        call.ReadResult(1, answered);
+
+        outValue = static_cast<float>(measured);
+        return answered;
+    }
+
     void LuaDispatch::ConfigurePlanBuilder(
         const ActionStateRegistry* actions, const IBlackboardSystem* blackboard, PlanStore* store)
     {

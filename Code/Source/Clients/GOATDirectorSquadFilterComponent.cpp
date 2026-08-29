@@ -36,12 +36,14 @@ namespace GOAT
             return;
         }
 
-        editContext->Class<GOATDirectorSquadFilterComponent>("GOAT Director Squad",
+        editContext->Class<GOATDirectorSquadFilterComponent>("GOAT Director Filter",
             "Governs only the agents in these squads or carrying these tags")
             ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
             ->Attribute(AZ::Edit::Attributes::Category, "AI")
             ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
             ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
+            ->Attribute(AZ::Edit::Attributes::Icon, "Editor/Icons/GOAT/Components/GOAT.svg")
+            ->Attribute(AZ::Edit::Attributes::ViewportIcon, "Editor/Icons/GOAT/Components/Viewport/GOAT.svg")
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATDirectorSquadFilterComponent::m_squads, "Squads",
                 "Squads this director governs. Leave empty to govern none by squad.")

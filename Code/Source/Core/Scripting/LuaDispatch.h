@@ -17,6 +17,7 @@
 #include <AzCore/Name/Name.h>
 #include <AzCore/Outcome/Outcome.h>
 #include <AzCore/Script/ScriptAsset.h>
+#include <AzCore/std/containers/span.h>
 #include <AzCore/std/containers/unordered_set.h>
 #include <AzCore/std/smart_ptr/shared_ptr.h>
 #include <AzCore/std/string/string.h>
@@ -29,6 +30,10 @@ namespace AZ
 
 namespace GOAT
 {
+    //! Numbers one measured behaviour may be handed, which bounds what is pushed onto the
+    //! Lua stack for a call the caller sized rather than this did.
+    inline constexpr size_t MaxMeasuredValues = 16;
+
     //! Calls into the Lua authoring vocabulary.
     //! Every call happens on the main thread, because AZ::ScriptContext carries no lock
     //! and only asserts about its owning thread in debug builds.
@@ -53,6 +58,14 @@ namespace GOAT
         //! Runs one phase of a Lua behaviour and reports what it returned.
         ActionResult CallBehavior(
             const AZ::Name& behavior, const char* phase, AgentId agent, AgentScriptContext& context, float deltaTime);
+
+        //! True when a behaviour of that name was declared.
+        bool HasBehavior(const AZ::Name& behavior);
+
+        //! Runs one phase of a Lua behaviour that answers with a number, handing it @values.
+        //! False when nothing answered, which is not the same as answering zero.
+        bool MeasureBehavior(const AZ::Name& behavior, const char* phase, AgentId agent,
+            AgentScriptContext& context, AZStd::span<const float> values, float& outValue);
 
         //! Points the plan builder at the registries a Lua backend's steps resolve against.
         //! Points the plan builder and the plan validator at what they need to resolve names.

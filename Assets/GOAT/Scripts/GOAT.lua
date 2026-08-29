@@ -271,6 +271,29 @@ function GOAT_Dispatch(behaviorName, phase, agentKey, ctx, dt)
     return result
 end
 
+--! True when a behaviour of that name was declared.
+function GOAT_HasBehavior(behaviorName)
+    return GOAT._behaviors[behaviorName] ~= nil
+end
+
+--! Runs one phase of a behaviour whose answer is a number rather than a status.
+--! Returns the number and true, or zero and false when there was nothing to ask: a behaviour
+--! answering zero and one that is not there mean different things, and only one is a mistake.
+function GOAT_Measure(behaviorName, phase, agentKey, ctx, ...)
+    local body = GOAT._behaviors[behaviorName]
+    local fn = body ~= nil and body[phase] or nil
+    if fn == nil then
+        return 0, false
+    end
+
+    local state = GOAT._stateFor(agentKey, behaviorName)
+    local measured = fn(state, ctx, { ... })
+    if type(measured) ~= "number" then
+        return 0, false
+    end
+    return measured, true
+end
+
 --! Hands a declared tree to a C++ builder, one call per node and property.
 --! Pushing the data out this way means C++ never has to read the Lua stack itself.
 function GOAT_EmitTree(treeName, builder)

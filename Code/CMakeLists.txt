@@ -207,6 +207,12 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
                     Include
                     Source/Backends/BehaviorTree/Code/Source
                     Source/Backends/Htn/Code/Source
+                    Source/Backends/Utility/Code/Source
+            COMPILE_DEFINITIONS
+                PRIVATE
+                    # The vocabulary as it ships, so the boundary tests run against the real file
+                    # rather than a copy of it that can drift away from it unnoticed.
+                    GOAT_VOCABULARY_SOURCE="${CMAKE_CURRENT_SOURCE_DIR}/../Assets/GOAT/Scripts/GOAT.lua"
             BUILD_DEPENDENCIES
                 PRIVATE
                     AZ::AzTest
@@ -216,6 +222,7 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
                     # still covered here. A test harness may depend on a gem; the core does not.
                     Gem::GOAT_BehaviorTree.Private.Object
                     Gem::GOAT_Htn.Private.Object
+                    Gem::GOAT_Utility.Private.Object
         )
 
         # Add ${gem_name}.Tests to googletest

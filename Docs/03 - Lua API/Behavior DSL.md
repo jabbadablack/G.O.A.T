@@ -73,6 +73,12 @@ behavior "Patrol" {
 | `start(me, ctx)` | Called once when the behavior first begins. |
 | `tick(me, ctx, dt)` | Called every frame while the behavior is active. |
 | `stop(me, ctx)` | Called when the behavior finishes or is interrupted. |
+| `score(me, ctx, considered)` | Answers with a **number** rather than a status. |
+
+`score` is what the `utility` backend asks a behaviour for, through `combine` or `score` on a
+choice. It is handed the values that choice already considered, in the order they were written,
+and returns a number in 0 to 1 — anything outside that is clamped and reported once. It keeps
+per-agent scratch (`me`) exactly as `tick` does. See [[Utility AI]].
 
 **Return Values:**
 
@@ -280,4 +286,4 @@ graph TD
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-29*

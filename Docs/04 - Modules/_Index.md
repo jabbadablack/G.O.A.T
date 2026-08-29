@@ -22,6 +22,7 @@ a domain.
 | :--- | :--- |
 | [[Behavior Trees]] | The `tree` backend. Composites, decorators, guards, services. |
 | [[Task Networks]] | The `htn` backend. Tasks, methods, primitives, effects. |
+| [[Utility AI]] | The `utility` backend. Choices, considerations, scoring. |
 
 ### Modules
 | Note | Description |
@@ -49,4 +50,4 @@ a domain.
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-29*

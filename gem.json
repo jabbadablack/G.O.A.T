@@ -34,6 +34,7 @@
     "external_subdirectories": [
         "Code/Source/Backends/BehaviorTree",
         "Code/Source/Backends/Htn",
+        "Code/Source/Backends/Utility",
         "Modules/Navigation",
         "Modules/Animation",
         "Modules/SmartObject"

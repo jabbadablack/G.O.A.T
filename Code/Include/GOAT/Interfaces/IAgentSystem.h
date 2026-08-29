@@ -142,6 +142,14 @@ namespace GOAT
         //! Runs one authored behaviour for one agent.
         virtual ActionResult CallBehavior(
             const AZ::Name& behavior, const char* phase, AgentId agent, float deltaTime) = 0;
+        //! True when a behaviour of that name was declared, so a program naming one that is not
+        //! there is refused where it was written rather than found missing on the tick that needed it.
+        virtual bool HasBehavior(const AZ::Name& behavior) const = 0;
+        //! Runs one phase of a behaviour and reads the number it answered with, for a phase that
+        //! measures rather than acts. False when nothing answered, which a caller has to tell
+        //! apart from an answer of zero: only one of the two is a mistake.
+        virtual bool MeasureBehavior(const AZ::Name& behavior, const char* phase, AgentId agent,
+            AZStd::span<const float> values, float& outValue) = 0;
         //! @}
 
         //! Installs a backend. Removing one is what makes backends decoupled.
