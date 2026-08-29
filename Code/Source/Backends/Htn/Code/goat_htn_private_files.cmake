@@ -10,4 +10,6 @@ set(FILES
     Source/HtnDomain.h
     Source/HtnPlanner.cpp
     Source/HtnPlanner.h
+    Source/HtnWords.cpp
+    Source/HtnWords.h
 )

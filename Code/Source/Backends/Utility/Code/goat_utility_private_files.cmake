@@ -9,4 +9,6 @@ set(FILES
     Source/UtilityCompiler.h
     Source/UtilityProgram.cpp
     Source/UtilityProgram.h
+    Source/UtilityWords.cpp
+    Source/UtilityWords.h
 )

@@ -70,8 +70,11 @@ namespace GOAT
         NodeKind m_kind = NodeKind::Leaf;
         //! What the walker does with it.
         NodeOp m_op = NodeOp::Action;
-        //! Palette grouping for a future graph editor.
+        //! Palette grouping for the graph editor.
         AZStd::string m_category;
+        //! Backend this word belongs to, empty when every paradigm may read it.
+        //! A compiler refuses a word another paradigm owns rather than misreading it.
+        AZ::Name m_backend;
         //! One line describing what the node is for.
         AZStd::string m_description;
         //! Properties this node type accepts.

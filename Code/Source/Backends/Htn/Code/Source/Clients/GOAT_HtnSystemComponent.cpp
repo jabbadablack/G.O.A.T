@@ -1,5 +1,7 @@
 #include <Clients/GOAT_HtnSystemComponent.h>
 
+#include <HtnWords.h>
+
 #include <HtnBackend.h>
 
 #include <GOAT_Htn/GOAT_HtnTypeIds.h>
@@ -58,6 +60,7 @@ namespace GOAT_Htn
             return;
         }
 
+        GOAT::InstallHtnWords(m_vocabulary);
         agents->RegisterVocabularyScript(VocabularyScriptPath);
 
         // Handed over rather than held: the core's registry owns it, and unregistering by name
@@ -80,5 +83,7 @@ namespace GOAT_Htn
         {
             agents->UnregisterVocabularyScript(VocabularyScriptPath);
         }
+
+        m_vocabulary.Clear();
     }
 } // namespace GOAT_Htn

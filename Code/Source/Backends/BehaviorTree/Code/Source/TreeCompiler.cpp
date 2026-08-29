@@ -1,4 +1,5 @@
 #include <TreeCompiler.h>
+#include <BehaviorTreeBackend.h>
 
 #include <AzCore/Console/ILogger.h>
 #include <AzCore/Name/NameDictionary.h>
@@ -258,6 +259,14 @@ namespace GOAT
         const AuthoredNode& authored, const NodeTypeDescriptor& descriptor) const
     {
         AZ_Assert(!descriptor.m_name.IsEmpty(), "A node type descriptor is always registered under a name");
+
+        // A word another paradigm owns would otherwise compile here as whatever its op says.
+        if (!descriptor.m_backend.IsEmpty() && descriptor.m_backend != BehaviorTreeBackend::GetBackendName())
+        {
+            return AZ::Failure(AZStd::string::format(
+                "'%s' belongs to the '%s' backend, not to a behavior tree",
+                descriptor.m_name.GetCStr(), descriptor.m_backend.GetCStr()));
+        }
 
         // Reject properties the node type does not accept, so typos fail at author time.
         for (const AuthoredProperty& property : authored.m_properties)

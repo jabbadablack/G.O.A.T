@@ -16,6 +16,7 @@ namespace GOAT
             descriptor.m_op = op;
             descriptor.m_category = category;
             descriptor.m_description = description;
+            descriptor.m_backend = AZ_NAME_LITERAL("tree");
             return descriptor;
         }
 

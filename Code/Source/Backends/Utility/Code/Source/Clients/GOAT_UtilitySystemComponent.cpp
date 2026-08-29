@@ -1,5 +1,7 @@
 #include <Clients/GOAT_UtilitySystemComponent.h>
 
+#include <UtilityWords.h>
+
 #include <UtilityBackend.h>
 
 #include <GOAT_Utility/GOAT_UtilityTypeIds.h>
@@ -58,6 +60,7 @@ namespace GOAT_Utility
             return;
         }
 
+        GOAT::InstallUtilityWords(m_vocabulary);
         agents->RegisterVocabularyScript(VocabularyScriptPath);
 
         // Handed over rather than held: the core's registry owns it, and unregistering by name
@@ -80,5 +83,7 @@ namespace GOAT_Utility
         {
             agents->UnregisterVocabularyScript(VocabularyScriptPath);
         }
+
+        m_vocabulary.Clear();
     }
 } // namespace GOAT_Utility

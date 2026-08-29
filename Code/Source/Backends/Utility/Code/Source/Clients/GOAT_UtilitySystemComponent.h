@@ -1,5 +1,7 @@
 #pragma once
 
+#include <GOAT/VocabularyScope.h>
+
 #include <AzCore/Component/Component.h>
 
 namespace GOAT_Utility
@@ -22,5 +24,8 @@ namespace GOAT_Utility
         void Activate() override;
         void Deactivate() override;
         ////////////////////////////////////////////////////////////////////////
+
+    private:
+        GOAT::VocabularyScope m_vocabulary{ "utility" };
     };
 } // namespace GOAT_Utility
