@@ -332,7 +332,7 @@ namespace GOAT
     }
 
     Decision UtilityBackend::Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
-        ActionResult lastResult, float, ActionPlan& outPlan)
+        ActionResult, float, ActionPlan& outPlan)
     {
         Decision decision;
 
@@ -356,18 +356,12 @@ namespace GOAT
             cursor.m_choice = InvalidChoice;
             cursor.m_score = 0.0f;
 
-            // Nothing is worth doing. Whether it is worth asking again is whether anything this
-            // scores from can move: one that reads nothing and asks nothing would only ever
-            // reach this same answer, so it is finished rather than idle.
-            if (scored.CanChange())
-            {
-                decision.m_wakeIn = scored.m_recheck;
-                return decision;
-            }
-
-            AZLOG(GoatUtility, "GOAT: agent %u program '%s' has nothing worth doing and nothing to wait for",
+            // Nothing is worth doing, which is not the same as being finished: a choice argues
+            // from numbers that move, so asking again later can answer differently. What ends a
+            // program embedded in another is that one's own guards, the way a wait ends.
+            AZLOG(GoatUtility, "GOAT: agent %u program '%s' has nothing worth doing",
                 context.m_agent.GetIndex(), scored.m_name.GetCStr());
-            decision.m_result = lastResult == ActionResult::Failure ? ActionResult::Failure : ActionResult::Success;
+            decision.m_wakeIn = scored.m_recheck;
             return decision;
         }
 

@@ -2,8 +2,10 @@
 #include <UtilityCompiler.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
+#include <GOAT/Domain/PlanStore.h>
 #include <TestAgentSystem.h>
 
+#include <AzCore/Debug/TraceMessageBus.h>
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/UnitTest/TestTypes.h>
 #include <AzTest/AzTest.h>
@@ -12,6 +14,24 @@ namespace GOAT
 {
     namespace
     {
+        //! Counts the warnings a stretch of code produced. The trace suppression a test usually
+        //! reaches for counts asserts and errors, and saying something once is a warning.
+        class WarningCounter final
+            : public AZ::Debug::TraceMessageBus::Handler
+        {
+        public:
+            WarningCounter() { BusConnect(); }
+            ~WarningCounter() override { BusDisconnect(); }
+
+            bool OnPreWarning(const char*, const char*, int, const char*, const char*) override
+            {
+                ++m_count;
+                return true;
+            }
+
+            int m_count = 0;
+        };
+
         //! A verb that only has to exist, so a choice has something to run.
         class ScoredVerb final : public IActionState
         {
@@ -364,5 +384,522 @@ namespace GOAT
         ASSERT_EQ(compiled.GetValue().m_steps.size(), 1u);
         EXPECT_EQ(compiled.GetValue().m_steps[0].m_targetKey, where);
         EXPECT_FLOAT_EQ(compiled.GetValue().m_steps[0].m_tolerance, 1.5f);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Scoring and running.
+
+    //! Runs a compiled program against a real plan store, the way the runtime would.
+    class UtilityRunningFixture : public UtilityFixture
+    {
+    protected:
+        void TearDown() override
+        {
+            // Given back before the store goes, so what a step holds outlives nothing.
+            m_store.Release(m_plan.m_span);
+            m_plan = ActionPlan{};
+            UtilityFixture::TearDown();
+        }
+
+        PlanContext Context(AgentId agent) 
+        {
+            PlanContext context;
+            context.m_agent = agent;
+            context.m_blackboard = m_blackboard.get();
+            context.m_planStore = &m_store;
+            return context;
+        }
+
+        //! A brain block for one agent, sized as the archetype would size it.
+        struct Brain final
+        {
+            alignas(8) AZStd::array<AZ::u8, 64> m_bytes{};
+            BrainState State() { return BrainState(m_bytes.data(), m_bytes.size()); }
+        };
+
+        Decision Decide(UtilityBackend& backend, const UtilityProgram& program, Brain& brain,
+            ActionResult last = ActionResult::Success)
+        {
+            m_store.Release(m_plan.m_span);
+            m_plan = ActionPlan{};
+            return backend.Decide(Context(m_agent), program, brain.State(), last, 0.0f, m_plan);
+        }
+
+        //! The name of the choice an agent settled on, or empty when it settled on none.
+        AZ::Name Chose(UtilityBackend& backend, const UtilityProgram& program, Brain& brain)
+        {
+            const Decision decision = Decide(backend, program, brain);
+            if (!decision.m_planned)
+            {
+                return {};
+            }
+            const auto* cursor = reinterpret_cast<const UtilityCursor*>(brain.m_bytes.data());
+            return program.m_choices[cursor->m_choice].m_name;
+        }
+
+        UtilityProgram Built(const AuthoredNode& root)
+        {
+            auto compiled = Compile(root);
+            EXPECT_TRUE(compiled.IsSuccess()) << compiled.GetError().c_str();
+            return compiled.IsSuccess() ? AZStd::move(compiled.GetValue()) : UtilityProgram{};
+        }
+
+        PlanStore m_store;
+        ActionPlan m_plan;
+    };
+
+    //! A consideration is used as it stands: there is no curve, and adding one is the whole
+    //! reason a scorer can be written in Lua instead.
+    TEST_F(UtilityRunningFixture, Score_RunsTheBestScoringChoice)
+    {
+        DeclareFloat("fear", 0.2f);
+        DeclareFloat("morale", 0.9f);
+
+        AuthoredNode root = Program();
+        AuthoredNode flee = Choice("Flee");
+        Considers(flee, "fear");
+        AuthoredNode fight = Choice("Fight", "shout");
+        Considers(fight, "morale");
+        root.m_children.push_back(flee);
+        root.m_children.push_back(fight);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Fight"));
+
+        SetFloat("morale", 0.1f);
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+    }
+
+    //! Every step of the winner, not just its first: a choice is a plan.
+    TEST_F(UtilityRunningFixture, Decide_ProducesEveryStepOfTheChoiceItPicked)
+    {
+        AuthoredNode root = Program();
+        AuthoredNode choice = Node("choice");
+        Text(choice, "name", "Shout twice");
+        choice.m_children.push_back(Node("shout"));
+        choice.m_children.push_back(Node("shout"));
+        choice.m_children.push_back(Node("wait"));
+        root.m_children.push_back(choice);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+
+        const Decision decision = Decide(backend, program, brain);
+        ASSERT_TRUE(decision.m_planned);
+        EXPECT_EQ(m_plan.Size(), 3u);
+    }
+
+    //! Multiplying is what lets one consideration rule a choice out entirely, which is the
+    //! whole reason it is the rule a choice gets when it names none.
+    TEST_F(UtilityRunningFixture, Score_VetoesAChoiceWhenAnythingItMultipliesIsZero)
+    {
+        DeclareFloat("ammo", 0.0f);
+        DeclareFloat("morale", 1.0f);
+        DeclareFloat("calm", 0.1f);
+
+        AuthoredNode root = Program();
+        AuthoredNode fight = Choice("Fight", "shout");
+        Considers(fight, "morale");
+        Considers(fight, "ammo");
+        AuthoredNode idle = Choice("Idle");
+        Considers(idle, "calm");
+        root.m_children.push_back(fight);
+        root.m_children.push_back(idle);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Idle"));
+    }
+
+    //! The same numbers under a different rule are a different answer, which is the point of
+    //! letting an author name one.
+    TEST_F(UtilityRunningFixture, Score_MeanAndMinFoldTheSameValuesDifferently)
+    {
+        DeclareFloat("low", 0.2f);
+        DeclareFloat("high", 1.0f);
+        DeclareFloat("flat", 0.5f);
+
+        auto scored = [&](const char* rule)
+        {
+            AuthoredNode root = Program();
+            AuthoredNode mixed = Choice("Mixed", "shout");
+            Considers(mixed, "high");
+            Considers(mixed, "low");
+            Text(mixed, "combine", rule);
+            AuthoredNode flat = Choice("Flat");
+            Considers(flat, "flat");
+            root.m_children.push_back(mixed);
+            root.m_children.push_back(flat);
+
+            const UtilityProgram program = Built(root);
+            UtilityBackend backend(*m_host, *m_blackboard);
+            Brain brain;
+            backend.Attach(Context(m_agent), program, brain.State());
+            return Chose(backend, program, brain);
+        };
+
+        // mean(1.0, 0.2) is 0.6, which beats a flat 0.5; min is 0.2, which does not.
+        EXPECT_EQ(scored("mean"), AZ_NAME_LITERAL("Mixed"));
+        EXPECT_EQ(scored("min"), AZ_NAME_LITERAL("Flat"));
+    }
+
+    //! A value outside the range is clamped so the agent keeps running, and reported once: the
+    //! program is what was written wrongly, and a thousand agents run the same one.
+    TEST_F(UtilityRunningFixture, Score_ClampsAValueOutsideTheRangeAndSaysSoOnce)
+    {
+        DeclareFloat("fear", 7.0f);
+
+        AuthoredNode root = Program();
+        AuthoredNode flee = Choice("Flee");
+        Considers(flee, "fear");
+        root.m_children.push_back(flee);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+
+        WarningCounter warnings;
+
+        // Clamped rather than refused, so the agent keeps running on a value it can use.
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+        EXPECT_EQ(warnings.m_count, 1);
+
+        // Said once, however many times it is scored afterwards: a thousand agents run this
+        // same program, and the thing written wrongly is the program.
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+        EXPECT_EQ(warnings.m_count, 1);
+    }
+
+    //! Considerations are read and folded before anything else, so a choice nothing argues for
+    //! costs no call into a script at all. That ordering is the whole cost argument for scorers.
+    TEST_F(UtilityRunningFixture, Score_NeverAsksAScriptAboutAVetoedChoice)
+    {
+        DeclareFloat("ammo", 0.0f);
+        m_host->m_measured[AZ_NAME_LITERAL("Exposure")] = 1.0f;
+
+        AuthoredNode root = Program();
+        AuthoredNode snipe = Choice("Snipe", "shout");
+        Considers(snipe, "ammo");
+        Text(snipe, "score", "Exposure");
+        root.m_children.push_back(snipe);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+
+        EXPECT_TRUE(Chose(backend, program, brain).IsEmpty());
+        EXPECT_EQ(m_host->m_measureCalls, 0);
+
+        // With something arguing for it, the scorer is reached.
+        SetFloat("ammo", 1.0f);
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Snipe"));
+        EXPECT_EQ(m_host->m_measureCalls, 1);
+    }
+
+    //! A combining behaviour is handed what the choice considered, in the order it was written,
+    //! because that is what an author writes their own maths against.
+    TEST_F(UtilityRunningFixture, Score_HandsTheConsideredValuesToTheCombiningBehaviour)
+    {
+        DeclareFloat("near", 0.25f);
+        DeclareFloat("hurt", 0.75f);
+        m_host->m_measured[AZ_NAME_LITERAL("SniperMath")] = 0.5f;
+
+        AuthoredNode root = Program();
+        AuthoredNode snipe = Node("choice");
+        Text(snipe, "name", "Snipe");
+        Text(snipe, "combine", "SniperMath");
+        snipe.m_children.push_back(Consider("near"));
+        snipe.m_children.push_back(Consider("hurt"));
+        snipe.m_children.push_back(Node("shout"));
+        root.m_children.push_back(snipe);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Snipe"));
+        ASSERT_EQ(m_host->m_lastMeasured.size(), 2u);
+        EXPECT_FLOAT_EQ(m_host->m_lastMeasured[0], 0.25f);
+        EXPECT_FLOAT_EQ(m_host->m_lastMeasured[1], 0.75f);
+    }
+
+    //! Nothing scores, but what it reads can still move, so it waits rather than giving up.
+    TEST_F(UtilityRunningFixture, Decide_WaitsItsRecheckWhenNothingScores)
+    {
+        DeclareFloat("fear", 0.0f);
+
+        AuthoredNode root = Program();
+        Number(root, "recheck", 0.5);
+        AuthoredNode flee = Choice("Flee");
+        Considers(flee, "fear");
+        root.m_children.push_back(flee);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+
+        const Decision decision = Decide(backend, program, brain);
+        EXPECT_FALSE(decision.m_planned);
+        EXPECT_FLOAT_EQ(decision.m_wakeIn, 0.5f);
+
+        // Idle, never finished: a choice argues from numbers that move, so asking again later
+        // can answer differently. A program that called itself finished here would end the step
+        // it was embedded in the first time a threat happened to be out of sight.
+        EXPECT_EQ(decision.m_result, ActionResult::Running);
+
+        // And it says so again rather than settling into it.
+        SetFloat("fear", 0.9f);
+        EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+    }
+
+    //! The adapter behind a `delegate` attaches, asks once and releases, with no Advance and no
+    //! elapsed time. A Decide that leant on either would answer nothing here.
+    TEST_F(UtilityRunningFixture, Decide_AnswersWhenAttachAndReleaseHappenAroundOneCall)
+    {
+        DeclareFloat("morale", 0.8f);
+
+        AuthoredNode root = Program();
+        AuthoredNode fight = Choice("Fight", "shout");
+        Considers(fight, "morale");
+        root.m_children.push_back(fight);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+
+        Brain brain;
+        const PlanContext context = Context(m_agent);
+        backend.Attach(context, program, brain.State());
+        const Decision decision = backend.Decide(context, program, brain.State(), ActionResult::Success, 0.0f, m_plan);
+        backend.Release(context, brain.State());
+
+        EXPECT_TRUE(decision.m_planned);
+        EXPECT_EQ(m_plan.Size(), 1u);
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Holding on to a choice, and leaving it.
+
+    TEST_F(UtilityRunningFixture, Advance_HoldsTheChoiceUntilTheRecheckFloorHasPassed)
+    {
+        DeclareFloat("fear", 0.2f);
+        DeclareFloat("morale", 0.1f);
+
+        AuthoredNode root = Program();
+        Number(root, "recheck", 1.0);
+        AuthoredNode flee = Choice("Flee");
+        Considers(flee, "fear");
+        AuthoredNode fight = Choice("Fight", "shout");
+        Considers(fight, "morale");
+        root.m_children.push_back(flee);
+        root.m_children.push_back(fight);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+        ASSERT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+
+        // Fight now scores higher, but the floor has not passed.
+        SetFloat("morale", 0.9f);
+        EXPECT_EQ(backend.Advance(Context(m_agent), program, brain.State(), 0.4f, 0), TickResult::Continue);
+        EXPECT_EQ(backend.Advance(Context(m_agent), program, brain.State(), 0.4f, 0), TickResult::Continue);
+
+        // Past it, and it is overtaken.
+        EXPECT_EQ(backend.Advance(Context(m_agent), program, brain.State(), 0.4f, 0), TickResult::Abandon);
+    }
+
+    //! Committing means a better idea arriving halfway is not a reason to drop what is underway.
+    TEST_F(UtilityRunningFixture, Advance_KeepsACommittedChoiceWhateverElseScores)
+    {
+        DeclareFloat("ammo_low", 0.5f);
+        DeclareFloat("morale", 0.1f);
+
+        AuthoredNode root = Program();
+        Number(root, "recheck", 0.0);
+        AuthoredNode reload = Choice("Reload", "shout");
+        Considers(reload, "ammo_low");
+        Flag(reload, "commit", true);
+        AuthoredNode fight = Choice("Fight");
+        Considers(fight, "morale");
+        root.m_children.push_back(reload);
+        root.m_children.push_back(fight);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+        ASSERT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Reload"));
+
+        SetFloat("morale", 1.0f);
+        EXPECT_EQ(backend.Advance(Context(m_agent), program, brain.State(), 1.0f, 0), TickResult::Continue);
+    }
+
+    TEST_F(UtilityRunningFixture, Advance_AbandonsWhenTheRunningChoiceStopsScoring)
+    {
+        DeclareFloat("fear", 0.9f);
+
+        AuthoredNode root = Program();
+        Number(root, "recheck", 0.0);
+        AuthoredNode flee = Choice("Flee");
+        Considers(flee, "fear");
+        root.m_children.push_back(flee);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+        Brain brain;
+        backend.Attach(Context(m_agent), program, brain.State());
+        ASSERT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+
+        SetFloat("fear", 0.0f);
+        EXPECT_EQ(backend.Advance(Context(m_agent), program, brain.State(), 1.0f, 0), TickResult::Abandon);
+    }
+
+    //! Without momentum two choices this close trade the agent back and forth; with it, the one
+    //! already underway keeps it.
+    TEST_F(UtilityRunningFixture, Advance_KeepsTheRunningChoiceWhenMomentumCoversTheGap)
+    {
+        DeclareFloat("fear", 0.50f);
+        DeclareFloat("morale", 0.55f);
+
+        auto overtaken = [&](double momentum)
+        {
+            AuthoredNode root = Program();
+            Number(root, "recheck", 0.0);
+            Number(root, "momentum", momentum);
+            AuthoredNode flee = Choice("Flee");
+            Considers(flee, "fear");
+            AuthoredNode fight = Choice("Fight", "shout");
+            Considers(fight, "morale");
+            root.m_children.push_back(flee);
+            root.m_children.push_back(fight);
+
+            const UtilityProgram program = Built(root);
+            UtilityBackend backend(*m_host, *m_blackboard);
+            Brain brain;
+            backend.Attach(Context(m_agent), program, brain.State());
+
+            // Put it on Flee, which is the lower of the two.
+            SetFloat("morale", 0.0f);
+            EXPECT_EQ(Chose(backend, program, brain), AZ_NAME_LITERAL("Flee"));
+            SetFloat("morale", 0.55f);
+
+            return backend.Advance(Context(m_agent), program, brain.State(), 1.0f, 0) == TickResult::Abandon;
+        };
+
+        EXPECT_TRUE(overtaken(0.0));
+        EXPECT_FALSE(overtaken(0.2));
+    }
+
+    ////////////////////////////////////////////////////////////////////////////////////////////
+    // Drawing.
+
+    //! The bug this exists to stop: agents drawing from one shared stream in the same tick come
+    //! out in step, which is the identical crowd that drawing at all was meant to break up.
+    TEST_F(UtilityRunningFixture, Pick_GivesTwoAgentsDifferentDrawsInTheSameTick)
+    {
+        DeclareFloat("a", 0.5f);
+        DeclareFloat("b", 0.5f);
+
+        AuthoredNode root = Program();
+        Text(root, "pick", "weighted");
+        Number(root, "top", 2.0);
+        AuthoredNode first = Choice("First");
+        Considers(first, "a");
+        AuthoredNode second = Choice("Second", "shout");
+        Considers(second, "b");
+        root.m_children.push_back(first);
+        root.m_children.push_back(second);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+
+        // A slot of its own: agent storage is keyed by index, so reusing one would take this
+        // agent's own variables away from it rather than adding a second set.
+        const AgentId other(1, 1);
+        m_blackboard->CreateAgentBlackboard(other);
+        m_blackboard->Set<float>(m_blackboard->FindKey(AZ_NAME_LITERAL("a")), 0.5f, other);
+        m_blackboard->Set<float>(m_blackboard->FindKey(AZ_NAME_LITERAL("b")), 0.5f, other);
+
+        Brain mine;
+        Brain theirs;
+        backend.Attach(Context(m_agent), program, mine.State());
+        backend.Attach(Context(other), program, theirs.State());
+
+        AZStd::string ours;
+        AZStd::string others;
+        int firstPicks = 0;
+        for (int i = 0; i < 200; ++i)
+        {
+            ActionPlan plan;
+            const Decision a = backend.Decide(Context(m_agent), program, mine.State(), ActionResult::Success, 0.0f, plan);
+            m_store.Release(plan.m_span);
+            const auto* mineCursor = reinterpret_cast<const UtilityCursor*>(mine.m_bytes.data());
+            ours += static_cast<char>('0' + mineCursor->m_choice);
+            firstPicks += mineCursor->m_choice == 0 ? 1 : 0;
+            EXPECT_TRUE(a.m_planned);
+
+            ActionPlan theirPlan;
+            backend.Decide(Context(other), program, theirs.State(), ActionResult::Success, 0.0f, theirPlan);
+            m_store.Release(theirPlan.m_span);
+            others += static_cast<char>('0' + reinterpret_cast<const UtilityCursor*>(theirs.m_bytes.data())->m_choice);
+        }
+
+        EXPECT_NE(ours, others) << "two agents drew the same sequence, so a crowd would move in step";
+
+        // Both were in the running the whole time, so neither should have taken nearly all of it.
+        EXPECT_GT(firstPicks, 40);
+        EXPECT_LT(firstPicks, 160);
+    }
+
+    //! The same agent, run again, does the same thing: a draw is not a source of drift.
+    TEST_F(UtilityRunningFixture, Pick_ReplaysTheSameDrawsForTheSameAgent)
+    {
+        DeclareFloat("a", 0.5f);
+        DeclareFloat("b", 0.5f);
+
+        AuthoredNode root = Program();
+        Text(root, "pick", "weighted");
+        Number(root, "top", 2.0);
+        AuthoredNode first = Choice("First");
+        Considers(first, "a");
+        AuthoredNode second = Choice("Second", "shout");
+        Considers(second, "b");
+        root.m_children.push_back(first);
+        root.m_children.push_back(second);
+
+        const UtilityProgram program = Built(root);
+        UtilityBackend backend(*m_host, *m_blackboard);
+
+        auto sequence = [&]()
+        {
+            Brain brain;
+            backend.Attach(Context(m_agent), program, brain.State());
+            AZStd::string drawn;
+            for (int i = 0; i < 50; ++i)
+            {
+                ActionPlan plan;
+                backend.Decide(Context(m_agent), program, brain.State(), ActionResult::Success, 0.0f, plan);
+                m_store.Release(plan.m_span);
+                drawn += static_cast<char>(
+                    '0' + reinterpret_cast<const UtilityCursor*>(brain.m_bytes.data())->m_choice);
+            }
+            return drawn;
+        };
+
+        EXPECT_EQ(sequence(), sequence());
     }
 } // namespace GOAT

@@ -13,23 +13,4 @@ namespace GOAT
         }
         return InvalidChoice;
     }
-
-    bool UtilityProgram::CanChange() const
-    {
-        if (!m_considerations.empty())
-        {
-            return true;
-        }
-
-        // A behaviour answers from whatever it likes, so a program that asks one can never be
-        // said to have run out of answers.
-        for (const UtilityChoice& choice : m_choices)
-        {
-            if (!choice.m_scoreBehavior.IsEmpty() || choice.m_combine == CombineRule::Behavior)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
 } // namespace GOAT

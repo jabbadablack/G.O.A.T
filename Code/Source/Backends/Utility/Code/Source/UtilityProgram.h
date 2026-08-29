@@ -81,10 +81,6 @@ namespace GOAT
         //! Index of a choice by name, or InvalidChoice.
         AZ::u16 FindChoice(const AZ::Name& name) const;
 
-        //! True when anything this program scores from can move under it. A program that reads
-        //! no variable and asks no behaviour can only ever reach the answer it just reached.
-        bool CanChange() const;
-
         AZStd::vector<UtilityChoice> m_choices;
         AZStd::vector<UtilityConsideration> m_considerations;
         //! What every choice's steps run, referred to by the ranges on each choice.
