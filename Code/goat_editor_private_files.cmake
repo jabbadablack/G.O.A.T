@@ -4,6 +4,10 @@ set(FILES
     Source/Tools/GOATBuilderComponent.h
     Source/Tools/GOATEditorSystemComponent.cpp
     Source/Tools/GOATEditorSystemComponent.h
+    Source/Tools/GraphEditor/AgentBrowserPanel.cpp
+    Source/Tools/GraphEditor/AgentBrowserPanel.h
+    Source/Tools/GraphEditor/AgentDebugSource.cpp
+    Source/Tools/GraphEditor/AgentDebugSource.h
     Source/Tools/GraphEditor/Core.h
     Source/Tools/GraphEditor/GraphContext.cpp
     Source/Tools/GraphEditor/GraphContext.h
@@ -19,6 +23,8 @@ set(FILES
     Source/Tools/GraphEditor/ProgramNode.h
     Source/Tools/GraphEditor/ProgramNodePaletteItem.cpp
     Source/Tools/GraphEditor/ProgramNodePaletteItem.h
+    Source/Tools/GraphEditor/RunningHighlight.cpp
+    Source/Tools/GraphEditor/RunningHighlight.h
     Source/Tools/GraphEditor/ProgramValidator.cpp
     Source/Tools/GraphEditor/ProgramValidator.h
 )

@@ -44,6 +44,10 @@ namespace GOAT::GraphEditor
         //! bounded rather than the memory being left to grow with the session.
         constexpr size_t UndoDepth = 64;
 
+        //! How often the debug source is asked what agents are doing. Faster than the quickest
+        //! pacing band an agent can be on, so nothing it does is missed for want of asking.
+        constexpr int PollIntervalMs = 100;
+
         //! What a node is assumed to be when it cannot be measured, so a failed measurement
         //! spaces nodes too generously rather than piling them up.
         constexpr float MinimumNodeWidth = 200.0f;
@@ -129,6 +133,19 @@ namespace GOAT::GraphEditor
     {
         SetDropAreaText("Create a GOAT program in the Asset Browser, or open one from the File menu.");
         GOATProgramEditorRequestBus::Handler::BusConnect();
+
+        m_debug = AZStd::make_unique<LocalAgentDebugSource>();
+
+        m_agents = new AgentBrowserPanel(this);
+        addDockWidget(Qt::RightDockWidgetArea, m_agents);
+        connect(m_agents, &AgentBrowserPanel::SelectedAgentChanged, this, &MainWindow::OnSelectedAgentChanged);
+
+        // Polled rather than pushed, so a runtime nobody is watching pays nothing. Ten times a
+        // second is faster than any agent's own pacing band, which tops out at thirty.
+        m_pollTimer = new QTimer(this);
+        m_pollTimer->setInterval(PollIntervalMs);
+        connect(m_pollTimer, &QTimer::timeout, this, &MainWindow::PollDebugSource);
+        m_pollTimer->start();
     }
 
     MainWindow::~MainWindow()
@@ -164,6 +181,7 @@ namespace GOAT::GraphEditor
 
     void MainWindow::OnEditorClosing(GraphCanvas::EditorDockWidget* dockWidget)
     {
+        m_highlight.Clear();
         m_painted.clear();
         m_undo.clear();
         m_redo.clear();
@@ -321,6 +339,79 @@ namespace GOAT::GraphEditor
                     AZStd::const_pointer_cast<GraphModel::Node>(node));
                 return position;
             });
+    }
+
+    void MainWindow::OpenRunningProgram(const AZStd::string& name)
+    {
+        IAgentSystem* agents = AgentSystemInterface::Get();
+        if (agents == nullptr)
+        {
+            return;
+        }
+
+        // The authored tree the runtime compiled, which is the same shape the canvas draws.
+        // Read only, because what is on screen is a running program, not a file being edited.
+        auto emitted = agents->EmitProgram(AZ::Name(name.c_str()));
+        if (!emitted.IsSuccess() || emitted.GetValue() == nullptr)
+        {
+            statusBar()->showMessage(
+                tr("'%1' is running, but its authored form is not available to show")
+                    .arg(QString::fromUtf8(name.c_str())));
+            return;
+        }
+
+        m_programPath.clear();
+        LoadAuthored(*emitted.GetValue(), name, true);
+    }
+
+    void MainWindow::PollDebugSource()
+    {
+        if (m_debug == nullptr || !isVisible())
+        {
+            // Nothing is watching, so nothing is asked for.
+            return;
+        }
+
+        m_debug->Poll();
+        m_agents->SetSnapshots(m_debug->GetSnapshots(), m_debug->DescribeTarget());
+        RefreshHighlight();
+    }
+
+    void MainWindow::RefreshHighlight()
+    {
+        const GraphCanvas::GraphId graphId = GetActiveGraphCanvasGraphId();
+        const AgentSnapshot* selected = m_agents != nullptr ? m_agents->GetSelected() : nullptr;
+
+        if (!graphId.IsValid() || selected == nullptr || m_programName.empty())
+        {
+            m_highlight.Clear();
+            return;
+        }
+
+        m_highlight.Show(graphId, AZ::Name(m_programName), selected->m_activePath,
+            [this](const AZStd::vector<size_t>& path)
+            {
+                return NodeAtPath(path);
+            });
+    }
+
+    void MainWindow::OnSelectedAgentChanged()
+    {
+        const AgentSnapshot* selected = m_agents->GetSelected();
+        if (selected == nullptr)
+        {
+            m_highlight.Clear();
+            return;
+        }
+
+        // Opening the program the agent is running is the point of picking one, but only when
+        // it is not already on screen: reloading it every poll would fight the author's view.
+        const AZStd::string running = selected->m_program.GetCStr();
+        if (!running.empty() && running != m_programName)
+        {
+            OpenRunningProgram(running);
+        }
+        RefreshHighlight();
     }
 
     AZ::Outcome<AuthoredNode, AZStd::string> MainWindow::ReadActiveGraph() const

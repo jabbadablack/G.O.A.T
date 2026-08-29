@@ -2,14 +2,20 @@
 
 #include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/GOATProgramEditorBus.h>
+#include <Tools/GraphEditor/AgentBrowserPanel.h>
+#include <Tools/GraphEditor/AgentDebugSource.h>
 #include <Tools/GraphEditor/ProgramGraphSerializer.h>
+#include <Tools/GraphEditor/RunningHighlight.h>
 #include <Tools/GraphEditor/Core.h>
 
 #include <GraphCanvas/Widgets/GraphCanvasEditor/GraphCanvasAssetEditorMainWindow.h>
 #include <GraphModel/Integration/EditorMainWindow.h>
 
 #include <AzCore/std/containers/vector.h>
+#include <AzCore/std/smart_ptr/unique_ptr.h>
 #include <AzCore/std/string/string.h>
+
+class QTimer;
 
 namespace GOAT::GraphEditor
 {
@@ -91,6 +97,19 @@ namespace GOAT::GraphEditor
 
         void LoadAuthored(const AuthoredNode& root, const AZStd::string& name, bool readOnly);
 
+        //! Reads the debug source and shows what it says. Driven by m_pollTimer.
+        void PollDebugSource();
+
+        //! Lights the path the selected agent is running, or puts the light out when there is
+        //! no agent, no program on screen, or the agent is running a different one.
+        void RefreshHighlight();
+
+        //! Shows the program an agent is running, read only, from what the runtime compiled.
+        void OpenRunningProgram(const AZStd::string& name);
+
+        //! Opens the program a newly picked agent is running, when it is not already open.
+        void OnSelectedAgentChanged();
+
         //! Spaces nodes out using the size each one actually drew at.
         //! The flattening pass can only guess, and a node with several properties on its face is
         //! far taller than any guess, so siblings laid out by a fixed row height overlap.
@@ -103,6 +122,12 @@ namespace GOAT::GraphEditor
         bool m_readOnly = false;
         //! Nodes painted by the last validation pass, so the paint can be cleared again.
         AZStd::vector<GraphModel::NodePtr> m_painted;
+
+        //! Where agent state is read from, and what it drives.
+        AZStd::unique_ptr<IAgentDebugSource> m_debug;
+        AgentBrowserPanel* m_agents = nullptr;
+        RunningHighlight m_highlight;
+        QTimer* m_pollTimer = nullptr;
 
         AZStd::vector<Snapshot> m_undo;
         AZStd::vector<Snapshot> m_redo;
