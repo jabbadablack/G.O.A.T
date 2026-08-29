@@ -54,8 +54,22 @@ it stores nothing itself. `MainWindow` serialises the whole `GraphModel::Graph` 
 `Slot` caches a `shared_ptr` back to its owning `Node`, so a graph being dropped needs
 `Graph::ClearCachedData()` first or it holds itself alive.
 
+## Watching a running agent
+
+`AgentDebugSource` is where agent state is read from. `LocalAgentDebugSource` reads the agent
+system in this process; a remote one asks a launcher. The panels are written against the
+interface so that adding the second is a transport rather than a second copy of the tool.
+
+`AgentBrowserPanel` lists what a poll returned. It only rebuilds its rows when the set of agents
+changes, because resetting a model drops the selection and ten polls a second would make an
+agent impossible to hold on to.
+
+`RunningHighlight` outlines the path an agent is on, as a GraphCanvas graphics effect rather
+than a palette override. An effect is not part of the graph, so it neither reports the program
+as modified -- which would ask for validation, which paints, which asks again -- nor fights the
+red a failing node already carries.
+
 ## Not built yet
 
-- Live tree state for a running agent (phase 2).
-- A blackboard inspector and an agent browser (phase 3).
+- A blackboard inspector (phase 3).
 - Viewport debug draw (phase 4).

@@ -34,7 +34,11 @@ namespace GOAT::GraphEditor
         virtual const AZStd::vector<AgentSnapshot>& GetSnapshots() const = 0;
     };
 
-    //! Reads the agent system running in this process, which is what Ctrl+G starts.
+    //! Reads the agent system running in this process.
+    //!
+    //! Agents turn out to exist in edit mode as well as in game mode, so this reports whatever
+    //! the agent system holds and uses the play state only to explain an empty list. Gating on
+    //! game mode would have hidden a level's agents from the tool for no reason.
     class LocalAgentDebugSource final
         : public IAgentDebugSource
         , private AzToolsFramework::EditorEntityContextNotificationBus::Handler
@@ -54,8 +58,7 @@ namespace GOAT::GraphEditor
         void OnStopPlayInEditor() override;
 
         AZStd::vector<AgentSnapshot> m_snapshots;
-        //! Agents only exist while the game is running, so reading outside that would report
-        //! an empty world as though it were an idle one.
+        //! Only used to say why a list is empty, never to decide whether to read.
         bool m_playing = false;
     };
 } // namespace GOAT::GraphEditor

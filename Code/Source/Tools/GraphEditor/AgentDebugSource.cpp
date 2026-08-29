@@ -16,20 +16,22 @@ namespace GOAT::GraphEditor
 
     bool LocalAgentDebugSource::IsConnected() const
     {
-        return m_playing && AgentSystemInterface::Get() != nullptr;
+        return AgentSystemInterface::Get() != nullptr;
     }
 
     AZStd::string LocalAgentDebugSource::DescribeTarget() const
     {
         if (AgentSystemInterface::Get() == nullptr)
         {
-            return "the agent system is not running";
+            return "The agent system is not running.";
         }
-        if (!m_playing)
+        if (m_snapshots.empty())
         {
-            return "not playing - press Ctrl+G to run the game in the editor";
+            return m_playing ? "No agents are registered."
+                             : "No agents are registered. Open a level, or press Ctrl+G to play.";
         }
-        return AZStd::string::format("this editor, %zu agent(s)", m_snapshots.size());
+        return AZStd::string::format(
+            "this editor%s, %zu agent(s)", m_playing ? " (playing)" : "", m_snapshots.size());
     }
 
     void LocalAgentDebugSource::Poll()
@@ -50,6 +52,5 @@ namespace GOAT::GraphEditor
     void LocalAgentDebugSource::OnStopPlayInEditor()
     {
         m_playing = false;
-        m_snapshots.clear();
     }
 } // namespace GOAT::GraphEditor

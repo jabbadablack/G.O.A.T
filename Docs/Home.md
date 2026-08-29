@@ -58,7 +58,7 @@ whichever one you picked.
 | Navigation module | ✅ Implemented |
 | Smart objects | ✅ Implemented |
 | Animation module | ✅ Implemented |
-| Graph editor (`.goat`) | ✅ Implemented, authoring only |
+| Graph editor (`.goat`) | ✅ Implemented, authoring and live debugging |
 | Bark system | ❌ Planned |
 | Perception module | ❌ Planned |
 

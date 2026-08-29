@@ -1993,6 +1993,24 @@ namespace GOAT
         }
 
         AZLOG_INFO("  may run: %s", mayRun.c_str());
+
+        // The same path the graph editor lights up, in text, so the two can be checked against
+        // each other and so a launcher with no editor attached can still be asked.
+        AgentSnapshot snapshot;
+        if (SnapshotAgent(agent, snapshot) && !snapshot.m_activePath.empty())
+        {
+            AZStd::string running;
+            for (const ProgramNodeRef& step : snapshot.m_activePath)
+            {
+                running += running.empty() ? "" : " > ";
+                running += step.m_program.GetCStr();
+                for (const AZ::u16 index : step.m_path)
+                {
+                    running += AZStd::string::format("[%u]", index);
+                }
+            }
+            AZLOG_INFO("  running: %s", running.c_str());
+        }
     }
 
     void GOATSystemComponent::OnCatalogLoaded([[maybe_unused]] const char* catalogFile)

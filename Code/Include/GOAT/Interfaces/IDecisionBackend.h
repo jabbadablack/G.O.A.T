@@ -89,6 +89,13 @@ namespace GOAT
         virtual Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
             ActionResult lastResult, float elapsed, ActionPlan& outPlan) = 0;
 
+        //! Releases any per agent state held for this agent, in the block it was attached into.
+        //! Anything added after this point rather than before it, so a module built against an
+        //! older header still finds every method it knew about at the slot it knew it by.
+        virtual void Release([[maybe_unused]] const PlanContext& context, [[maybe_unused]] BrainState state)
+        {
+        }
+
         //! Where this agent is inside its program right now, root first, for a tool watching it.
         //! Reported as authored nodes because a compiled index means nothing outside the backend
         //! that made it, which is what keeps the core from having to know what a node is.
@@ -99,11 +106,6 @@ namespace GOAT
         virtual void DescribePosition([[maybe_unused]] const AgentProgram& program,
             [[maybe_unused]] BrainState state, [[maybe_unused]] size_t runningStep,
             [[maybe_unused]] AZStd::vector<ProgramNodeRef>& outPath) const
-        {
-        }
-
-        //! Releases any per agent state held for this agent, in the block it was attached into.
-        virtual void Release([[maybe_unused]] const PlanContext& context, [[maybe_unused]] BrainState state)
         {
         }
     };
