@@ -76,7 +76,16 @@ namespace GOAT
             "Hands an intent to a named backend");
         delegate.m_parameters.push_back(Param("backend", BlackboardType::Name, false, true));
         delegate.m_parameters.push_back(Param("goal", BlackboardType::Name));
+        delegate.m_nestsProgram = true;
         Register(AZStd::move(delegate));
+
+        // One name and no more: both compilers put a leaf's only name in the request's tag, so
+        // a second one here would be read as the verb to run rather than the program to run.
+        auto embed = Simple("embed", NodeKind::Leaf, NodeOp::Action, "Leaf",
+            "Runs another program, in whatever paradigm owns it, until it is done");
+        embed.m_parameters.push_back(Param("goal", BlackboardType::Name, false, true));
+        embed.m_nestsProgram = true;
+        Register(AZStd::move(embed));
     }
 
     bool NodeTypeRegistry::Register(NodeTypeDescriptor descriptor)

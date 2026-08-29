@@ -17,6 +17,7 @@ This folder contains **step-by-step tutorials** for extending and using G.O.A.T.
 | [[Writing Custom Backends]] | How to create a C++ or Lua planning backend and register it. |
 | [[Adding New Actions]] | How to create a C++ `IActionState` (like `MoveTo`) and use it in Lua. |
 | [[Creating a Director AI]] | How to set up a global entity with `Band=3` and a `delegate` node to orchestrate waves. |
+| [[Mixing Paradigms]] | How one program hands work to another, and when to reach for `subtree`, `delegate` or `embed`. |
 
 ---
 

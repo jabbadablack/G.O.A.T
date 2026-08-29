@@ -1,6 +1,9 @@
 #include "GOATSystemComponent.h"
 
+#include <Core/Application/DecisionBackendAdapter.h>
+#include <Core/Application/NestedRun.h>
 #include <Core/Assets/BlackboardAssetHandler.h>
+#include <Core/Actions/EmbedAction.h>
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
 #include <Core/Director/DirectorActions.h>
@@ -142,6 +145,12 @@ namespace GOAT
             *m_blackboardSystem, *m_actions, *m_backends, *m_scripting, *m_planStore);
         m_agents = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboardSystem, *m_dispatch);
         m_directors = AZStd::make_unique<DirectorRegistry>(*m_agents);
+
+        // After the registry, because running a program inside a plan needs the agent whose
+        // block it borrows and the runtime that hands it its context.
+        m_actions->RegisterAt(CoreActions::Embed,
+            AZStd::make_unique<EmbedAction>(
+                [this](AgentId agent) { return m_agents->Find(agent); }, *m_runtime, *m_actions, m_programs));
 
         // Resolving a tree name needs the compiled programs, which live here, so the runtime is
         // handed the step rather than reaching back up for it.
@@ -508,9 +517,87 @@ namespace GOAT
         return AZ::Success();
     }
 
+    AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileNested(AgentProgram& program)
+    {
+        program.m_stateBytes = AlignState(program.m_backend->GetStateSize());
+
+        size_t deepest = 0;
+        for (const NestedProgram& nested : program.m_nested)
+        {
+            // A delegate naming something that is not a paradigm is a plain planner behind one
+            // leaf. It compiles nothing and is looked up when the leaf runs, which is what lets
+            // a backend declared in Lua register after the programs that name it have compiled.
+            if (!nested.m_backend.IsEmpty() && m_decisionBackends->Find(nested.m_backend) == nullptr)
+            {
+                continue;
+            }
+
+            const IDecisionBackend* owner = nested.m_backend.IsEmpty()
+                ? FindProgramBackend(nested.m_program)
+                : m_decisionBackends->Find(nested.m_backend);
+
+            if (owner == nullptr)
+            {
+                return AZ::Failure(AZStd::string::format(
+                    "'%s' hands work to '%s', which no installed backend claims", program.m_name.GetCStr(),
+                    nested.m_program.GetCStr()));
+            }
+
+            if (auto ran = CompileProgram(owner->GetName(), nested.m_program); !ran.IsSuccess())
+            {
+                return AZ::Failure(AZStd::string::format("'%s' hands work to '%s': %s", program.m_name.GetCStr(),
+                    nested.m_program.GetCStr(), ran.GetError().c_str()));
+            }
+
+            const auto inner = m_programs.find(nested.m_program);
+            AZ_Assert(inner != m_programs.end(), "A program that just compiled must be findable by name");
+
+            // What the nested one watches, the host has to watch too, or the agent sleeps
+            // through the very change the nested program is guarding on. What slots it was
+            // compiled against the host has to own too, or a rebind cannot find whoever used it.
+            for (size_t scope = 0; scope < inner->second->m_watchedScopes.size(); ++scope)
+            {
+                program.m_watchedScopes[scope] = program.m_watchedScopes[scope] || inner->second->m_watchedScopes[scope];
+            }
+
+            for (const AZ::Name& slot : inner->second->m_boundSlots)
+            {
+                if (AZStd::find(program.m_boundSlots.begin(), program.m_boundSlots.end(), slot) ==
+                    program.m_boundSlots.end())
+                {
+                    program.m_boundSlots.push_back(slot);
+                }
+            }
+
+            // The most any one of them needs, not the sum: two of these in different branches
+            // run one at a time, and a chain of them is a stack.
+            const size_t frame = nested.m_runsToCompletion ? NestedFrameBytes() : 0;
+            deepest = AZStd::max(deepest, frame + inner->second->m_stateBytes);
+        }
+
+        program.m_stateBytes += deepest;
+        return AZ::Success();
+    }
+
     AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileProgram(
         const AZ::Name& backendName, const AZ::Name& programName)
     {
+        if (AZStd::find(m_compiling.begin(), m_compiling.end(), programName) != m_compiling.end())
+        {
+            return AZ::Failure(AZStd::string::format(
+                "'%s' hands work back to itself, directly or through another program", programName.GetCStr()));
+        }
+
+        if (m_compiling.size() >= MaxNestDepth)
+        {
+            return AZ::Failure(AZStd::string::format(
+                "'%s' is %zu programs deep in handing work on, which is a loop rather than a chain",
+                programName.GetCStr(), m_compiling.size()));
+        }
+
+        m_compiling.push_back(programName);
+        const CompileFrame frame{ m_compiling };
+
         if (m_dispatch == nullptr || m_trees == nullptr)
         {
             return AZ::Failure(AZStd::string("The scripting services are not running"));
@@ -545,7 +632,13 @@ namespace GOAT
             return AZ::Failure(compiled.TakeError());
         }
 
-        AZStd::shared_ptr<const AgentProgram> program = compiled.TakeValue();
+        AZStd::shared_ptr<AgentProgram> built = compiled.TakeValue();
+        if (auto folded = CompileNested(*built); !folded.IsSuccess())
+        {
+            return AZ::Failure(folded.TakeError());
+        }
+
+        AZStd::shared_ptr<const AgentProgram> program = AZStd::move(built);
         m_programs[programName] = program;
 
         // An entity may have registered before this tree compiled, leaving its archetype holding
@@ -910,9 +1003,9 @@ namespace GOAT
         size_t recompiled = 0;
         for (const AZ::Name& name : affected)
         {
-            const auto current = m_programs.find(name);
-            const IDecisionBackend* backend =
-                current != m_programs.end() ? current->second->m_backend : nullptr;
+            // Asked of the program when it has one and of its root word when it does not, which
+            // is what lets a tree that never compiled because its slot was unbound compile now.
+            const IDecisionBackend* backend = FindProgramBackend(name);
             if (backend == nullptr)
             {
                 continue;
@@ -1028,7 +1121,15 @@ namespace GOAT
 
     IBackend* GOATSystemComponent::FindBackend(const AZ::Name& name) const
     {
-        return m_backends != nullptr ? m_backends->Find(name) : nullptr;
+        // A planner registered under the name wins, so naming a paradigm here is only ever the
+        // fallback and nothing that resolves today starts resolving to something else.
+        if (IBackend* planner = m_backends != nullptr ? m_backends->Find(name) : nullptr)
+        {
+            return planner;
+        }
+
+        const auto adapter = m_decisionAdapters.find(name);
+        return adapter != m_decisionAdapters.end() ? adapter->second.get() : nullptr;
     }
 
     ActionResult GOATSystemComponent::CallBehavior(
@@ -1055,15 +1156,84 @@ namespace GOAT
 
     bool GOATSystemComponent::RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend)
     {
-        return m_decisionBackends != nullptr && m_decisionBackends->Register(AZStd::move(backend));
+        if (m_decisionBackends == nullptr || backend == nullptr)
+        {
+            return false;
+        }
+
+        IDecisionBackend* raw = backend.get();
+        if (!m_decisionBackends->Register(AZStd::move(backend)))
+        {
+            return false;
+        }
+
+        // Which paradigm a program belongs to is answered by whoever gave its root word meaning.
+        // That is the only thing the core can ask without naming a backend it must not know.
+        for (const AZ::Name& word : raw->GetNodeTypes())
+        {
+            const auto claimed = m_nodeTypeOwners.find(word);
+            AZ_Warning("GOAT", claimed == m_nodeTypeOwners.end(),
+                "Backends '%s' and '%s' both claim the word '%s'; a program rooted in it cannot be placed",
+                claimed != m_nodeTypeOwners.end() ? claimed->second->GetName().GetCStr() : "",
+                raw->GetName().GetCStr(), word.GetCStr());
+            m_nodeTypeOwners[word] = raw;
+        }
+
+        // A paradigm can also answer one leaf rather than a whole agent, so every one of them is
+        // reachable from a delegate without being registered twice or knowing it was asked.
+        if (m_agents != nullptr)
+        {
+            m_decisionAdapters[raw->GetName()] = AZStd::make_unique<DecisionBackendAdapter>(
+                *raw, [this](AgentId agent) { return m_agents->Find(agent); }, m_programs);
+        }
+
+        return true;
     }
 
     void GOATSystemComponent::UnregisterDecisionBackend(const AZ::Name& name)
     {
-        if (m_decisionBackends != nullptr)
+        if (m_decisionBackends == nullptr)
         {
-            m_decisionBackends->Unregister(name);
+            return;
         }
+
+        if (const IDecisionBackend* going = m_decisionBackends->Find(name))
+        {
+            for (const AZ::Name& word : going->GetNodeTypes())
+            {
+                const auto claimed = m_nodeTypeOwners.find(word);
+                if (claimed != m_nodeTypeOwners.end() && claimed->second == going)
+                {
+                    m_nodeTypeOwners.erase(claimed);
+                }
+            }
+        }
+
+        m_decisionAdapters.erase(name);
+        m_decisionBackends->Unregister(name);
+    }
+
+    IDecisionBackend* GOATSystemComponent::FindProgramBackend(const AZ::Name& programName) const
+    {
+        if (const auto compiled = m_programs.find(programName); compiled != m_programs.end())
+        {
+            return compiled->second->m_backend;
+        }
+
+        // Not compiled yet, so ask the word it is rooted in who gives that word meaning.
+        if (m_dispatch == nullptr)
+        {
+            return nullptr;
+        }
+
+        auto emitted = m_dispatch->EmitTree(programName);
+        if (!emitted.IsSuccess() || emitted.GetValue() == nullptr)
+        {
+            return nullptr;
+        }
+
+        const auto owner = m_nodeTypeOwners.find(AZ::Name(emitted.GetValue()->m_type));
+        return owner != m_nodeTypeOwners.end() ? owner->second : nullptr;
     }
 
     IDecisionBackend* GOATSystemComponent::FindDecisionBackend(const AZ::Name& name) const

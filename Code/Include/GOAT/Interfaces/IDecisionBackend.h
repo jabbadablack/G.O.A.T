@@ -21,7 +21,9 @@ namespace GOAT
     using BrainState = AZStd::span<AZ::u8>;
 
     //! A compiled program, or why it could not be compiled.
-    using CompileOutcome = AZ::Outcome<AZStd::shared_ptr<const AgentProgram>, AZStd::string>;
+    //! Not const, because the core folds in what the compiler could not know: what a nested
+    //! program this one names watches, and how much state the chain under it needs.
+    using CompileOutcome = AZ::Outcome<AZStd::shared_ptr<AgentProgram>, AZStd::string>;
 
     //! The agent is running no plan, so there is nothing to re-check.
     inline constexpr size_t NoRunningStep = static_cast<size_t>(-1);
@@ -40,6 +42,10 @@ namespace GOAT
         bool m_planned = false;
         //! Seconds until this agent is worth asking again, when nothing was produced.
         float m_wakeIn = AZStd::numeric_limits<float>::max();
+        //! How the program ended, when it produced nothing because it is finished rather than
+        //! idle. Only whoever is running this program nested reads it; at the top level an agent
+        //! that has run out of work simply waits, so the default leaves that untouched.
+        ActionResult m_result = ActionResult::Running;
     };
 
     //! Decides how an agent acts. One of these per paradigm.
@@ -82,8 +88,8 @@ namespace GOAT
         virtual Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
             ActionResult lastResult, float elapsed, ActionPlan& outPlan) = 0;
 
-        //! Releases any per agent state held for this agent.
-        virtual void Release([[maybe_unused]] const PlanContext& context)
+        //! Releases any per agent state held for this agent, in the block it was attached into.
+        virtual void Release([[maybe_unused]] const PlanContext& context, [[maybe_unused]] BrainState state)
         {
         }
     };

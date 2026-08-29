@@ -48,7 +48,7 @@ namespace GOAT
 
         if (IDecisionBackend* backend = agent.GetBackend())
         {
-            backend->Release(context);
+            backend->Release(context, agent.GetState());
         }
     }
 

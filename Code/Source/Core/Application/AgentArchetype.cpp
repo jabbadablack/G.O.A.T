@@ -1,6 +1,7 @@
 #include <Core/Application/AgentArchetype.h>
 
 #include <AzCore/Debug/Trace.h>
+#include <AzCore/std/algorithm.h>
 
 namespace GOAT
 {
@@ -10,6 +11,11 @@ namespace GOAT
         if (m_names.size() >= MaxArchetypeTrees)
         {
             return;
+        }
+
+        if (program != nullptr)
+        {
+            m_stateBytes = AZStd::max(m_stateBytes, program->m_stateBytes);
         }
 
         m_names.push_back(name);
@@ -37,6 +43,11 @@ namespace GOAT
         if (slot == InvalidTreeSlot || m_programs[slot] != nullptr)
         {
             return false;
+        }
+
+        if (program != nullptr)
+        {
+            m_stateBytes = AZStd::max(m_stateBytes, program->m_stateBytes);
         }
 
         m_programs[slot] = AZStd::move(program);

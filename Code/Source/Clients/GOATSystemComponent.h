@@ -5,6 +5,7 @@
 #include <Core/Application/AgentRegistry.h>
 #include <Core/Application/AgentRuntime.h>
 #include <Core/Application/BackendRegistry.h>
+#include <Core/Application/DecisionBackendAdapter.h>
 #include <Core/Application/DecisionBackendRegistry.h>
 #include <Core/Application/BlackboardSystem.h>
 #include <Core/Application/NodeTypeRegistry.h>
@@ -117,6 +118,13 @@ namespace GOAT
         bool RegisterDecisionBackend(AZStd::unique_ptr<IDecisionBackend>& backend) override;
         void UnregisterDecisionBackend(const AZ::Name& name) override;
         IDecisionBackend* FindDecisionBackend(const AZ::Name& name) const override;
+
+        //! The backend that runs a program: the one that compiled it, or failing that the one
+        //! that owns the word its authored root is written as.
+        IDecisionBackend* FindProgramBackend(const AZ::Name& programName) const;
+
+        //! Compiles every program one names and folds what they need into it.
+        AZ::Outcome<void, AZStd::string> CompileNested(AgentProgram& program);
         AZStd::vector<AZ::Name> GetDecisionBackendNames() const override;
         ////////////////////////////////////////////////////////////////////////
 
@@ -252,7 +260,22 @@ namespace GOAT
         AZStd::unique_ptr<BlackboardSystem> m_blackboardSystem;
         AZStd::unique_ptr<ActionStateRegistry> m_actions;
         AZStd::unique_ptr<BackendRegistry> m_backends;
+        //! Unwinds the compile stack however the compile it belongs to ends.
+        struct CompileFrame final
+        {
+            AZStd::vector<AZ::Name>& m_stack;
+            ~CompileFrame() { m_stack.pop_back(); }
+        };
+
         AZStd::unique_ptr<DecisionBackendRegistry> m_decisionBackends;
+        //! Programs being compiled right now, outermost first, so one that hands work back to
+        //! itself is caught rather than compiled forever.
+        AZStd::vector<AZ::Name> m_compiling;
+        //! Each paradigm as a planner one delegate leaf can reach, built when it registers.
+        AZStd::unordered_map<AZ::Name, AZStd::unique_ptr<DecisionBackendAdapter>> m_decisionAdapters;
+        //! Which backend gives each authored word meaning, so a program can be placed with the
+        //! paradigm that owns its root without the core ever naming one.
+        AZStd::unordered_map<AZ::Name, IDecisionBackend*> m_nodeTypeOwners;
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TreeLibrary> m_trees;
         AZStd::unique_ptr<LuaDispatch> m_dispatch;

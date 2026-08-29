@@ -22,7 +22,7 @@ same level on different agents.
 - 🔌 **Paradigms are removable.** `grep -r 'BehaviorTree\|Htn' Code/Source/Core/` returns nothing.
 - 🤝 **They interoperate for free.** A task network writes a blackboard variable; a hundred
   behaviour trees react. One integer write, no wiring, no polling.
-- ⚡ **Fast when idle.** ~13 ns per agent for a band tick, 248 bytes per agent, and an agent with
+- ⚡ **Fast when idle.** ~13 ns per agent for a band tick, 192 bytes per agent, and an agent with
   nothing to do costs one subtraction.
 - 🏗️ **Extensible.** Add verbs, words, paradigms or director filters from your own gem.
 

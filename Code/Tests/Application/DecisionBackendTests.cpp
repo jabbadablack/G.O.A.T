@@ -28,7 +28,7 @@ namespace GOAT
         {
             auto program = AZStd::shared_ptr<AgentProgram>(aznew AgentProgram());
             program->m_name = name;
-            return AZ::Success(AZStd::shared_ptr<const AgentProgram>(AZStd::move(program)));
+            return AZ::Success(AZStd::move(program));
         }
 
         Decision Decide(const PlanContext&, const AgentProgram&, BrainState, ActionResult, float, ActionPlan&) override
@@ -37,7 +37,7 @@ namespace GOAT
             return Decision{};
         }
 
-        void Release(const PlanContext&) override { ++m_releases; }
+        void Release(const PlanContext&, BrainState) override { ++m_releases; }
 
         AZ::Name m_name;
         AZStd::vector<AZ::Name> m_nodeTypes;

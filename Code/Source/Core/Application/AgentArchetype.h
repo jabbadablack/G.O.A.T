@@ -59,6 +59,9 @@ namespace GOAT
 
         size_t Size() const { return m_names.size(); }
 
+        //! Brain state one agent of this kind needs, which is the most any one program does.
+        size_t GetStateBytes() const { return m_stateBytes; }
+
         //! True when this archetype declares exactly these trees, in this order. Two entities
         //! that agree on that can share one.
         bool Matches(AZStd::span<const AZ::Name> names) const;
@@ -66,5 +69,6 @@ namespace GOAT
     private:
         AZStd::vector<AZ::Name> m_names;
         AZStd::vector<AZStd::shared_ptr<const AgentProgram>> m_programs;
+        size_t m_stateBytes = 0;
     };
 } // namespace GOAT

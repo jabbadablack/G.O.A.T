@@ -10,6 +10,7 @@
 #include <Core/Application/NodeTypeRegistry.h>
 #include <TestAgentSystem.h>
 #include <Core/Scripting/LuaNodeScripting.h>
+#include <Core/Actions/EmbedAction.h>
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/GuardWatch.h>
 #include <BehaviorTreeBackend.h>
@@ -176,7 +177,7 @@ namespace GOAT::Benchmark
             PlanContext context;
             context.m_agent = agent;
             context.m_blackboard = m_blackboard.get();
-            context.m_planStore = &m_planStore;
+            context.m_planStore = m_planStore.get();
             return context;
         }
 
@@ -197,7 +198,7 @@ namespace GOAT::Benchmark
         AZStd::unique_ptr<BlackboardSystem> m_blackboard;
         AZStd::vector<AgentId> m_agents;
         AZStd::vector<DecisionCursor> m_cursors;
-        PlanStore m_planStore;
+        AZStd::unique_ptr<PlanStore> m_planStore = AZStd::make_unique<PlanStore>();
         TreeWalker m_walker;
     };
 
@@ -386,12 +387,24 @@ namespace GOAT::Benchmark
             m_host = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions, m_backends.get());
             m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*m_host, *m_blackboard);
             m_runtime = AZStd::make_unique<AgentRuntime>(
-                *m_blackboard, *m_actions, *m_backends, *m_scripting, m_planStore);
+                *m_blackboard, *m_actions, *m_backends, *m_scripting, *m_planStore);
             m_registry = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboard, *m_dispatch);
         }
 
         void Teardown()
         {
+            // Unregistered rather than dropped, so every plan goes back to the store before the
+            // name dictionary is torn down. A released plan is what gives up the names its
+            // steps hold, and the store outlives this function.
+            if (m_registry != nullptr)
+            {
+                for (const AgentId agent : m_registry->GetAgents())
+                {
+                    m_registry->Unregister(agent);
+                }
+            }
+
+            m_library.clear();
             m_registry.reset();
             m_runtime.reset();
             m_treeBackend.reset();
@@ -407,6 +420,11 @@ namespace GOAT::Benchmark
             m_scheduler.reset();
             m_time.reset();
             m_logger.reset();
+
+            // Last, once nothing holds a reference to it. A released block is recycled rather
+            // than freed, so the steps in it keep the names they carry until the store itself
+            // goes, and a store left to be a member would outlive the name dictionary.
+            m_planStore = AZStd::make_unique<PlanStore>();
         }
 
         //! A verb that never finishes, so an agent that starts one stays busy. Registering it
@@ -470,6 +488,49 @@ namespace GOAT::Benchmark
             m_archetype = archetype;
         }
 
+        //! The same population, but every agent's running step is a one node program of another
+        //! kind rather than a verb. Against BM_TickBand this is what one nesting level costs.
+        void MakeNestedArchetype()
+        {
+            const ActionStateId busy = m_actions->Register(AZStd::make_unique<BusyAction>());
+
+            DecisionProgram* inner = aznew DecisionProgram();
+            inner->m_name = AZ::Name("Inner");
+            inner->m_backend = m_treeBackend.get();
+            DecisionNode leaf;
+            leaf.m_op = NodeOp::Action;
+            leaf.m_parent = InvalidNodeIndex;
+            leaf.m_subtreeEnd = 1;
+            leaf.m_action.m_action = busy;
+            inner->m_nodes.push_back(leaf);
+            inner->m_stateBytes = AlignState(m_treeBackend->GetStateSize());
+            m_library[inner->m_name] = AZStd::shared_ptr<const AgentProgram>(inner);
+
+            m_actions->RegisterAt(CoreActions::Embed,
+                AZStd::make_unique<EmbedAction>(
+                    [this](AgentId agent) { return m_registry->Find(agent); }, *m_runtime, *m_actions, m_library));
+
+            BuildProgram(8);
+            for (DecisionNode& node : m_program->m_nodes)
+            {
+                if (node.m_op == NodeOp::Action)
+                {
+                    node.m_action.m_action = CoreActions::Embed;
+                    node.m_action.m_tag = AZ::Name("Inner");
+                }
+            }
+
+            auto shared = AZStd::shared_ptr<DecisionProgram>(aznew DecisionProgram(*m_program));
+            shared->m_backend = m_treeBackend.get();
+            shared->m_watchedScopes[static_cast<size_t>(BlackboardScope::Agent)] = true;
+            shared->m_stateBytes =
+                AlignState(m_treeBackend->GetStateSize()) + NestedFrameBytes() + inner->m_stateBytes;
+
+            auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
+            archetype->Add(AZ::Name("Bench"), AZStd::move(shared));
+            m_archetype = archetype;
+        }
+
         void MakeArchetype(bool waiting = false)
         {
             BuildProgram(8);
@@ -509,6 +570,7 @@ namespace GOAT::Benchmark
         AZStd::unique_ptr<AgentRuntime> m_runtime;
         BlackboardKey m_alarm;
         AZStd::unique_ptr<AgentRegistry> m_registry;
+        EmbedAction::ProgramTable m_library;
     };
 
     //! Every table grows on its own as agents arrive.
@@ -583,6 +645,54 @@ namespace GOAT::Benchmark
 
         state.SetItemsProcessed(state.iterations() * agents);
     }
+
+    //! The same band tick, but every agent's running step is another program rather than a
+    //! verb. Its ratio to BM_TickBand is what one level of handing work on actually costs.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_TickNested)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        MakeNestedArchetype();
+
+        AZStd::vector<AgentId> registered;
+        registered.reserve(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            registered.push_back(
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{}));
+        }
+
+        for (const AgentId agent : registered)
+        {
+            m_blackboard->Set<bool>(m_gate, true, agent);
+        }
+
+        // Three ticks: one to plan the host's step, one to enter the nested program and plan
+        // its first, and one to get that running.
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+
+        size_t nested = 0;
+        for (const AgentId agent : registered)
+        {
+            const AgentRecord* record = m_registry->Find(agent);
+            nested += record != nullptr && record->m_brainUsed > AlignState(m_treeBackend->GetStateSize()) ? 1 : 0;
+        }
+        if (nested != static_cast<size_t>(agents))
+        {
+            state.SkipWithError("agents are not inside a nested program, so this measures nothing");
+            return;
+        }
+
+        for ([[maybe_unused]] auto _ : state)
+        {
+            m_registry->TickBand(0);
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickNested)->Arg(100)->Arg(1000)->Arg(10000);
 
     BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickBand)->Arg(100)->Arg(1000)->Arg(10000);
 

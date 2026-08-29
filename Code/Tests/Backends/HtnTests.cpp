@@ -441,6 +441,7 @@ namespace GOAT
         agent.m_entity = AZ::EntityId(7);
         agent.m_archetype = archetype;
         agent.m_program = archetype->GetProgram(0);
+        agent.ResetBrain(*agent.m_program);
 
         ASSERT_NE(agent.GetBackend(), nullptr);
         EXPECT_EQ(agent.GetBackend()->GetName(), AZ::Name("htn"));

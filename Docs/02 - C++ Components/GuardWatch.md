@@ -40,7 +40,7 @@ it, not only a change to the exact slot it guards on.
 
 That is the right trade for an idle agent, which by definition is running nothing that writes.
 Going finer would need per-agent baseline state for every key, and the whole `GuardWatch` is 40
-bytes inside a 248-byte agent record.
+bytes inside a 192-byte agent record.
 
 A program with no guards watches nothing and is never woken by a write at all.
 

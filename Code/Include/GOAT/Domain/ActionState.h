@@ -20,7 +20,8 @@ namespace GOAT
         inline constexpr ActionStateId Invalid = 0;
         inline constexpr ActionStateId Wait = 1;
         inline constexpr ActionStateId RunScript = 2;
-        inline constexpr ActionStateId FirstRegistered = 3;
+        inline constexpr ActionStateId Embed = 3;
+        inline constexpr ActionStateId FirstRegistered = 4;
     } // namespace CoreActions
 
     //! Outcome of advancing an action state.
