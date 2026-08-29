@@ -25,12 +25,14 @@ namespace GOAT
     private:
         //! Emits one node and its subtree, returning the index it was written to.
         //! m_inlining names the trees currently being expanded, which is how a cycle is caught.
+        //! @param location where this node was authored, which a tool needs to point at it.
         AZ::Outcome<NodeIndex, AZStd::string> Emit(
             const AuthoredNode& authored,
             NodeIndex parent,
             AZ::u32 depth,
             DecisionProgram& program,
-            AZStd::vector<AZ::Name>& inlining) const;
+            AZStd::vector<AZ::Name>& inlining,
+            const ProgramNodeRef& location) const;
 
         //! Expands a subtree reference in place of the referencing node.
         AZ::Outcome<NodeIndex, AZStd::string> Inline(

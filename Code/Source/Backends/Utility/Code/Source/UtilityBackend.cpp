@@ -133,6 +133,25 @@ namespace GOAT
         return sizeof(UtilityCursor);
     }
 
+    void UtilityBackend::DescribePosition(const AgentProgram& program, BrainState state,
+        [[maybe_unused]] size_t runningStep, AZStd::vector<ProgramNodeRef>& outPath) const
+    {
+        outPath.clear();
+
+        const auto* scored = azrtti_cast<const UtilityProgram*>(&program);
+        if (scored == nullptr || state.size() < sizeof(UtilityCursor))
+        {
+            return;
+        }
+
+        // A utility program is one level deep: the whole path is whichever choice won.
+        const auto& cursor = *reinterpret_cast<const UtilityCursor*>(state.data());
+        if (cursor.m_choice != InvalidChoice && cursor.m_choice < scored->m_authored.size())
+        {
+            outPath.push_back(scored->m_authored[cursor.m_choice]);
+        }
+    }
+
     UtilityCursor& UtilityBackend::Cursor(BrainState state)
     {
         AZ_Assert(state.size() >= sizeof(UtilityCursor), "An agent's brain state must hold its utility cursor");

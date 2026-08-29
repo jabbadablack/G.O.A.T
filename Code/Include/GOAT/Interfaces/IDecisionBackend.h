@@ -2,6 +2,7 @@
 
 #include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Domain/ActionPlan.h>
+#include <GOAT/Domain/AgentDebug.h>
 #include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Domain/PlanContext.h>
 #include <GOAT/GOATTypeIds.h>
@@ -87,6 +88,19 @@ namespace GOAT
         //! Produces the next plan for an agent, given how the last one ended.
         virtual Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
             ActionResult lastResult, float elapsed, ActionPlan& outPlan) = 0;
+
+        //! Where this agent is inside its program right now, root first, for a tool watching it.
+        //! Reported as authored nodes because a compiled index means nothing outside the backend
+        //! that made it, which is what keeps the core from having to know what a node is.
+        //! The default reports nothing, so a backend that has not implemented this shows no
+        //! highlight rather than a wrong one.
+        //! @param runningStep which step of the plan is in flight, or NoRunningStep, because a
+        //!        backend that plans a sequence up front needs it to say where in that it is.
+        virtual void DescribePosition([[maybe_unused]] const AgentProgram& program,
+            [[maybe_unused]] BrainState state, [[maybe_unused]] size_t runningStep,
+            [[maybe_unused]] AZStd::vector<ProgramNodeRef>& outPath) const
+        {
+        }
 
         //! Releases any per agent state held for this agent, in the block it was attached into.
         virtual void Release([[maybe_unused]] const PlanContext& context, [[maybe_unused]] BrainState state)

@@ -85,6 +85,32 @@ namespace GOAT
         return *reinterpret_cast<HtnPlanRecord*>(state.data());
     }
 
+    void HtnBackend::DescribePosition(const AgentProgram& program, BrainState state, size_t runningStep,
+        AZStd::vector<ProgramNodeRef>& outPath) const
+    {
+        outPath.clear();
+
+        const auto* domain = azrtti_cast<const HtnDomain*>(&program);
+        if (domain == nullptr || state.size() < sizeof(HtnPlanRecord) || runningStep == NoRunningStep)
+        {
+            return;
+        }
+
+        // A domain is one level deep, so the whole path is the task the plan is up to. The
+        // decomposition that chose it is gone by now; what is left is what it produced.
+        const auto& record = *reinterpret_cast<const HtnPlanRecord*>(state.data());
+        if (runningStep >= record.m_count)
+        {
+            return;
+        }
+
+        const AZ::u16 task = record.m_tasks[runningStep];
+        if (task < domain->m_authored.size())
+        {
+            outPath.push_back(domain->m_authored[task]);
+        }
+    }
+
     void HtnBackend::Attach(const PlanContext&, const AgentProgram&, BrainState state)
     {
         AZ_Assert(state.size() >= sizeof(HtnPlanRecord), "An agent's brain state must hold its plan record");

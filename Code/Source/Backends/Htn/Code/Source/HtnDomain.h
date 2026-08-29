@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Domain/ActionState.h>
+#include <GOAT/Domain/AgentDebug.h>
 #include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Domain/BlackboardKey.h>
 
@@ -71,6 +72,9 @@ namespace GOAT
         AZ::u16 FindTask(const AZ::Name& name) const;
 
         AZStd::vector<HtnTask> m_tasks;
+        //! Which authored node each task came from, indexed the same as m_tasks, so a tool can
+        //! point at the task an agent is running.
+        AZStd::vector<ProgramNodeRef> m_authored;
         AZStd::vector<HtnMethod> m_methods;
         AZStd::vector<HtnCondition> m_conditions;
         AZStd::vector<HtnEffect> m_effects;

@@ -1,5 +1,7 @@
 #include <BehaviorTreeBackend.h>
 
+#include <AzCore/std/algorithm.h>
+
 #include <TreeCompiler.h>
 
 #include <AzCore/Console/ILogger.h>
@@ -61,6 +63,35 @@ namespace GOAT
         auto program = AZStd::shared_ptr<DecisionProgram>(aznew DecisionProgram(AZStd::move(compiled.GetValue())));
         program->m_backend = this;
         return AZ::Success(AZStd::shared_ptr<AgentProgram>(AZStd::move(program)));
+    }
+
+    void BehaviorTreeBackend::DescribePosition(const AgentProgram& program, BrainState state,
+        [[maybe_unused]] size_t runningStep, AZStd::vector<ProgramNodeRef>& outPath) const
+    {
+        outPath.clear();
+
+        const auto* tree = azrtti_cast<const DecisionProgram*>(&program);
+        if (tree == nullptr || state.size() < sizeof(DecisionCursor))
+        {
+            return;
+        }
+
+        const auto& cursor = *reinterpret_cast<const DecisionCursor*>(state.data());
+        NodeIndex node = cursor.GetActiveLeaf();
+        if (node == InvalidNodeIndex || node >= tree->m_authored.size())
+        {
+            // Idle, or a cursor left over from a program this agent is no longer running.
+            return;
+        }
+
+        // Walk up from the leaf and turn the chain the right way round, because what a reader
+        // wants to see is the path down to the node that is running.
+        for (; node != InvalidNodeIndex; node = tree->m_nodes[node].m_parent)
+        {
+            AZ_Assert(node < tree->m_authored.size(), "A parent link always addresses a node of the same program");
+            outPath.push_back(tree->m_authored[node]);
+        }
+        AZStd::reverse(outPath.begin(), outPath.end());
     }
 
     void BehaviorTreeBackend::Attach(

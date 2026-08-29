@@ -28,6 +28,10 @@ namespace GOAT
     inline constexpr const char* BlackboardAssetTypeId = "{29F4C31E-D14F-4DB2-8DBE-B13E59D1ED50}";
     inline constexpr const char* ProgramAssetTypeId = "{471B8D29-2A2E-4E77-8C33-B8E054EDCA00}";
 
+    // What a tool watching a running agent is told
+    inline constexpr const char* ProgramNodeRefTypeId = "{F8431761-9C17-475E-9818-6C06DC313F04}";
+    inline constexpr const char* AgentSnapshotTypeId = "{65FE104F-34BF-493E-9650-CEE991DF52A4}";
+
     // Behavior tree authoring and compiled forms
     inline constexpr const char* AuthoredNodeTypeId = "{0518D68E-CE23-4EBF-9DEB-5203B83E4912}";
     inline constexpr const char* AuthoredPropertyTypeId = "{13C83E36-77A7-45C6-ACFC-AAE65676B2C0}";

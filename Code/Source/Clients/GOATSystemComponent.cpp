@@ -65,6 +65,7 @@ namespace GOAT
         Intent::Reflect(context);
         BlackboardAsset::Reflect(context);
         ProgramAsset::Reflect(context);
+        AgentSnapshot::Reflect(context);
         LuaTreeBuilder::Reflect(context);
         LuaPlanBuilder::Reflect(context);
         LuaPlanValidator::Reflect(context);
@@ -1417,6 +1418,68 @@ namespace GOAT
         return names;
     }
 
+    bool GOATSystemComponent::SnapshotAgent(AgentId agent, AgentSnapshot& outSnapshot) const
+    {
+        if (m_agents == nullptr)
+        {
+            return false;
+        }
+
+        AgentRecord* record = const_cast<AgentRegistry*>(m_agents.get())->Find(agent);
+        if (record == nullptr)
+        {
+            return false;
+        }
+
+        const ActionRequest* action = record->m_machine.GetCurrentAction();
+
+        outSnapshot = AgentSnapshot();
+        outSnapshot.SetAgent(agent);
+        outSnapshot.m_entity = record->m_entity;
+        outSnapshot.m_program = record->m_program != nullptr ? record->m_program->m_name : AZ::Name();
+        outSnapshot.m_backend = record->GetBackend() != nullptr ? record->GetBackend()->GetName() : AZ::Name();
+        outSnapshot.m_squad = GetAgentSquad(agent);
+        outSnapshot.m_action = action != nullptr && m_actions->Find(action->m_action) != nullptr
+            ? m_actions->Find(action->m_action)->GetName()
+            : AZ::Name("idle");
+        outSnapshot.m_band = record->m_band;
+        outSnapshot.m_step = aznumeric_cast<AZ::u32>(record->m_machine.GetStepIndex());
+        outSnapshot.m_planSize = aznumeric_cast<AZ::u32>(record->m_machine.GetPlanSize());
+        outSnapshot.m_elapsed = record->m_machine.GetElapsed();
+        outSnapshot.m_interrupted = aznumeric_cast<AZ::u32>(record->m_treeStack.size());
+
+        // Only the backend that wrote the agent's state block can read it, so where the agent
+        // is inside its program is the one thing here the core cannot work out for itself.
+        if (record->GetBackend() != nullptr && record->m_program != nullptr)
+        {
+            record->GetBackend()->DescribePosition(*record->m_program, record->GetState(),
+                record->m_machine.HasPlan() ? record->m_machine.GetStepIndex() : NoRunningStep,
+                outSnapshot.m_activePath);
+        }
+        return true;
+    }
+
+    AZStd::vector<AgentSnapshot> GOATSystemComponent::SnapshotAgents() const
+    {
+        AZStd::vector<AgentSnapshot> snapshots;
+        if (m_agents == nullptr)
+        {
+            return snapshots;
+        }
+
+        const AZStd::vector<AgentId> agents = m_agents->GetAgents();
+        snapshots.reserve(agents.size());
+        for (const AgentId agent : agents)
+        {
+            AgentSnapshot snapshot;
+            if (SnapshotAgent(agent, snapshot))
+            {
+                snapshots.push_back(AZStd::move(snapshot));
+            }
+        }
+        return snapshots;
+    }
+
     AZStd::string GOATSystemComponent::DescribeAgent(AgentId agent) const
     {
         if (m_agents == nullptr)
@@ -1424,23 +1487,20 @@ namespace GOAT
             return "the agent system is not running";
         }
 
-        AgentRecord* record = const_cast<AgentRegistry*>(m_agents.get())->Find(agent);
-        if (record == nullptr)
+        // Built from the same snapshot the tools read, so the console and a panel can never
+        // disagree about what an agent is doing.
+        AgentSnapshot snapshot;
+        if (!SnapshotAgent(agent, snapshot))
         {
             return "no such agent";
         }
 
-        const ActionRequest* action = record->m_machine.GetCurrentAction();
-        const AZ::Name verb = action != nullptr && m_actions->Find(action->m_action) != nullptr
-            ? m_actions->Find(action->m_action)->GetName()
-            : AZ::Name("idle");
-
         return AZStd::string::format(
-            "program '%s' on backend '%s' (%zu interrupted) band %u action '%s' step %zu of %zu elapsed %.2fs",
-            record->m_program != nullptr ? record->m_program->m_name.GetCStr() : "<none>",
-            record->GetBackend() != nullptr ? record->GetBackend()->GetName().GetCStr() : "<none>",
-            record->m_treeStack.size(), static_cast<AZ::u32>(record->m_band), verb.GetCStr(),
-            record->m_machine.GetStepIndex(), record->m_machine.GetPlanSize(), record->m_machine.GetElapsed());
+            "program '%s' on backend '%s' (%u interrupted) band %u action '%s' step %u of %u elapsed %.2fs",
+            snapshot.m_program.IsEmpty() ? "<none>" : snapshot.m_program.GetCStr(),
+            snapshot.m_backend.IsEmpty() ? "<none>" : snapshot.m_backend.GetCStr(),
+            snapshot.m_interrupted, static_cast<AZ::u32>(snapshot.m_band), snapshot.m_action.GetCStr(),
+            snapshot.m_step, snapshot.m_planSize, snapshot.m_elapsed);
     }
 
     namespace

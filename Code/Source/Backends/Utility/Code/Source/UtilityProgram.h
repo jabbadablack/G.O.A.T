@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Domain/ActionState.h>
+#include <GOAT/Domain/AgentDebug.h>
 #include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Domain/BlackboardKey.h>
 
@@ -82,6 +83,9 @@ namespace GOAT
         AZ::u16 FindChoice(const AZ::Name& name) const;
 
         AZStd::vector<UtilityChoice> m_choices;
+        //! Which authored node each choice came from, indexed the same as m_choices, so a tool
+        //! can point at the choice an agent settled on.
+        AZStd::vector<ProgramNodeRef> m_authored;
         AZStd::vector<UtilityConsideration> m_considerations;
         //! What every choice's steps run, referred to by the ranges on each choice.
         AZStd::vector<ActionRequest> m_steps;

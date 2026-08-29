@@ -314,8 +314,9 @@ namespace GOAT
         }
 
         // Named first, all of them, so a method may list a task written further down the file.
-        for (const AuthoredNode& child : root.m_children)
+        for (size_t i = 0; i < root.m_children.size(); ++i)
         {
+            const AuthoredNode& child = root.m_children[i];
             const bool primitive = child.m_type == "primitive";
             if (!primitive && child.m_type != "task")
             {
@@ -335,6 +336,13 @@ namespace GOAT
                 return AZ::Failure(AZStd::string::format("'%s' is declared twice", task.m_name.GetCStr()));
             }
             domain.m_tasks.push_back(task);
+
+            // Recorded the same way a tree records its nodes: children continue the index space
+            // the services started, so one path means one node whatever the paradigm.
+            ProgramNodeRef location;
+            location.m_program = name;
+            location.m_path.push_back(aznumeric_cast<AZ::u16>(root.m_services.size() + i));
+            domain.m_authored.push_back(location);
         }
 
         if (domain.m_tasks.empty())

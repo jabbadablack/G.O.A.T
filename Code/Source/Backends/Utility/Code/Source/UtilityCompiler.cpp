@@ -405,8 +405,9 @@ namespace GOAT
         }
 
         // Named first so a message about one can say which it meant, whatever fails later.
-        for (const AuthoredNode& child : root.m_children)
+        for (size_t i = 0; i < root.m_children.size(); ++i)
         {
+            const AuthoredNode& child = root.m_children[i];
             if (child.m_type != "choice")
             {
                 return AZ::Failure(AZStd::string::format(
@@ -429,6 +430,13 @@ namespace GOAT
             UtilityChoice choice;
             choice.m_name = AZ::Name(choiceName);
             program.m_choices.push_back(AZStd::move(choice));
+
+            // Recorded the same way a tree records its nodes, so one path means one node
+            // whatever paradigm produced it.
+            ProgramNodeRef location;
+            location.m_program = name;
+            location.m_path.push_back(aznumeric_cast<AZ::u16>(root.m_services.size() + i));
+            program.m_authored.push_back(location);
         }
 
         for (size_t index = 0; index < root.m_children.size(); ++index)

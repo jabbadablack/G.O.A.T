@@ -8,6 +8,7 @@ set(FILES
     Include/GOAT/Domain/DirectorProfile.h
     Include/GOAT/Domain/PlanStore.h
     Include/GOAT/Domain/ActionState.h
+    Include/GOAT/Domain/AgentDebug.h
     Include/GOAT/Domain/AgentId.h
     Include/GOAT/Domain/AgentProgram.h
     Include/GOAT/Domain/AgentStateMachine.h
@@ -29,6 +30,7 @@ set(FILES
     Include/GOAT/Interfaces/IDecisionBackend.h
     Include/GOAT/Interfaces/INodeScripting.h
     Source/Core/Domain/ActionState.cpp
+    Source/Core/Domain/AgentDebug.cpp
     Source/Core/Domain/BlackboardKey.cpp
     Source/Core/Domain/BlackboardStorage.cpp
     Source/Core/Domain/BlackboardTypes.cpp

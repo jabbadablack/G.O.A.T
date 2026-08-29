@@ -195,8 +195,13 @@ namespace GOAT
         // The subtree node itself leaves no trace: its referenced root takes its place.
         const size_t depthBefore = inlining.size();
 
+        // The referenced root takes the subtree node's place, so its nodes are authored in
+        // that tree, not this one, and their paths start again from its root.
+        ProgramNodeRef inlinedLocation;
+        inlinedLocation.m_program = treeName;
+
         inlining.push_back(treeName);
-        auto emitted = Emit(*referenced, parent, depth, program, inlining);
+        auto emitted = Emit(*referenced, parent, depth, program, inlining, inlinedLocation);
         inlining.pop_back();
 
         AZ_Assert(inlining.size() == depthBefore, "Inlining must leave the cycle detection stack as it found it");
@@ -318,7 +323,8 @@ namespace GOAT
         NodeIndex parent,
         AZ::u32 depth,
         DecisionProgram& program,
-        AZStd::vector<AZ::Name>& inlining) const
+        AZStd::vector<AZ::Name>& inlining,
+        const ProgramNodeRef& location) const
     {
         AZ_Assert(!authored.m_type.empty(), "Every authored node names a type");
 
@@ -349,6 +355,9 @@ namespace GOAT
 
         const NodeIndex index = aznumeric_cast<NodeIndex>(program.m_nodes.size());
         program.m_nodes.emplace_back();
+        program.m_authored.push_back(location);
+        AZ_Assert(program.m_authored.size() == program.m_nodes.size(),
+            "Every compiled node records where it was authored, or the two tables stop lining up");
         {
             DecisionNode& node = program.m_nodes[index];
             node.m_op = descriptor->m_op;
@@ -591,9 +600,15 @@ namespace GOAT
         // The first child follows its parent immediately; each later sibling starts at the
         // previous sibling's subtree end, which is what makes a subtree one contiguous range.
         const NodeIndex firstChild = aznumeric_cast<NodeIndex>(program.m_nodes.size());
-        for (const AuthoredNode& child : authored.m_children)
+        for (size_t i = 0; i < authored.m_children.size(); ++i)
         {
-            auto emitted = Emit(child, index, depth + 1, program, inlining);
+            // Children continue the index space the services started, which is the one order
+            // StepInto, the validator and the canvas all read a path in.
+            ProgramNodeRef childLocation = location;
+            childLocation.m_path.push_back(
+                aznumeric_cast<AZ::u16>(authored.m_services.size() + i));
+
+            auto emitted = Emit(authored.m_children[i], index, depth + 1, program, inlining, childLocation);
             if (!emitted.IsSuccess())
             {
                 return emitted;
@@ -636,7 +651,10 @@ namespace GOAT
 
         AZStd::vector<AZ::Name> inlining;
         inlining.push_back(name);
-        auto emitted = Emit(root, InvalidNodeIndex, 0, program, inlining);
+
+        ProgramNodeRef rootLocation;
+        rootLocation.m_program = name;
+        auto emitted = Emit(root, InvalidNodeIndex, 0, program, inlining, rootLocation);
         if (!emitted.IsSuccess())
         {
             return AZ::Failure(AZStd::string::format("Tree '%s': %s", name.GetCStr(), emitted.GetError().c_str()));

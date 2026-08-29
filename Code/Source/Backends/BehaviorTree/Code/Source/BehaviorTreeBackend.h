@@ -32,6 +32,8 @@ namespace GOAT
             size_t runningStep) override;
         Decision Decide(const PlanContext& context, const AgentProgram& program, BrainState state,
             ActionResult lastResult, float elapsed, ActionPlan& outPlan) override;
+        void DescribePosition(const AgentProgram& program, BrainState state, size_t runningStep,
+            AZStd::vector<ProgramNodeRef>& outPath) const override;
 
     private:
         //! The cursor an agent keeps inside its brain state.

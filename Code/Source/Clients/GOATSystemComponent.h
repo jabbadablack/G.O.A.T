@@ -93,6 +93,8 @@ namespace GOAT
         AZStd::vector<AZ::Name> GetTreeNames() const override;
         AZStd::vector<AZ::Name> GetNodeTypeNames() const override;
         AZStd::string DescribeAgent(AgentId agent) const override;
+        bool SnapshotAgent(AgentId agent, AgentSnapshot& outSnapshot) const override;
+        AZStd::vector<AgentSnapshot> SnapshotAgents() const override;
         ////////////////////////////////////////////////////////////////////////
 
     protected:

@@ -3,6 +3,7 @@
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Assets/ProgramAsset.h>
+#include <GOAT/Domain/AgentDebug.h>
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/DirectorProfile.h>
 #include <GOAT/Domain/NodeType.h>
@@ -182,6 +183,14 @@ namespace GOAT
 
         //! A one line summary of what an agent is doing, for the console.
         virtual AZStd::string DescribeAgent(AgentId agent) const = 0;
+
+        //! Everything a tool shows about one agent, in one pass. False when there is no such
+        //! agent. The active path is filled in by whatever backend owns the agent's program,
+        //! because only that backend can read the state block it wrote.
+        virtual bool SnapshotAgent(AgentId agent, AgentSnapshot& outSnapshot) const = 0;
+
+        //! The same for every registered agent, which is what an agent browser polls.
+        virtual AZStd::vector<AgentSnapshot> SnapshotAgents() const = 0;
     };
 
     //! Registered by the GOAT system component for the lifetime of the gem.

@@ -4,6 +4,7 @@
 #include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Domain/BlackboardKey.h>
 #include <GOAT_BehaviorTree/Guard.h>
+#include <GOAT/Domain/AgentDebug.h>
 #include <GOAT/Domain/Intent.h>
 #include <GOAT/Domain/NodeType.h>
 #include <GOAT/GOATTypeIds.h>
@@ -97,6 +98,11 @@ namespace GOAT
 
         //! Nodes in pre-order, root first.
         AZStd::vector<DecisionNode> m_nodes;
+        //! Which authored node each compiled node came from, indexed the same as m_nodes.
+        //! A side table rather than a field on DecisionNode, so the node stays the size the
+        //! walker wants, the way m_guardNodes and m_serviceNodes already are. It carries a
+        //! tree name because an inlined subtree's nodes were authored somewhere else.
+        AZStd::vector<ProgramNodeRef> m_authored;
         //! Services referenced by node service ranges.
         AZStd::vector<DecisionService> m_services;
         //! Every blackboard slot a guard in this tree observes, deduplicated.
