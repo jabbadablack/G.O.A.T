@@ -97,9 +97,7 @@ namespace GOAT::GraphEditor
             }
         }
 
-        //! What hangs off one of a node's two structural slots, ordered by how far down the
-        //! canvas each sits.
-        AZStd::vector<GraphModel::NodePtr> ChildrenOf(
+        AZStd::vector<GraphModel::NodePtr> ChildrenOfImpl(
             GraphModel::NodePtr node, const char* slotName, const PositionLookup& positionOf)
         {
             AZStd::vector<GraphModel::NodePtr> children;
@@ -161,7 +159,7 @@ namespace GOAT::GraphEditor
             authored.m_metadata.m_position = positionOf(node);
             ReadProperties(*program, authored);
 
-            for (const GraphModel::NodePtr& service : ChildrenOf(node, ServicesSlotId, positionOf))
+            for (const GraphModel::NodePtr& service : ChildrenOfImpl(node, ServicesSlotId, positionOf))
             {
                 auto read = ReadNode(service, positionOf, visiting);
                 if (!read.IsSuccess())
@@ -171,7 +169,7 @@ namespace GOAT::GraphEditor
                 authored.m_services.push_back(read.TakeValue());
             }
 
-            for (const GraphModel::NodePtr& child : ChildrenOf(node, ChildrenSlotId, positionOf))
+            for (const GraphModel::NodePtr& child : ChildrenOfImpl(node, ChildrenSlotId, positionOf))
             {
                 auto read = ReadNode(child, positionOf, visiting);
                 if (!read.IsSuccess())
@@ -185,6 +183,52 @@ namespace GOAT::GraphEditor
             return AZ::Success(AZStd::move(authored));
         }
     } // namespace
+
+    AZStd::vector<GraphModel::NodePtr> ChildrenOf(
+        GraphModel::NodePtr node, const char* slotName, const PositionLookup& positionOf)
+    {
+        return ChildrenOfImpl(node, slotName, positionOf);
+    }
+
+    GraphModel::NodePtr NodeAtPath(
+        GraphModel::GraphPtr graph, const AZStd::vector<size_t>& path, const PositionLookup& positionOf)
+    {
+        if (graph == nullptr)
+        {
+            return nullptr;
+        }
+
+        GraphModel::NodePtr current;
+        for (const auto& [id, node] : graph->GetNodes())
+        {
+            GraphModel::SlotPtr parent = node->GetSlot(ParentSlotId);
+            if (parent == nullptr || parent->GetConnections().empty())
+            {
+                current = node;
+                break;
+            }
+        }
+
+        for (size_t index : path)
+        {
+            if (current == nullptr)
+            {
+                return nullptr;
+            }
+
+            // Each slot is ordered on its own and the two are laid end to end. Sorting the
+            // union instead would let a service and a child swap places by height alone,
+            // which is not what the index means.
+            AZStd::vector<GraphModel::NodePtr> below = ChildrenOfImpl(current, ServicesSlotId, positionOf);
+            for (const GraphModel::NodePtr& child : ChildrenOfImpl(current, ChildrenSlotId, positionOf))
+            {
+                below.push_back(child);
+            }
+
+            current = index < below.size() ? below[index] : nullptr;
+        }
+        return current;
+    }
 
     bool HasAuthoredLayout(const AuthoredNode& root)
     {

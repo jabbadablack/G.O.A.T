@@ -69,6 +69,13 @@ namespace GOAT
             invert.m_backend = AZ::Name("tree");
             m_nodeTypes->Register(invert);
 
+            NodeTypeDescriptor watch;
+            watch.m_name = AZ::Name("watch");
+            watch.m_kind = NodeKind::Service;
+            watch.m_category = "Service";
+            watch.m_backend = AZ::Name("tree");
+            m_nodeTypes->Register(watch);
+
             NodeTypeDescriptor task;
             task.m_name = AZ::Name("task");
             task.m_kind = NodeKind::Composite;
@@ -261,6 +268,114 @@ namespace GOAT
         EXPECT_FLOAT_EQ(AZStd::any_cast<float>(read.m_children[0].m_properties[0].m_value), 2.0f)
             << "the higher node runs first, whatever order it was connected in";
         EXPECT_FLOAT_EQ(AZStd::any_cast<float>(read.m_children[1].m_properties[0].m_value), 1.0f);
+
+        graph->ClearCachedData();
+    }
+
+    TEST_F(ProgramGraphFixture, APathTellsAServiceApartFromAChild)
+    {
+        // A composite carrying both. Before services and children shared one index space,
+        // path {0} named the service and the first child alike, and whichever the reader
+        // reached first won.
+        AuthoredNode root;
+        root.m_type = "sequence";
+
+        AuthoredNode service;
+        service.m_type = "watch";
+        root.m_services.push_back(service);
+
+        AuthoredNode broken;
+        broken.m_type = "wait";
+        root.m_children.push_back(broken);
+
+        const ValidationResult result = Validate(root, AZ::Name("Test"));
+        EXPECT_FALSE(result.m_valid);
+        EXPECT_NE(result.m_error.find("requires property 'seconds'"), AZStd::string::npos)
+            << result.m_error.c_str();
+        ASSERT_EQ(result.m_path.size(), 1u);
+        EXPECT_EQ(result.m_path[0], 1u) << "the child sits after the service, not on top of it";
+    }
+
+    TEST_F(ProgramGraphFixture, APathResolvesServicesBeforeChildrenOnTheCanvas)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+
+        auto root = AZStd::make_shared<ProgramNode>(graph, "sequence");
+        auto service = AZStd::make_shared<ProgramNode>(graph, "watch");
+        auto child = AZStd::make_shared<ProgramNode>(graph, "wait");
+        graph->AddNode(root);
+        graph->AddNode(service);
+        graph->AddNode(child);
+
+        graph->AddConnection(root->GetSlot(ServicesSlotId), service->GetSlot(ParentSlotId));
+        graph->AddConnection(root->GetSlot(ChildrenSlotId), child->GetSlot(ParentSlotId));
+
+        // The service is drawn *below* the child, so anything sorting the two slots together
+        // would put the child first and hand back the wrong node for both paths.
+        AZStd::unordered_map<const GraphModel::Node*, float> rows{
+            { root.get(), 0.0f }, { service.get(), 300.0f }, { child.get(), 100.0f }
+        };
+        auto positionOf = [&rows](GraphModel::ConstNodePtr node)
+        {
+            return AZ::Vector2(0.0f, rows[node.get()]);
+        };
+
+        EXPECT_EQ(NodeAtPath(graph, { 0 }, positionOf), service) << "index 0 is the service";
+        EXPECT_EQ(NodeAtPath(graph, { 1 }, positionOf), child) << "children follow the services";
+        EXPECT_EQ(NodeAtPath(graph, { 2 }, positionOf), nullptr) << "a path off the end leads nowhere";
+        EXPECT_EQ(NodeAtPath(graph, {}, positionOf), root) << "an empty path is the root";
+
+        graph->ClearCachedData();
+    }
+
+    TEST_F(ProgramGraphFixture, AValidatorPathFindsTheNodeItAccuses)
+    {
+        // The two halves of the contract checked against each other rather than against a
+        // number written out by hand: what the validator blames, the canvas must find.
+        // The fault is a decorator given two children, because that is one an author can
+        // actually draw -- a required property read back off a slot carries the type's
+        // default rather than going missing.
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+
+        auto root = AZStd::make_shared<ProgramNode>(graph, "sequence");
+        auto service = AZStd::make_shared<ProgramNode>(graph, "watch");
+        auto good = AZStd::make_shared<ProgramNode>(graph, "wait");
+        auto crowded = AZStd::make_shared<ProgramNode>(graph, "invert");
+        auto one = AZStd::make_shared<ProgramNode>(graph, "wait");
+        auto two = AZStd::make_shared<ProgramNode>(graph, "wait");
+        for (const auto& node : { root, service, good, crowded, one, two })
+        {
+            graph->AddNode(node);
+        }
+
+        graph->AddConnection(root->GetSlot(ServicesSlotId), service->GetSlot(ParentSlotId));
+        graph->AddConnection(root->GetSlot(ChildrenSlotId), good->GetSlot(ParentSlotId));
+        graph->AddConnection(root->GetSlot(ChildrenSlotId), crowded->GetSlot(ParentSlotId));
+        graph->AddConnection(crowded->GetSlot(ChildrenSlotId), one->GetSlot(ParentSlotId));
+        graph->AddConnection(crowded->GetSlot(ChildrenSlotId), two->GetSlot(ParentSlotId));
+
+        // The service is drawn below everything, so a lookup that sorted the two slots
+        // together would shift every child by one and accuse the wrong node.
+        AZStd::unordered_map<const GraphModel::Node*, float> rows{
+            { root.get(), 0.0f }, { service.get(), 900.0f }, { good.get(), 100.0f },
+            { crowded.get(), 200.0f }, { one.get(), 300.0f }, { two.get(), 400.0f }
+        };
+        auto positionOf = [&rows](GraphModel::ConstNodePtr node)
+        {
+            return AZ::Vector2(0.0f, rows[node.get()]);
+        };
+
+        auto authored = ToAuthored(graph, positionOf);
+        ASSERT_TRUE(authored.IsSuccess()) << authored.GetError().c_str();
+
+        const ValidationResult result = Validate(authored.GetValue(), AZ::Name("Test"));
+        ASSERT_FALSE(result.m_valid);
+        EXPECT_NE(result.m_error.find("cannot have 2 children"), AZStd::string::npos)
+            << result.m_error.c_str();
+        ASSERT_EQ(result.m_path.size(), 1u);
+        EXPECT_EQ(result.m_path[0], 2u) << "one service, then the second child";
+        EXPECT_EQ(NodeAtPath(graph, result.m_path, positionOf), crowded)
+            << "the path the validator wrote leads to the node it complained about";
 
         graph->ClearCachedData();
     }

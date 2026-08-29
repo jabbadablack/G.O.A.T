@@ -97,9 +97,11 @@ namespace GOAT::GraphEditor
                 }
             }
 
+            // Children continue the index space the services started, so a path step names one
+            // node rather than one of two.
             for (size_t i = 0; i < authored.m_children.size(); ++i)
             {
-                path.push_back(i);
+                path.push_back(authored.m_services.size() + i);
                 const bool ok = CheckNode(authored.m_children[i], backend, path, result);
                 path.pop_back();
                 if (!ok)

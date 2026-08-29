@@ -34,6 +34,17 @@ namespace GOAT::GraphEditor
     //! Nodes with no authored position are laid out left to right, in execution order downwards.
     AZStd::vector<PlacedNode> FromAuthored(const AuthoredNode& root, GraphModel::GraphPtr graph);
 
+    //! What hangs off one of a node's two structural slots, ordered by how far down the
+    //! canvas each sits. Shared so that anything resolving a path walks the order the reader
+    //! wrote it in.
+    AZStd::vector<GraphModel::NodePtr> ChildrenOf(
+        GraphModel::NodePtr node, const char* slotName, const PositionLookup& positionOf);
+
+    //! The node a path of indices leads to, or null when it leads nowhere. Services come
+    //! first, then children, matching StepInto over the authored tree.
+    GraphModel::NodePtr NodeAtPath(
+        GraphModel::GraphPtr graph, const AZStd::vector<size_t>& path, const PositionLookup& positionOf);
+
     //! Reads a canvas back into an authored program.
     //! Siblings are ordered by how far down the canvas they sit, because that is what the
     //! author sees and what execution order means.

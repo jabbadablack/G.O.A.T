@@ -312,63 +312,15 @@ namespace GOAT::GraphEditor
     GraphModel::NodePtr MainWindow::NodeAtPath(const AZStd::vector<size_t>& path) const
     {
         const GraphCanvas::GraphId graphId = GetActiveGraphCanvasGraphId();
-        GraphModel::GraphPtr graph = GetGraphById(graphId);
-        if (graph == nullptr)
-        {
-            return nullptr;
-        }
-
-        auto positionOf = [graphId](GraphModel::ConstNodePtr node)
-        {
-            AZ::Vector2 position = AZ::Vector2::CreateZero();
-            GraphModelIntegration::GraphControllerRequestBus::EventResult(
-                position, graphId, &GraphModelIntegration::GraphControllerRequests::GetPosition,
-                AZStd::const_pointer_cast<GraphModel::Node>(node));
-            return position;
-        };
-
-        // Walk the same order the reader wrote the path in: services, then children.
-        GraphModel::NodePtr current;
-        for (const auto& [id, node] : graph->GetNodes())
-        {
-            GraphModel::SlotPtr parent = node->GetSlot(ParentSlotId);
-            if (parent == nullptr || parent->GetConnections().empty())
+        return GraphEditor::NodeAtPath(GetGraphById(graphId), path,
+            [graphId](GraphModel::ConstNodePtr node)
             {
-                current = node;
-                break;
-            }
-        }
-
-        for (size_t index : path)
-        {
-            if (current == nullptr)
-            {
-                return nullptr;
-            }
-
-            AZStd::vector<GraphModel::NodePtr> below;
-            for (const char* slotName : { ServicesSlotId, ChildrenSlotId })
-            {
-                if (GraphModel::SlotPtr slot = current->GetSlot(slotName); slot != nullptr)
-                {
-                    for (const GraphModel::ConnectionPtr& connection : slot->GetConnections())
-                    {
-                        if (GraphModel::NodePtr target = connection->GetTargetNode();
-                            target != nullptr && target != current)
-                        {
-                            below.push_back(target);
-                        }
-                    }
-                }
-            }
-
-            AZStd::stable_sort(below.begin(), below.end(),
-                [&positionOf](const GraphModel::NodePtr& lhs, const GraphModel::NodePtr& rhs)
-                { return positionOf(lhs).GetY() < positionOf(rhs).GetY(); });
-
-            current = index < below.size() ? below[index] : nullptr;
-        }
-        return current;
+                AZ::Vector2 position = AZ::Vector2::CreateZero();
+                GraphModelIntegration::GraphControllerRequestBus::EventResult(
+                    position, graphId, &GraphModelIntegration::GraphControllerRequests::GetPosition,
+                    AZStd::const_pointer_cast<GraphModel::Node>(node));
+                return position;
+            });
     }
 
     AZ::Outcome<AuthoredNode, AZStd::string> MainWindow::ReadActiveGraph() const

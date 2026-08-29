@@ -55,6 +55,27 @@ namespace GOAT
         AuthoredNodeMetadata m_metadata;
     };
 
+    //! How many nodes hang below this one, counting services and children alike.
+    inline size_t BelowCount(const AuthoredNode& node)
+    {
+        return node.m_services.size() + node.m_children.size();
+    }
+
+    //! The node one step of a path names, or null when the path leads nowhere.
+    //! Services come first, then children, sharing one index space. Defined once because the
+    //! validator, the canvas and every compiler have to mean the same node by "the third one"
+    //! or they each point somewhere different.
+    inline const AuthoredNode* StepInto(const AuthoredNode& node, size_t index)
+    {
+        if (index < node.m_services.size())
+        {
+            return &node.m_services[index];
+        }
+
+        const size_t child = index - node.m_services.size();
+        return child < node.m_children.size() ? &node.m_children[child] : nullptr;
+    }
+
     //! A program as authored, before it is compiled for execution.
     //! Lua builds one of these in memory; the graph editor saves one as a .goat file.
     //! The runtime never sees this type, only the program a backend compiled from it.
