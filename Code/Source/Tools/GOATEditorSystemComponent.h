@@ -33,9 +33,13 @@ namespace GOAT
         void Activate() override;
         void Deactivate() override;
 
+        // AzToolsFramework::EditorEvents
+        //! Registers the tool windows under Tools.
+        void NotifyRegisterViews() override;
+
         // AzToolsFramework::AssetBrowser::AssetBrowserInteractionNotificationBus
-        //! Gives .bbx source files their own thumbnail. The handler's browser icon only
-        //! covers the processed product, so without this the source row stays generic.
+        //! Gives .bbx and .goat source files their own thumbnail. The handler's browser icon
+        //! only covers the processed product, so without this the source row stays generic.
         AzToolsFramework::AssetBrowser::SourceFileDetails GetSourceFileDetails(const char* fullSourceFileName) override;
     };
 } // namespace GOAT

@@ -4,4 +4,17 @@ set(FILES
     Source/Tools/GOATBuilderComponent.h
     Source/Tools/GOATEditorSystemComponent.cpp
     Source/Tools/GOATEditorSystemComponent.h
+    Source/Tools/GraphEditor/Core.h
+    Source/Tools/GraphEditor/GraphContext.cpp
+    Source/Tools/GraphEditor/GraphContext.h
+    Source/Tools/GraphEditor/MainWindow.cpp
+    Source/Tools/GraphEditor/MainWindow.h
+    Source/Tools/GraphEditor/ProgramGraphSerializer.cpp
+    Source/Tools/GraphEditor/ProgramGraphSerializer.h
+    Source/Tools/GraphEditor/ProgramNode.cpp
+    Source/Tools/GraphEditor/ProgramNode.h
+    Source/Tools/GraphEditor/ProgramNodePaletteItem.cpp
+    Source/Tools/GraphEditor/ProgramNodePaletteItem.h
+    Source/Tools/GraphEditor/ProgramValidator.cpp
+    Source/Tools/GraphEditor/ProgramValidator.h
 )

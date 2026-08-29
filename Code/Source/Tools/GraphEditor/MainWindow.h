@@ -1,0 +1,92 @@
+#pragma once
+
+#include <GOAT/Assets/ProgramAsset.h>
+#include <Tools/GraphEditor/Core.h>
+
+#include <GraphCanvas/Widgets/GraphCanvasEditor/GraphCanvasAssetEditorMainWindow.h>
+#include <GraphModel/Integration/EditorMainWindow.h>
+
+#include <AzCore/std/containers/vector.h>
+#include <AzCore/std/string/string.h>
+
+namespace GOAT::GraphEditor
+{
+    //! Builds the palette out of whatever the node type registry currently holds, so a backend
+    //! that registers a word gets a palette entry without this file knowing about it.
+    struct ProgramEditorConfig final
+        : GraphCanvas::AssetEditorWindowConfig
+    {
+        GraphCanvas::GraphCanvasTreeItem* CreateNodePaletteRoot() override;
+    };
+
+    //! The GOAT Program Editor window.
+    class MainWindow
+        : public GraphModelIntegration::EditorMainWindow
+    {
+        Q_OBJECT // AUTOMOC
+    public:
+        AZ_CLASS_ALLOCATOR(MainWindow, AZ::SystemAllocator);
+
+        explicit MainWindow(QWidget* parent = nullptr);
+        ~MainWindow() override;
+
+    protected:
+        // GraphModelIntegration::EditorMainWindow
+        GraphModel::GraphContextPtr GetGraphContext() const override;
+        void OnEditorOpened(GraphCanvas::EditorDockWidget* dockWidget) override;
+        void OnEditorClosing(GraphCanvas::EditorDockWidget* dockWidget) override;
+
+        // GraphCanvas::AssetEditorMainWindow menu hooks
+        QAction* AddFileNewAction(QMenu* menu) override;
+        QAction* AddFileOpenAction(QMenu* menu) override;
+        QAction* AddFileSaveAction(QMenu* menu) override;
+
+        // GraphControllerNotificationBus
+        void OnGraphModelNodeAdded(GraphModel::NodePtr node) override;
+        void OnGraphModelGraphModified(GraphModel::NodePtr node) override;
+        void OnGraphModelRequestUndoPoint() override;
+        void OnGraphModelTriggerUndo() override;
+        void OnGraphModelTriggerRedo() override;
+
+    private:
+        //! One saved state of the whole graph. GraphCanvas batches the undo points; what a
+        //! point holds is the client's business, and a whole graph is the only shape that
+        //! survives node, slot and connection edits alike.
+        using Snapshot = AZStd::vector<AZ::u8>;
+
+        //! What the active canvas currently holds, read back into an authored program.
+        AZ::Outcome<AuthoredNode, AZStd::string> ReadActiveGraph() const;
+
+        //! Runs the program through its backend and paints whatever failed.
+        void Revalidate();
+
+        //! Paints one node, or clears the paint when the palette is empty.
+        void Paint(GraphModel::NodePtr node, const char* palette) const;
+
+        //! The node a path of child indices leads to, or null when it leads nowhere.
+        GraphModel::NodePtr NodeAtPath(const AZStd::vector<size_t>& path) const;
+
+        Snapshot Capture() const;
+        void Restore(const Snapshot& snapshot);
+
+        //! Loads and saves the .goat file the active canvas is a view of.
+        void OnNewProgram();
+        void OnOpenProgram();
+        void OnSaveProgram();
+        //! Opens a program Lua declared, which the canvas shows but never writes back.
+        void OnOpenLuaProgram();
+
+        void LoadAuthored(const AuthoredNode& root, const AZStd::string& name, bool readOnly);
+
+        AZStd::string m_programName;
+        AZStd::string m_programPath;
+        bool m_readOnly = false;
+        //! Nodes painted by the last validation pass, so the paint can be cleared again.
+        AZStd::vector<GraphModel::NodePtr> m_painted;
+
+        AZStd::vector<Snapshot> m_undo;
+        AZStd::vector<Snapshot> m_redo;
+        //! True while an undo or a load is rebuilding the graph, so it does not record itself.
+        bool m_restoring = false;
+    };
+} // namespace GOAT::GraphEditor
