@@ -45,8 +45,8 @@ namespace GOAT
             ->Attribute(AZ::Edit::Attributes::Category, "AI")
             ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
             ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
-            ->Attribute(AZ::Edit::Attributes::Icon, "Editor/Icons/GOAT/Components/GOATAgent.svg")
-            ->Attribute(AZ::Edit::Attributes::ViewportIcon, "Editor/Icons/GOAT/Components/Viewport/GOATAgent.svg")
+            ->Attribute(AZ::Edit::Attributes::Icon, "Editor/Icons/GOAT/Components/GOAT.svg")
+            ->Attribute(AZ::Edit::Attributes::ViewportIcon, "Editor/Icons/GOAT/Components/Viewport/GOAT.svg")
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_blackboards, "Blackboards",
                 "Blackboard assets declaring the variables this director's tree uses")

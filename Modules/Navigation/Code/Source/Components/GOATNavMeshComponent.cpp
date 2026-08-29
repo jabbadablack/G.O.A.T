@@ -26,9 +26,11 @@ namespace GOAT_Navigation
             {
                 editContext->Class<GOATNavMeshComponent>("GOAT Nav Mesh", "Lets GOAT agents path on this navigation mesh")
                     ->ClassElement(AZ::Edit::ClassElements::EditorData, "")
-                    ->Attribute(AZ::Edit::Attributes::Category, "GOAT")
+                    ->Attribute(AZ::Edit::Attributes::Category, "AI")
                     ->Attribute(AZ::Edit::Attributes::AppearsInAddComponentMenu, AZ_CRC_CE("Game"))
                     ->Attribute(AZ::Edit::Attributes::AutoExpand, true)
+                    ->Attribute(AZ::Edit::Attributes::Icon, "Editor/Icons/GOAT/Components/GOAT.svg")
+                    ->Attribute(AZ::Edit::Attributes::ViewportIcon, "Editor/Icons/GOAT/Components/Viewport/GOAT.svg")
                     ->DataElement(AZ::Edit::UIHandlers::CheckBox, &GOATNavMeshComponent::m_buildOnActivate,
                         "Build on activate",
                         "Builds the navigation mesh when the level starts. Turn this off only if the project "

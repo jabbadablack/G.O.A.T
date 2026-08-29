@@ -147,8 +147,8 @@ void GOATAgentComponent::Activate()
 
 - **Category:** "AI"
 - **Appears In:** Add Component Menu (Game)
-- **Icon:** `Editor/Icons/GOAT/Components/GOATAgent.svg`
-- **Viewport Icon:** `Editor/Icons/GOAT/Components/Viewport/GOATAgent.svg`
+- **Icon:** `Editor/Icons/GOAT/Components/GOAT.svg`
+- **Viewport Icon:** `Editor/Icons/GOAT/Components/Viewport/GOAT.svg`
 
 ---
 
