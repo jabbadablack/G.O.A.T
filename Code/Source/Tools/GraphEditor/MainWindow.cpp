@@ -215,6 +215,14 @@ namespace GOAT::GraphEditor
 
         m_restoring = true;
         m_painted.clear();
+
+        // Each slot caches a pointer back to its node, which holds the outgoing graph alive
+        // once anything has been connected on it.
+        if (GraphModel::GraphPtr outgoing = GetGraphById(graphId); outgoing != nullptr)
+        {
+            outgoing->ClearCachedData();
+        }
+
         graph->PostLoadSetup(context);
         GraphModelIntegration::GraphManagerRequestBus::Broadcast(
             &GraphModelIntegration::GraphManagerRequests::DeleteGraphController, graphId);

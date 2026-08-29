@@ -266,10 +266,17 @@ if(PAL_TRAIT_BUILD_TESTS_SUPPORTED)
                         Tests
                         Source
                         Include
+                        Source/Backends/BehaviorTree/Code/Source
                 BUILD_DEPENDENCIES
                     PRIVATE
                         AZ::AzTest
+                        AZ::AzFramework
+                        AZ::AzToolsFramework
+                        Gem::GraphModel.Editor.Static
                         Gem::${gem_name}.Editor.Private.Object
+                        Gem::GOAT_BehaviorTree.Private.Object
+                RUNTIME_DEPENDENCIES
+                    Gem::GraphCanvasWidgets
             )
 
             # Add ${gem_name}.Editor.Tests to googletest

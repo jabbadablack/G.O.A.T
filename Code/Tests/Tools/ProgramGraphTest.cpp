@@ -1,0 +1,298 @@
+#include <TestAgentSystem.h>
+
+#include <Tools/GraphEditor/Core.h>
+#include <Tools/GraphEditor/GraphContext.h>
+#include <Tools/GraphEditor/ProgramGraphSerializer.h>
+#include <Tools/GraphEditor/ProgramNode.h>
+#include <Tools/GraphEditor/ProgramValidator.h>
+
+#include <GraphModel/Model/Graph.h>
+#include <GraphModel/Model/Slot.h>
+
+#include <AzCore/Interface/Interface.h>
+#include <AzCore/Name/NameDictionary.h>
+#include <AzCore/std/smart_ptr/make_shared.h>
+#include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/UnitTest/TestTypes.h>
+#include <AzTest/AzTest.h>
+
+namespace GOAT
+{
+    using namespace GOAT::GraphEditor;
+
+    //! A registry holding a handful of words, so the editor is exercised against the same
+    //! shape of descriptor a backend registers rather than against the real vocabulary.
+    class ProgramGraphFixture
+        : public UnitTest::LeakDetectionFixture
+    {
+    public:
+        void SetUp() override
+        {
+            UnitTest::LeakDetectionFixture::SetUp();
+            AZ::NameDictionary::Create();
+
+            // Built after the dictionary exists: the registry names its built-in words as it
+            // is constructed, and a member would be constructed before SetUp ran.
+            m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
+            m_actions = AZStd::make_unique<ActionStateRegistry>();
+
+            NodeTypeDescriptor sequence;
+            sequence.m_name = AZ::Name("sequence");
+            sequence.m_kind = NodeKind::Composite;
+            sequence.m_op = NodeOp::Sequence;
+            sequence.m_category = "Composite";
+            sequence.m_backend = AZ::Name("tree");
+            m_nodeTypes->Register(sequence);
+
+            NodeTypeDescriptor wait;
+            wait.m_name = AZ::Name("wait");
+            wait.m_kind = NodeKind::Leaf;
+            wait.m_op = NodeOp::Action;
+            wait.m_category = "Leaf";
+            NodeParameter seconds;
+            seconds.m_name = AZ::Name("seconds");
+            seconds.m_type = BlackboardType::Float;
+            seconds.m_required = true;
+            wait.m_parameters.push_back(seconds);
+            m_nodeTypes->Register(wait);
+
+            NodeTypeDescriptor invert;
+            invert.m_name = AZ::Name("invert");
+            invert.m_kind = NodeKind::Decorator;
+            invert.m_op = NodeOp::Invert;
+            invert.m_category = "Decorator";
+            invert.m_backend = AZ::Name("tree");
+            m_nodeTypes->Register(invert);
+
+            NodeTypeDescriptor task;
+            task.m_name = AZ::Name("task");
+            task.m_kind = NodeKind::Composite;
+            task.m_category = "Task Network";
+            task.m_backend = AZ::Name("htn");
+            m_nodeTypes->Register(task);
+
+            m_agents = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions);
+            AZ::Interface<IAgentSystem>::Register(m_agents.get());
+
+            m_context = AZStd::make_shared<GraphContext>();
+        }
+
+        void TearDown() override
+        {
+            m_context.reset();
+            AZ::Interface<IAgentSystem>::Unregister(m_agents.get());
+            m_agents.reset();
+            m_actions.reset();
+            m_nodeTypes.reset();
+            AZ::NameDictionary::Destroy();
+            UnitTest::LeakDetectionFixture::TearDown();
+        }
+
+        //! A sequence of two waits, the second one placed above the first.
+        static AuthoredNode TwoWaits()
+        {
+            AuthoredNode root;
+            root.m_type = "sequence";
+            root.m_metadata.m_position = AZ::Vector2(0.0f, 100.0f);
+
+            AuthoredNode first;
+            first.m_type = "wait";
+            first.m_metadata.m_position = AZ::Vector2(260.0f, 0.0f);
+            AuthoredProperty seconds;
+            seconds.m_name = "seconds";
+            seconds.m_value = AZStd::any(1.5f);
+            first.m_properties.push_back(seconds);
+
+            AuthoredNode second = first;
+            second.m_metadata.m_position = AZ::Vector2(260.0f, 200.0f);
+            second.m_properties[0].m_value = AZStd::any(2.5f);
+
+            root.m_children.push_back(first);
+            root.m_children.push_back(second);
+            return root;
+        }
+
+        AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
+        AZStd::unique_ptr<ActionStateRegistry> m_actions;
+        AZStd::unique_ptr<TestAgentSystem> m_agents;
+        AZStd::shared_ptr<GraphContext> m_context;
+    };
+
+    TEST_F(ProgramGraphFixture, ANodeTakesItsSlotsFromTheRegistry)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        auto node = AZStd::make_shared<ProgramNode>(graph, "wait");
+
+        EXPECT_NE(node->GetSlot(ParentSlotId), nullptr);
+        EXPECT_EQ(node->GetSlot(ChildrenSlotId), nullptr) << "a leaf cannot be given a child";
+        EXPECT_NE(node->GetSlot(ProgramNode::PropertySlotId("seconds")), nullptr);
+    }
+
+    TEST_F(ProgramGraphFixture, ACompositeHoldsChildrenAndServices)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        auto node = AZStd::make_shared<ProgramNode>(graph, "sequence");
+
+        EXPECT_NE(node->GetSlot(ChildrenSlotId), nullptr);
+        EXPECT_NE(node->GetSlot(ServicesSlotId), nullptr);
+    }
+
+    TEST_F(ProgramGraphFixture, ADecoratorHoldsChildrenButNoServices)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        auto node = AZStd::make_shared<ProgramNode>(graph, "invert");
+
+        EXPECT_NE(node->GetSlot(ChildrenSlotId), nullptr);
+        EXPECT_EQ(node->GetSlot(ServicesSlotId), nullptr);
+    }
+
+    TEST_F(ProgramGraphFixture, FlatteningKeepsTheAuthoredTreeShape)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        const AZStd::vector<PlacedNode> placed = FromAuthored(TwoWaits(), graph);
+
+        ASSERT_EQ(placed.size(), 3u);
+        EXPECT_EQ(placed[0].m_parent, -1);
+        EXPECT_EQ(placed[1].m_parent, 0);
+        EXPECT_EQ(placed[2].m_parent, 0);
+        EXPECT_EQ(placed[0].m_position, AZ::Vector2(0.0f, 100.0f)) << "an authored position is kept";
+    }
+
+    TEST_F(ProgramGraphFixture, AnUnplacedTreeIsLaidOutLeftToRight)
+    {
+        AuthoredNode root = TwoWaits();
+        root.m_metadata.m_position = AZ::Vector2::CreateZero();
+        root.m_children[0].m_metadata.m_position = AZ::Vector2::CreateZero();
+        root.m_children[1].m_metadata.m_position = AZ::Vector2::CreateZero();
+
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        const AZStd::vector<PlacedNode> placed = FromAuthored(root, graph);
+
+        ASSERT_EQ(placed.size(), 3u);
+        EXPECT_LT(placed[0].m_position.GetX(), placed[1].m_position.GetX())
+            << "a child sits to the right of its parent";
+        EXPECT_LT(placed[1].m_position.GetY(), placed[2].m_position.GetY())
+            << "the first child sits above the second";
+    }
+
+    TEST_F(ProgramGraphFixture, ChildOrderFollowsPositionRatherThanInsertionOrder)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+
+        auto root = AZStd::make_shared<ProgramNode>(graph, "sequence");
+        auto first = AZStd::make_shared<ProgramNode>(graph, "wait");
+        auto second = AZStd::make_shared<ProgramNode>(graph, "wait");
+        graph->AddNode(root);
+        graph->AddNode(first);
+        graph->AddNode(second);
+
+        first->GetSlot(ProgramNode::PropertySlotId("seconds"))->SetValue(1.0f);
+        second->GetSlot(ProgramNode::PropertySlotId("seconds"))->SetValue(2.0f);
+
+        // Connected first-then-second, but laid out second-above-first.
+        graph->AddConnection(root->GetSlot(ChildrenSlotId), first->GetSlot(ParentSlotId));
+        graph->AddConnection(root->GetSlot(ChildrenSlotId), second->GetSlot(ParentSlotId));
+
+        AZStd::unordered_map<const GraphModel::Node*, float> rows{
+            { root.get(), 0.0f }, { first.get(), 200.0f }, { second.get(), 100.0f }
+        };
+        auto positionOf = [&rows](GraphModel::ConstNodePtr node)
+        {
+            return AZ::Vector2(0.0f, rows[node.get()]);
+        };
+
+        auto authored = ToAuthored(graph, positionOf);
+        ASSERT_TRUE(authored.IsSuccess()) << authored.GetError().c_str();
+
+        const AuthoredNode& read = authored.GetValue();
+        ASSERT_EQ(read.m_children.size(), 2u);
+        ASSERT_EQ(read.m_children[0].m_properties.size(), 1u);
+        EXPECT_FLOAT_EQ(AZStd::any_cast<float>(read.m_children[0].m_properties[0].m_value), 2.0f)
+            << "the higher node runs first, whatever order it was connected in";
+        EXPECT_FLOAT_EQ(AZStd::any_cast<float>(read.m_children[1].m_properties[0].m_value), 1.0f);
+
+        graph->ClearCachedData();
+    }
+
+    TEST_F(ProgramGraphFixture, AGraphWithNoRootIsRefused)
+    {
+        auto graph = AZStd::make_shared<GraphModel::Graph>(m_context);
+        auto lonely = AZStd::make_shared<ProgramNode>(graph, "sequence");
+        auto other = AZStd::make_shared<ProgramNode>(graph, "sequence");
+        graph->AddNode(lonely);
+        graph->AddNode(other);
+
+        auto authored = ToAuthored(graph, [](GraphModel::ConstNodePtr) { return AZ::Vector2::CreateZero(); });
+        EXPECT_FALSE(authored.IsSuccess()) << "two nodes run under nothing, so there is no one root";
+
+        graph->ClearCachedData();
+    }
+
+    TEST_F(ProgramGraphFixture, ValidationReportsAMissingRequiredProperty)
+    {
+        AuthoredNode root;
+        root.m_type = "sequence";
+        AuthoredNode wait;
+        wait.m_type = "wait";
+        root.m_children.push_back(wait);
+
+        const ValidationResult result = Validate(root, AZ::Name("Test"));
+        EXPECT_FALSE(result.m_valid);
+        EXPECT_NE(result.m_error.find("requires property 'seconds'"), AZStd::string::npos)
+            << result.m_error.c_str();
+        ASSERT_EQ(result.m_path.size(), 1u);
+        EXPECT_EQ(result.m_path[0], 0u) << "the fault is pointed at the child that carries it";
+    }
+
+    TEST_F(ProgramGraphFixture, ValidationRefusesAWordAnotherBackendOwns)
+    {
+        AuthoredNode root;
+        root.m_type = "sequence";
+        AuthoredNode task;
+        task.m_type = "task";
+        root.m_children.push_back(task);
+
+        const ValidationResult result = Validate(root, AZ::Name("Test"));
+        EXPECT_FALSE(result.m_valid);
+        EXPECT_NE(result.m_error.find("belongs to the 'htn' backend"), AZStd::string::npos)
+            << result.m_error.c_str();
+    }
+
+    TEST_F(ProgramGraphFixture, ValidationRefusesAnUnknownWord)
+    {
+        AuthoredNode root;
+        root.m_type = "nonsense";
+
+        const ValidationResult result = Validate(root, AZ::Name("Test"));
+        EXPECT_FALSE(result.m_valid);
+        EXPECT_NE(result.m_error.find("not a word any backend registered"), AZStd::string::npos)
+            << result.m_error.c_str();
+    }
+
+    TEST_F(ProgramGraphFixture, ADecoratorMustHaveExactlyOneChild)
+    {
+        AuthoredNode root;
+        root.m_type = "invert";
+
+        const ValidationResult result = Validate(root, AZ::Name("Test"));
+        EXPECT_FALSE(result.m_valid);
+        EXPECT_NE(result.m_error.find("cannot have 0 children"), AZStd::string::npos)
+            << result.m_error.c_str();
+    }
+
+    TEST_F(ProgramGraphFixture, TheOwningBackendComesFromTheRootWord)
+    {
+        AuthoredNode tree;
+        tree.m_type = "sequence";
+        EXPECT_EQ(FindOwningBackend(tree), AZ::Name("tree"));
+
+        AuthoredNode domain;
+        domain.m_type = "task";
+        EXPECT_EQ(FindOwningBackend(domain), AZ::Name("htn"));
+
+        // A core word belongs to no paradigm, and a behaviour tree is what runs one.
+        AuthoredNode leaf;
+        leaf.m_type = "wait";
+        EXPECT_EQ(FindOwningBackend(leaf), AZ::Name("tree"));
+    }
+} // namespace GOAT
