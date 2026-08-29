@@ -6,10 +6,12 @@
 
 #include <GOAT/Interfaces/IAgentSystem.h>
 
+#include <AzCore/std/containers/unordered_map.h>
+
 namespace GOAT
 {
     //! The core as a backend sees it, with nothing behind it but registries a test built.
-    //! Only the five a backend actually reaches do anything; the rest answer emptily.
+    //! Only the ones a backend actually reaches do anything; the rest answer emptily.
     class TestAgentSystem final
         : public IAgentSystem
     {
@@ -48,7 +50,30 @@ namespace GOAT
             return ActionResult::Success;
         }
 
+        bool HasBehavior(const AZ::Name& behavior) const override
+        {
+            return m_measured.find(behavior) != m_measured.end();
+        }
+
+        //! Answers from what a test declared, and counts the asking, so a test can prove a
+        //! backend did not reach a script rather than only what it did with the answer.
+        bool MeasureBehavior(
+            const AZ::Name& behavior, const char*, AgentId, AZStd::span<const float> values, float& outValue) override
+        {
+            ++m_measureCalls;
+            m_lastMeasured.assign(values.begin(), values.end());
+
+            const auto found = m_measured.find(behavior);
+            outValue = found != m_measured.end() ? found->second : 0.0f;
+            return found != m_measured.end();
+        }
+
         int m_behaviourCalls = 0;
+        int m_measureCalls = 0;
+        //! What a behaviour of each name answers with, which is also what it exists at all.
+        AZStd::unordered_map<AZ::Name, float> m_measured;
+        //! The numbers the last measured behaviour was handed.
+        AZStd::vector<float> m_lastMeasured;
 
         ////////////////////////////////////////////////////////////////////////
         // Everything else a game would use and a backend never does.

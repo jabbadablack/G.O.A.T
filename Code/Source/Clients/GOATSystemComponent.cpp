@@ -1146,6 +1146,27 @@ namespace GOAT
         return result;
     }
 
+    bool GOATSystemComponent::HasBehavior(const AZ::Name& behavior) const
+    {
+        return m_dispatch != nullptr && m_dispatch->HasBehavior(behavior);
+    }
+
+    bool GOATSystemComponent::MeasureBehavior(const AZ::Name& behavior, const char* phase, AgentId agent,
+        AZStd::span<const float> values, float& outValue)
+    {
+        outValue = 0.0f;
+        if (m_dispatch == nullptr || m_scriptContext == nullptr)
+        {
+            return false;
+        }
+
+        m_scriptContext->Bind(agent, GetAgentEntity(agent), m_blackboardSystem.get());
+        const bool answered =
+            m_dispatch->MeasureBehavior(behavior, phase, agent, *m_scriptContext, values, outValue);
+        m_scriptContext->Unbind();
+        return answered;
+    }
+
     void GOATSystemComponent::WakeAgents(AZStd::span<const AgentId> agents)
     {
         if (m_agents != nullptr)

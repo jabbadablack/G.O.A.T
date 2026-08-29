@@ -5,6 +5,7 @@
 #include <AzCore/Component/Entity.h>
 #include <AzCore/Math/MathReflection.h>
 #include <AzCore/RTTI/BehaviorContext.h>
+#include <AzCore/IO/SystemFile.h>
 #include <AzCore/Script/ScriptContext.h>
 #include <AzCore/UnitTest/TestTypes.h>
 #include <AzTest/AzTest.h>
@@ -58,6 +59,48 @@ namespace GOAT
         {
             m_script->AddReplaceGlobal("ctx", m_context);
             return m_script->Execute(lua);
+        }
+
+        //! Runs the authoring vocabulary as it ships, so what these tests exercise is the real
+        //! file rather than a restatement of it.
+        bool LoadVocabulary()
+        {
+            AZ::IO::SystemFile file;
+            if (!file.Open(GOAT_VOCABULARY_SOURCE, AZ::IO::SystemFile::SF_OPEN_READ_ONLY))
+            {
+                ADD_FAILURE() << "could not open " << GOAT_VOCABULARY_SOURCE;
+                return false;
+            }
+
+            AZStd::string source(static_cast<size_t>(file.Length()), '\0');
+            file.Read(source.size(), source.data());
+            file.Close();
+            return m_script->Execute(source.c_str());
+        }
+
+        //! Asks a behaviour for a number the way LuaDispatch::MeasureBehavior does.
+        bool Measure(const char* behavior, AZStd::span<const float> values, double& outValue)
+        {
+            AZ::ScriptDataContext call;
+            EXPECT_TRUE(m_script->Call("GOAT_Measure", call)) << "GOAT_Measure must be callable";
+
+            call.PushArg(AZStd::string(behavior));
+            call.PushArg(AZStd::string("score"));
+            call.PushArg(0);
+            call.PushArg(m_context);
+            for (const float value : values)
+            {
+                call.PushArg(static_cast<double>(value));
+            }
+
+            EXPECT_TRUE(call.CallExecute());
+            EXPECT_GE(call.GetNumResults(), 2);
+
+            bool answered = false;
+            outValue = 0.0;
+            call.ReadResult(0, outValue);
+            call.ReadResult(1, answered);
+            return answered;
         }
 
         BlackboardKey Declare(const char* name, BlackboardScope scope, BlackboardType type)
@@ -185,5 +228,71 @@ namespace GOAT
         double missing = -1.0;
         ASSERT_TRUE(m_script->ReadGlobal("missing", missing));
         EXPECT_DOUBLE_EQ(missing, 0.0);
+    }
+
+    //! The numbers a scorer is handed cross as ordinary arguments, so this is the one place
+    //! that proves they arrive at all, in order, and as many as were pushed.
+    TEST_F(ScriptBoundaryFixture, Measure_HandsALuaBehaviourItsNumbersAndReadsOneBack)
+    {
+        ASSERT_TRUE(LoadVocabulary());
+        ASSERT_TRUE(Run(R"(
+            behavior "Weigh" {
+                score = function(me, ctx, considered)
+                    local total = #considered * 100
+                    for index, value in ipairs(considered) do
+                        total = total + value * index
+                    end
+                    return total
+                end,
+            }
+        )"));
+
+        const float values[] = { 0.5f, 0.25f };
+        double measured = 0.0;
+        EXPECT_TRUE(Measure("Weigh", values, measured));
+
+        // Three numbers, not two, would still have answered; the count and the order are what
+        // a scorer reads its own considerations by.
+        EXPECT_DOUBLE_EQ(measured, 201.0);
+    }
+
+    //! A behaviour that is not there and one that answers zero mean different things: the first
+    //! is a name nobody declared, and treating it as a score would silently veto whatever asked.
+    TEST_F(ScriptBoundaryFixture, Measure_TellsAMissingBehaviourApartFromAScoreOfZero)
+    {
+        ASSERT_TRUE(LoadVocabulary());
+        ASSERT_TRUE(Run(R"(
+            behavior "Nothing" { score = function() return 0.0 end }
+            behavior "NoScore" { tick = function() return SUCCESS end }
+        )"));
+
+        double measured = -1.0;
+        EXPECT_TRUE(Measure("Nothing", {}, measured));
+        EXPECT_DOUBLE_EQ(measured, 0.0);
+
+        measured = -1.0;
+        EXPECT_FALSE(Measure("Absent", {}, measured));
+        EXPECT_DOUBLE_EQ(measured, 0.0);
+
+        // Declared, but with nothing to ask for a number, which is the same answer as absent.
+        measured = -1.0;
+        EXPECT_FALSE(Measure("NoScore", {}, measured));
+    }
+
+    //! What the compiler asks before it accepts a choice naming a scorer.
+    TEST_F(ScriptBoundaryFixture, HasBehavior_AnswersForWhatWasDeclared)
+    {
+        ASSERT_TRUE(LoadVocabulary());
+        ASSERT_TRUE(Run(R"(behavior "Weigh" { score = function() return 1.0 end })"));
+
+        ASSERT_TRUE(Run("declared = GOAT_HasBehavior('Weigh')"));
+        ASSERT_TRUE(Run("absent = GOAT_HasBehavior('Weighh')"));
+
+        bool declared = false;
+        bool absent = true;
+        ASSERT_TRUE(m_script->ReadGlobal("declared", declared));
+        ASSERT_TRUE(m_script->ReadGlobal("absent", absent));
+        EXPECT_TRUE(declared);
+        EXPECT_FALSE(absent);
     }
 } // namespace GOAT
