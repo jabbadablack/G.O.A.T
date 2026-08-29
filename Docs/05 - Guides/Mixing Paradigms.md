@@ -17,7 +17,9 @@ tags: [guide, backend, composition]
 
 A paradigm no longer has to own a whole agent. A node of one program can hand its work to a
 program written in another, so a behaviour tree runs inside an HTN task, an HTN goal runs inside
-a behaviour tree, and whatever ships next runs inside either.
+a behaviour tree, and whatever ships next runs inside either. A [[Utility AI]] choice embedding
+one of each is the shape this was built for: scoring picks the course of action, and whichever
+paradigm expresses it best carries it out.
 
 Programs are named, never inlined. An `embed` names a program; which paradigm owns it is
 answered by the word its root is written as, so `domain "Sweep"` is an HTN program and
@@ -49,6 +51,12 @@ is the cheap one: nothing is kept between calls.
 
 **`embed "ClearRoom"`** runs another program until it is done. The leaf reads Running the whole
 time, then whatever the nested program ended as.
+
+> **`delegate` is a behaviour tree leaf, and only that.** The core reserves the name — 
+> `IAgentSystem::RegisterAction` asserts against a verb called `delegate` — because a plan step
+> naming it would let a plan re-enter the tree that asked for it. So a paradigm whose bodies are
+> plans rather than trees, which is both [[Task Networks]] and [[Utility AI]], reaches another
+> paradigm with `embed`. Its compiler should say so rather than reporting a missing verb.
 
 ---
 
@@ -160,6 +168,9 @@ core does the rest: it compiles what was named, folds in what it needs, and refu
 
 To be embeddable in the other direction, a backend only has to say when it is done — set
 `Decision::m_result` when it produces no plan because it has finished rather than because it is
-waiting.
+waiting. Not every paradigm can: [[Utility AI]] never reports finished, because a choice argues
+from numbers that move and asking again later can answer differently, so an embedded utility
+program is ended by its host's guards the way a `wait` is. That is a real answer, not an
+omission — but it is the host author who needs to know it.
 
 See [[Writing Custom Backends]] for the rest of a paradigm gem.

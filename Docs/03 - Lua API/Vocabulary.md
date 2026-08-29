@@ -28,6 +28,7 @@ Each backend gem ships its own vocabulary file, run straight after:
 | `Assets/GOAT/Scripts/GOAT.lua` | the shared words and the machinery |
 | `GOAT_BehaviorTree/Scripts/BehaviorTree.lua` | `tree`, `service`, `subtree` |
 | `GOAT_Htn/Scripts/Htn.lua` | `domain`, `task`, `method`, `primitive`, `subtask`, `effect` |
+| `GOAT_Utility/Scripts/Utility.lua` | `utility`, `choice`, `consider` |
 
 Module gems add verbs the same way — `move_to` comes from the navigation gem.
 
@@ -149,6 +150,19 @@ They come from different places, and it matters: turn a gem off and its words go
 | `primitive` | `name` | A leaf that runs a verb. |
 | `subtask` | `task` | Names another task or primitive from inside a method. |
 | `effect` | `key` | What a primitive is assumed to change while planning. |
+
+### Utility — from the GOAT_Utility gem
+
+| Constructor | Main property | Description |
+| :--- | :--- | :--- |
+| `choice` | `name` | One thing the agent could do, and the steps it runs. |
+| `consider` | `key` | A float already scaled to 0 to 1, arguing for its choice. |
+
+`utility "Name" { ... }` declares the program itself, as `tree` and `domain` do.
+
+**It is `choice`, not `option`.** `option` already belongs to declared `plan`s, and
+`GOAT_DeclareNode` leaves an existing word alone rather than taking it over, so an `option`
+inside a `utility` would silently call the wrong function.
 
 ### Verbs — from module gems
 
@@ -276,4 +290,4 @@ return tree "ExampleAgent" {
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-29*

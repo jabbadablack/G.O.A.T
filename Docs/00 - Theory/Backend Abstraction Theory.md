@@ -138,14 +138,15 @@ compiled once and shared by every agent running it.
 
 ---
 
-## The two that ship
+## The three that ship
 
 | Backend | Name | Gem | Program type |
 | :--- | :--- | :--- | :--- |
 | `BehaviorTreeBackend` | `tree` | GOAT_BehaviorTree | [[DecisionProgram]] |
 | `HtnBackend` | `htn` | GOAT_Htn | `HtnDomain` |
+| `UtilityBackend` | `utility` | GOAT_Utility | `UtilityProgram` |
 
-Both are ordinary gems. Neither is referenced by name anywhere in the core.
+All three are ordinary gems. None is referenced by name anywhere in the core.
 
 ---
 
@@ -160,4 +161,4 @@ Both are ordinary gems. Neither is referenced by name anywhere in the core.
 
 ---
 
-*Last updated: 2026-08-27*
+*Last updated: 2026-08-29*

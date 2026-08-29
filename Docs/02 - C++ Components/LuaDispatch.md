@@ -55,6 +55,14 @@ AZ::Outcome<AZStd::shared_ptr<const AuthoredNode>, AZStd::string> EmitTree(const
 ActionResult CallBehavior(
     const AZ::Name& behavior, const char* phase, AgentId agent, AgentScriptContext& context, float deltaTime);
 
+// True when a behaviour of that name was declared.
+bool HasBehavior(const AZ::Name& behavior);
+
+// Runs one phase of a Lua behaviour that answers with a number, handing it @values.
+// False when nothing answered, which is not the same as answering zero.
+bool MeasureBehavior(const AZ::Name& behavior, const char* phase, AgentId agent,
+    AgentScriptContext& context, AZStd::span<const float> values, float& outValue);
+
 // Points the plan builder at the registries a Lua backend's steps resolve against.
 void ConfigurePlanBuilder(const ActionStateRegistry* actions, const IBlackboardSystem* blackboard);
 
@@ -166,4 +174,4 @@ Unit tests for `LuaDispatch` should cover:
 
 ---
 
-*Last updated: 2026-08-26*
+*Last updated: 2026-08-29*

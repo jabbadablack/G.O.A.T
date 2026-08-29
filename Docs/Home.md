@@ -32,10 +32,11 @@ made. A **paradigm** is a gem you can add or delete:
 | :--- | :--- | :--- | :--- |
 | Behaviour trees | `tree` | GOAT_BehaviorTree | shipped |
 | Task networks (HTN) | `htn` | GOAT_Htn | shipped |
-| GOAP, Utility AI, … | yours | yours | write one, see [Writing Custom Backends](05%20-%20Guides/Writing%20Custom%20Backends.md) |
+| Utility AI | `utility` | GOAT_Utility | shipped |
+| GOAP, state machines, … | yours | yours | write one, see [Writing Custom Backends](05%20-%20Guides/Writing%20Custom%20Backends.md) |
 
-Both can run in the same level, on different agents, at the same time. They coordinate through
-blackboard variables and neither knows the other exists.
+All of them can run in the same level, on different agents, at the same time. They coordinate
+through blackboard variables and none of them knows the others exist.
 
 A **director** is an agent whose leaves act on other agents. It is not a paradigm — it works with
 whichever one you picked.
