@@ -24,9 +24,10 @@ namespace GOAT
         }
 
         serializeContext->Class<GOATDirectorComponent, AZ::Component>()
-            ->Version(3)
+            ->Version(4)
             ->Field("Blackboards", &GOATDirectorComponent::m_blackboards)
             ->Field("Scripts", &GOATDirectorComponent::m_scripts)
+            ->Field("ProgramAssets", &GOATDirectorComponent::m_programAssets)
             ->Field("Brain", &GOATDirectorComponent::m_brain)
             ->Field("Programs", &GOATDirectorComponent::m_programs)
             ->Field("Priority", &GOATDirectorComponent::m_priority)
@@ -56,6 +57,9 @@ namespace GOAT
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_brain, "Brain",
                 "The backend that decides how this director acts")
+            ->DataElement(
+                AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_programAssets, "Program Assets",
+                "Graph authored .goat programs, each declared under the name it carries")
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATDirectorComponent::m_programs, "Programs",
                 "Programs this director may run. The first is the one it starts in.")
@@ -101,6 +105,7 @@ namespace GOAT
         request.m_entity = GetEntityId();
         request.m_blackboards = &m_blackboards;
         request.m_scripts = &m_scripts;
+        request.m_programAssets = &m_programAssets;
         request.m_brain = m_brain;
         request.m_programs = &m_programs;
         request.m_band = m_band;

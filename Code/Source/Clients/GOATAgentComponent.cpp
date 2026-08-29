@@ -21,9 +21,10 @@ namespace GOAT
         }
 
         serializeContext->Class<GOATAgentComponent, AZ::Component>()
-            ->Version(3)
+            ->Version(4)
             ->Field("Blackboards", &GOATAgentComponent::m_blackboards)
             ->Field("Scripts", &GOATAgentComponent::m_scripts)
+            ->Field("ProgramAssets", &GOATAgentComponent::m_programAssets)
             ->Field("Brain", &GOATAgentComponent::m_brain)
             ->Field("Programs", &GOATAgentComponent::m_programs)
             ->Field("Squad", &GOATAgentComponent::m_squad)
@@ -48,6 +49,9 @@ namespace GOAT
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATAgentComponent::m_scripts, "Scripts",
                 "Lua scripts declaring behaviours, backends and trees")
+            ->DataElement(
+                AZ::Edit::UIHandlers::Default, &GOATAgentComponent::m_programAssets, "Program Assets",
+                "Graph authored .goat programs, each declared under the name it carries")
             ->DataElement(
                 AZ::Edit::UIHandlers::Default, &GOATAgentComponent::m_brain, "Brain",
                 "The backend that decides how this agent acts")
@@ -81,6 +85,7 @@ namespace GOAT
         request.m_entity = GetEntityId();
         request.m_blackboards = &m_blackboards;
         request.m_scripts = &m_scripts;
+        request.m_programAssets = &m_programAssets;
         request.m_brain = m_brain;
         request.m_programs = &m_programs;
         request.m_squad = m_squad;

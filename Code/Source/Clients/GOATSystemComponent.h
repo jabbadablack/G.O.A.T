@@ -52,6 +52,7 @@ namespace GOAT
         // IAgentSystem
         bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>& asset) override;
         AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) override;
+        AZ::Outcome<void, AZStd::string> LoadProgram(const ProgramAsset& asset) override;
         AZ::Outcome<void, AZStd::string> CompileProgram(
             const AZ::Name& backendName, const AZ::Name& programName) override;
         bool IsProgramCompiled(const AZ::Name& programName) const override;
@@ -274,6 +275,8 @@ namespace GOAT
         //! Programs being compiled right now, outermost first, so one that hands work back to
         //! itself is caught rather than compiled forever.
         AZStd::vector<AZ::Name> m_compiling;
+        //! Programs whose authored root came from a .goat asset rather than from Lua.
+        AZStd::unordered_set<AZ::Name> m_assetPrograms;
         //! Each paradigm as a planner one delegate leaf can reach, built when it registers.
         AZStd::unordered_map<AZ::Name, AZStd::unique_ptr<DecisionBackendAdapter>> m_decisionAdapters;
         //! Which backend gives each authored word meaning, so a program can be placed with the

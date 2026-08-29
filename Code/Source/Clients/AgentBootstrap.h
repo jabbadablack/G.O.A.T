@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Assets/BlackboardAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Domain/AgentId.h>
 
 #include <AzCore/Asset/AssetCommon.h>
@@ -19,9 +20,12 @@ namespace GOAT
         AZ::EntityId m_entity;
         AZStd::vector<AZ::Data::Asset<BlackboardAsset>>* m_blackboards = nullptr;
         AZStd::vector<AZ::Data::Asset<AZ::ScriptAsset>>* m_scripts = nullptr;
+        //! Graph authored programs, each declaring itself under the name it carries.
+        AZStd::vector<AZ::Data::Asset<ProgramAsset>>* m_programAssets = nullptr;
         //! What runs this entity's programs.
         AZStd::string m_brain;
         //! Programs this entity may run. The first is the one it starts in.
+        //! A program asset adds its own name here when it is not listed already.
         const AZStd::vector<AZStd::string>* m_programs = nullptr;
         AZStd::string m_squad;
         int m_band = 1;

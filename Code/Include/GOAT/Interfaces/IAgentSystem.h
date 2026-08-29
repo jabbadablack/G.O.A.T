@@ -41,6 +41,10 @@ namespace GOAT
         //! Declares the variables a blackboard asset holds. Duplicate names fail.
         virtual AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset& asset) = 0;
 
+        //! Declares the program an asset holds, under the name the asset carries.
+        //! The graph editor's output enters here, where Lua's enters through EmitProgram.
+        virtual AZ::Outcome<void, AZStd::string> LoadProgram(const ProgramAsset& asset) = 0;
+
         //! Compiles a declared program through a named backend. Always recompiles, which is
         //! what makes it the way to pick up a rebound dynamic subtree.
         virtual AZ::Outcome<void, AZStd::string> CompileProgram(

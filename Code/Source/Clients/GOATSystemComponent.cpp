@@ -518,6 +518,24 @@ namespace GOAT
         return AZ::Success();
     }
 
+    AZ::Outcome<void, AZStd::string> GOATSystemComponent::LoadProgram(const ProgramAsset& asset)
+    {
+        if (m_trees == nullptr)
+        {
+            return AZ::Failure(AZStd::string("The scripting services are not running"));
+        }
+
+        if (asset.m_name.empty())
+        {
+            return AZ::Failure(AZStd::string("A program asset has no name for agents to refer to it by"));
+        }
+
+        const AZ::Name name(asset.m_name);
+        m_trees->Add(name, AZStd::shared_ptr<const AuthoredNode>(aznew AuthoredNode(asset.m_root)));
+        m_assetPrograms.insert(name);
+        return AZ::Success();
+    }
+
     AZ::Outcome<void, AZStd::string> GOATSystemComponent::CompileNested(AgentProgram& program)
     {
         program.m_stateBytes = AlignState(program.m_backend->GetStateSize());
@@ -604,20 +622,31 @@ namespace GOAT
             return AZ::Failure(AZStd::string("The scripting services are not running"));
         }
 
-        if (!EnsureVocabulary())
+        // An asset already holds its authored root, so only the Lua route has anything to emit.
+        const bool fromAsset = m_assetPrograms.contains(programName);
+        if (!fromAsset)
         {
-            return AZ::Failure(AZStd::string(
-                "The GOAT authoring vocabulary is not loaded; check that goat/scripts/goat.lua reached the cache"));
+            if (!EnsureVocabulary())
+            {
+                return AZ::Failure(AZStd::string(
+                    "The GOAT authoring vocabulary is not loaded; check that goat/scripts/goat.lua reached the cache"));
+            }
+
+            auto emitted = m_dispatch->EmitTree(programName);
+            if (!emitted.IsSuccess())
+            {
+                return AZ::Failure(emitted.TakeError());
+            }
+
+            m_trees->Add(programName, emitted.GetValue());
         }
 
-        // Ask Lua for the authored tree, then compile it exactly as a graph editor's asset would be.
-        auto emitted = m_dispatch->EmitTree(programName);
-        if (!emitted.IsSuccess())
+        const AuthoredNode* root = m_trees->Find(programName);
+        if (root == nullptr)
         {
-            return AZ::Failure(emitted.TakeError());
+            return AZ::Failure(AZStd::string::format(
+                "No authored program named '%s' is registered", programName.GetCStr()));
         }
-
-        m_trees->Add(programName, emitted.GetValue());
 
         IDecisionBackend* backend = m_decisionBackends->Find(backendName);
         if (backend == nullptr)
@@ -627,7 +656,7 @@ namespace GOAT
                 programName.GetCStr()));
         }
 
-        auto compiled = backend->Compile(programName, *emitted.GetValue());
+        auto compiled = backend->Compile(programName, *root);
         if (!compiled.IsSuccess())
         {
             return AZ::Failure(compiled.TakeError());
@@ -1243,18 +1272,28 @@ namespace GOAT
         }
 
         // Not compiled yet, so ask the word it is rooted in who gives that word meaning.
-        if (m_dispatch == nullptr)
+        const AuthoredNode* root = m_assetPrograms.contains(programName) && m_trees != nullptr
+            ? m_trees->Find(programName)
+            : nullptr;
+
+        AZStd::shared_ptr<const AuthoredNode> emittedRoot;
+        if (root == nullptr)
         {
-            return nullptr;
+            if (m_dispatch == nullptr)
+            {
+                return nullptr;
+            }
+
+            auto emitted = m_dispatch->EmitTree(programName);
+            if (!emitted.IsSuccess() || emitted.GetValue() == nullptr)
+            {
+                return nullptr;
+            }
+            emittedRoot = emitted.TakeValue();
+            root = emittedRoot.get();
         }
 
-        auto emitted = m_dispatch->EmitTree(programName);
-        if (!emitted.IsSuccess() || emitted.GetValue() == nullptr)
-        {
-            return nullptr;
-        }
-
-        const auto owner = m_nodeTypeOwners.find(AZ::Name(emitted.GetValue()->m_type));
+        const auto owner = m_nodeTypeOwners.find(AZ::Name(root->m_type));
         return owner != m_nodeTypeOwners.end() ? owner->second : nullptr;
     }
 

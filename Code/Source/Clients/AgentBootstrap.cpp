@@ -4,6 +4,7 @@
 
 #include <AzCore/Asset/AssetSerializer.h>
 #include <AzCore/Name/Name.h>
+#include <AzCore/std/algorithm.h>
 #include <AzCore/std/containers/vector.h>
 
 namespace GOAT
@@ -66,7 +67,37 @@ namespace GOAT
             }
         }
 
-        if (request.m_programs->empty())
+        // Names an asset declared, kept in the order the assets were listed.
+        AZStd::vector<AZStd::string> fromAssets;
+        if (request.m_programAssets != nullptr)
+        {
+            for (auto& program : *request.m_programAssets)
+            {
+                if (!EnsureLoaded(program))
+                {
+                    continue;
+                }
+                if (auto loaded = agents->LoadProgram(*program.Get()); !loaded.IsSuccess())
+                {
+                    AZ_Warning("GOAT", false, "%s", loaded.GetError().c_str());
+                    continue;
+                }
+                fromAssets.push_back(program.Get()->m_name);
+            }
+        }
+
+        // What the author listed, then whatever an asset brought that they did not list, so
+        // dropping a .goat on the entity is enough on its own.
+        AZStd::vector<AZStd::string> names = *request.m_programs;
+        for (const AZStd::string& name : fromAssets)
+        {
+            if (AZStd::find(names.begin(), names.end(), name) == names.end())
+            {
+                names.push_back(name);
+            }
+        }
+
+        if (names.empty())
         {
             AZ_Warning("GOAT", false, "Entity %s names no program to run", request.m_entity.ToString().c_str());
             return AgentId{};
@@ -78,9 +109,9 @@ namespace GOAT
         // All of them, not just the one it starts in. A program this entity only switches to much
         // later is worth failing on now, while whoever named it is still looking at it.
         AZStd::vector<AZ::Name> declared;
-        declared.reserve(request.m_programs->size());
+        declared.reserve(names.size());
 
-        for (const AZStd::string& name : *request.m_programs)
+        for (const AZStd::string& name : names)
         {
             if (name.empty())
             {

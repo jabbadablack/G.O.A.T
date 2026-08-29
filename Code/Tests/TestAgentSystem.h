@@ -79,6 +79,7 @@ namespace GOAT
         // Everything else a game would use and a backend never does.
         bool LoadScript(const AZ::Data::Asset<AZ::ScriptAsset>&) override { return false; }
         AZ::Outcome<void, AZStd::string> LoadBlackboard(const BlackboardAsset&) override { return AZ::Success(); }
+        AZ::Outcome<void, AZStd::string> LoadProgram(const ProgramAsset&) override { return AZ::Success(); }
         AZ::Outcome<void, AZStd::string> CompileProgram(const AZ::Name&, const AZ::Name&) override
         {
             return AZ::Success();

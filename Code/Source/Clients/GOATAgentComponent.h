@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Assets/BlackboardAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/GOATTypeIds.h>
 
@@ -40,6 +41,8 @@ namespace GOAT
         AZStd::vector<AZ::Data::Asset<BlackboardAsset>> m_blackboards;
         //! Lua scripts declaring behaviours, backends and trees.
         AZStd::vector<AZ::Data::Asset<AZ::ScriptAsset>> m_scripts;
+        //! Graph authored programs, each declaring itself under the name it carries.
+        AZStd::vector<AZ::Data::Asset<ProgramAsset>> m_programAssets;
         //! What decides how this agent acts.
         AZStd::string m_brain = "tree";
         //! Programs this agent may run. The first is the one it starts in; every one of them is
