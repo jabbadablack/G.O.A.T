@@ -94,8 +94,8 @@ return utility "ExampleChoices" {
         wait(0.5),
     },
 
-    -- Nothing argues for it, so it is what happens when nothing else scores.
-    choice "Idle" { wait(1.0) },
+    -- Worth a little, never worth a lot. See the trap below.
+    choice "Idle" { consider "idle_worth", wait(1.0) },
 }
 ```
 
@@ -120,6 +120,13 @@ asked — if you want the cheap way out of one, use `score` instead.
 
 The default is `multiply` because that is the only fold where one consideration can rule a choice
 out on its own, which is usually what "no ammo" is meant to mean.
+
+> **A choice with no considerations scores one, not zero.** Folding an empty set gives 1.0 —
+> nothing argued for it, but nothing argued against it either — so a bare `choice "Idle"
+> { wait(1.0) }` is the *highest* scoring thing in the program and wins almost everything. A
+> fallback wants a low constant: declare a float with a default nobody writes and `consider` it.
+> Then what idling is worth lives in the blackboard asset, where it can be tuned without
+> touching a script.
 
 ---
 

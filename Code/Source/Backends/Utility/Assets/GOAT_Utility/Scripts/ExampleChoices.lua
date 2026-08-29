@@ -33,6 +33,11 @@ return utility "ExampleChoices" {
         wait(0.5),
     },
 
-    -- Nothing argues for it, so it is what happens when nothing else scores.
-    choice "Idle" { wait(1.0) },
+    -- Doing nothing much, which is worth a little and never worth a lot. `idle_worth` is a
+    -- constant: a variable with a default that nobody writes. A choice with no considerations
+    -- at all scores *one* -- the top of the range, not the bottom -- and wins almost everything.
+    choice "Idle" {
+        consider "idle_worth",
+        wait(1.0),
+    },
 }
