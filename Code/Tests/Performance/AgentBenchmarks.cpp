@@ -14,6 +14,7 @@
 #include <Core/Application/AgentRecord.h>
 #include <Core/Application/GuardWatch.h>
 #include <BehaviorTreeBackend.h>
+#include <UtilityBackend.h>
 #include <DecisionCursor.h>
 #include <TreeWalker.h>
 
@@ -386,6 +387,7 @@ namespace GOAT::Benchmark
             m_nodeTypes = AZStd::make_unique<NodeTypeRegistry>();
             m_host = AZStd::make_unique<TestAgentSystem>(*m_nodeTypes, *m_actions, m_backends.get());
             m_treeBackend = AZStd::make_unique<BehaviorTreeBackend>(*m_host, *m_blackboard);
+            m_utilityBackend = AZStd::make_unique<UtilityBackend>(*m_host, *m_blackboard);
             m_runtime = AZStd::make_unique<AgentRuntime>(
                 *m_blackboard, *m_actions, *m_backends, *m_scripting, *m_planStore);
             m_registry = AZStd::make_unique<AgentRegistry>(*m_runtime, *m_blackboard, *m_dispatch);
@@ -407,6 +409,9 @@ namespace GOAT::Benchmark
             m_library.clear();
             m_registry.reset();
             m_runtime.reset();
+            m_scored.clear();
+            m_scored.set_capacity(0);
+            m_utilityBackend.reset();
             m_treeBackend.reset();
             m_host.reset();
             m_nodeTypes.reset();
@@ -555,6 +560,64 @@ namespace GOAT::Benchmark
             m_archetype = archetype;
         }
 
+        //! A population deciding by scoring rather than by walking. Every choice argues from a
+        //! few numbers, overlapping so that one of them moving changes what wins; that is what
+        //! lets the benchmark below prove it is really scoring rather than idling.
+        void MakeScoredArchetype(int choices = 8, int considerations = 4)
+        {
+            const ActionStateId busy = m_actions->Register(AZStd::make_unique<BusyAction>());
+
+            auto program = AZStd::shared_ptr<UtilityProgram>(aznew UtilityProgram());
+            program->m_name = AZ::Name("Bench");
+            program->m_backend = m_utilityBackend.get();
+            program->m_watchedScopes[static_cast<size_t>(BlackboardScope::Agent)] = true;
+
+            // The worst case on purpose: every agent scores every tick. What keeps a real
+            // population away from this is dormancy and the recheck floor, and measuring those
+            // would be measuring how often it is asked rather than what asking costs.
+            program->m_wantsTick = true;
+            program->m_recheck = 0.0f;
+
+            for (int c = 0; c < choices + considerations; ++c)
+            {
+                const auto declared = m_blackboard->Declare(
+                    AZ::Name(AZStd::string::format("weight_%d", c)), BlackboardScope::Agent, BlackboardType::Float);
+                m_scored.push_back(declared.GetValue());
+            }
+
+            for (int i = 0; i < choices; ++i)
+            {
+                UtilityChoice choice;
+                choice.m_name = AZ::Name(AZStd::string::format("Choice_%d", i));
+                choice.m_firstConsideration = static_cast<AZ::u16>(program->m_considerations.size());
+                choice.m_considerationCount = static_cast<AZ::u16>(considerations);
+                for (int c = 0; c < considerations; ++c)
+                {
+                    program->m_considerations.push_back({ m_scored[static_cast<size_t>(i + c)], false });
+                }
+
+                choice.m_firstStep = static_cast<AZ::u16>(program->m_steps.size());
+                choice.m_stepCount = 1;
+                ActionRequest request;
+                request.m_action = busy;
+                program->m_steps.push_back(request);
+
+                program->m_choices.push_back(AZStd::move(choice));
+            }
+
+            auto archetype = AZStd::shared_ptr<AgentArchetype>(aznew AgentArchetype());
+            archetype->Add(AZ::Name("Bench"), AZStd::move(program));
+            m_archetype = archetype;
+        }
+
+        //! Which choice an agent settled on, read out of its own brain block.
+        AZ::u16 ChoiceOf(AgentId agent)
+        {
+            AgentRecord* record = m_registry->Find(agent);
+            return record != nullptr ? reinterpret_cast<const UtilityCursor*>(record->GetState().data())->m_choice
+                                     : InvalidChoice;
+        }
+
         AZStd::unique_ptr<AZ::LoggerSystemComponent> m_logger;
         AZStd::unique_ptr<AZ::TimeSystem> m_time;
         AZStd::unique_ptr<AZ::EventSchedulerSystemComponent> m_scheduler;
@@ -567,6 +630,8 @@ namespace GOAT::Benchmark
         AZStd::unique_ptr<NodeTypeRegistry> m_nodeTypes;
         AZStd::unique_ptr<TestAgentSystem> m_host;
         AZStd::unique_ptr<BehaviorTreeBackend> m_treeBackend;
+        AZStd::unique_ptr<UtilityBackend> m_utilityBackend;
+        AZStd::vector<BlackboardKey> m_scored;
         AZStd::unique_ptr<AgentRuntime> m_runtime;
         BlackboardKey m_alarm;
         AZStd::unique_ptr<AgentRegistry> m_registry;
@@ -693,6 +758,73 @@ namespace GOAT::Benchmark
     }
 
     BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickNested)->Arg(100)->Arg(1000)->Arg(10000);
+
+    //! The same band tick, but every agent decides by scoring what it could do rather than by
+    //! walking a tree to the first thing that will run. Its ratio to BM_TickBand is what a
+    //! paradigm that weighs all of its options costs against one that takes the first that fits.
+    BENCHMARK_DEFINE_F(AgentRegistryBenchmarkFixture, BM_TickScored)(::benchmark::State& state)
+    {
+        const int agents = static_cast<int>(state.range(0));
+        MakeScoredArchetype();
+        m_registry->Reserve(static_cast<size_t>(agents), 0);
+
+        AZStd::vector<AgentId> registered;
+        registered.reserve(static_cast<size_t>(agents));
+        for (int i = 0; i < agents; ++i)
+        {
+            registered.push_back(
+                m_registry->Register(AZ::EntityId(static_cast<AZ::u64>(i) + 1), m_archetype, 0, AZ::Name{}));
+        }
+
+        // Something for every choice to argue from, so scoring reaches the end of its work
+        // rather than ruling everything out on the first number it reads.
+        for (const AgentId agent : registered)
+        {
+            for (const BlackboardKey key : m_scored)
+            {
+                m_blackboard->Set<float>(key, 0.5f, agent);
+            }
+        }
+
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+
+        size_t running = 0;
+        for (const AgentId agent : registered)
+        {
+            const AgentRecord* record = m_registry->Find(agent);
+            running += record != nullptr && record->m_machine.HasPlan() ? 1 : 0;
+        }
+        if (running != static_cast<size_t>(agents))
+        {
+            state.SkipWithError("agents are not running anything, so this measures an idle tick");
+            return;
+        }
+
+        // An agent whose plan is merely running is reached without scoring anything at all, so
+        // being busy proves nothing on its own. Move a number only the leading choice reads: if
+        // the agent leaves it, the tick being measured really is re-scoring every choice.
+        const AgentId probe = registered.front();
+        const AZ::u16 before = ChoiceOf(probe);
+        m_blackboard->Set<float>(m_scored.front(), 0.01f, probe);
+        m_registry->TickBand(0);
+        m_registry->TickBand(0);
+        if (ChoiceOf(probe) == before)
+        {
+            state.SkipWithError("scoring never ran, so this measures a tick that decides nothing");
+            return;
+        }
+        m_blackboard->Set<float>(m_scored.front(), 0.5f, probe);
+        m_registry->TickBand(0);
+
+        for ([[maybe_unused]] auto _ : state)
+        {
+            m_registry->TickBand(0);
+        }
+
+        state.SetItemsProcessed(state.iterations() * agents);
+    }
+    BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickScored)->Arg(100)->Arg(1000)->Arg(10000);
 
     BENCHMARK_REGISTER_F(AgentRegistryBenchmarkFixture, BM_TickBand)->Arg(100)->Arg(1000)->Arg(10000);
 

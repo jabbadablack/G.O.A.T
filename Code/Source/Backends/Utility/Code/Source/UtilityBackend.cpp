@@ -60,9 +60,17 @@ namespace GOAT
             }
         }
 
-        //! Brings a value into the range a score is measured in, saying so the first time it had
-        //! to. @param warned lives on the program, so this is one line per mistake rather than
-        //! one per agent per frame.
+        //! True when a value can be used as a score as it stands, which is the whole of what the
+        //! scoring path has to decide for almost every value it reads.
+        bool Usable(const float* read)
+        {
+            return read != nullptr && *read >= 0.0f && *read <= 1.0f;
+        }
+
+        //! Brings a value that was not usable into range, saying so the first time it had to.
+        //! Kept off the path a usable value takes, because naming the variable it came from
+        //! means scanning for the name. @param warned lives on the program, so this is one line
+        //! per mistake rather than one per agent per frame.
         float InRange(const float* read, const UtilityProgram& program, const UtilityChoice& choice,
             const char* source, bool& warned)
         {
@@ -172,10 +180,11 @@ namespace GOAT
             return 0.0f;
         }
 
-        return InRange(&measured, program, choice, behavior.GetCStr(), warned);
+        return Usable(&measured) ? measured : InRange(&measured, program, choice, behavior.GetCStr(), warned);
     }
 
-    float UtilityBackend::Score(const PlanContext& context, const UtilityProgram& program, AZ::u16 index) const
+    float UtilityBackend::Score(const PlanContext& context, const UtilityProgram& program,
+        const ScopedStorage& storage, AZ::u16 index) const
     {
         const UtilityChoice& choice = program.m_choices[index];
 
@@ -183,9 +192,13 @@ namespace GOAT
         for (AZ::u16 i = 0; i < choice.m_considerationCount; ++i)
         {
             const UtilityConsideration& read = program.m_considerations[choice.m_firstConsideration + i];
-            const float* found = context.m_blackboard->Find<float>(read.m_key, context.m_agent);
-            values.push_back(
-                InRange(found, program, choice, m_blackboard.GetKeyName(read.m_key).GetCStr(), read.m_warned));
+            const float* found = storage.Find(read.m_key);
+
+            // Naming the variable is what a report needs and scoring never does, and the
+            // blackboard scans to answer it, so it is asked for only when something is wrong.
+            values.push_back(Usable(found)
+                    ? *found
+                    : InRange(found, program, choice, m_blackboard.GetKeyName(read.m_key).GetCStr(), read.m_warned));
         }
 
         // Folded first, so a choice nothing argues for never reaches a script. A choice whose
@@ -214,9 +227,19 @@ namespace GOAT
         const PlanContext& context, const UtilityProgram& program, ScoreBoard& outScores) const
     {
         outScores.clear();
+
+        // Where each scope lives is the same answer for every number this pass reads, and the
+        // blackboard resolves it through a virtual call and a switch, so it is asked once.
+        ScopedStorage storage;
+        for (size_t scope = 0; scope < static_cast<size_t>(BlackboardScope::Count); ++scope)
+        {
+            storage.m_byScope[scope] =
+                context.m_blackboard->FindStorage(static_cast<BlackboardScope>(scope), context.m_agent);
+        }
+
         for (AZ::u16 index = 0; index < program.m_choices.size(); ++index)
         {
-            outScores.push_back(Score(context, program, index));
+            outScores.push_back(Score(context, program, storage, index));
         }
     }
 

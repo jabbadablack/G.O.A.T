@@ -53,6 +53,19 @@ namespace GOAT
         //! The values one choice argued from, and room for what a scorer added.
         using Considered = AZStd::fixed_vector<float, MaxConsiderations + 1>;
 
+        //! What each scope is stored in for one agent, found once for a whole scoring pass
+        //! rather than once for every number that pass reads.
+        struct ScopedStorage final
+        {
+            const BlackboardStorage* m_byScope[static_cast<size_t>(BlackboardScope::Count)]{};
+
+            const float* Find(BlackboardKey key) const
+            {
+                const BlackboardStorage* storage = m_byScope[static_cast<size_t>(key.GetScope())];
+                return storage != nullptr ? storage->Find<float>(key) : nullptr;
+            }
+        };
+
         //! The cursor an agent keeps inside its brain state.
         static UtilityCursor& Cursor(BrainState state);
 
@@ -61,7 +74,8 @@ namespace GOAT
 
         //! Scores one choice. What it considers is read and folded first, so a choice nothing
         //! argues for costs no call into a script at all.
-        float Score(const PlanContext& context, const UtilityProgram& program, AZ::u16 index) const;
+        float Score(const PlanContext& context, const UtilityProgram& program, const ScopedStorage& storage,
+            AZ::u16 index) const;
 
         //! Asks a behaviour for a number, treating one that did not answer as nothing.
         float Measure(const PlanContext& context, const UtilityProgram& program, const UtilityChoice& choice,
