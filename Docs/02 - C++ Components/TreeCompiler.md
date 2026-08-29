@@ -14,7 +14,7 @@ tags: [cpp, core, component]
 
 ## Overview
 
-`TreeCompiler` is the **validation and flattening engine** of G.O.A.T. It takes an authored `AuthoredNode` hierarchy (which comes from Lua or a future graph editor) and converts it into a flat, immutable `DecisionProgram`. This process resolves blackboard variable names into typed keys, validates node properties against registered node types, and precomputes child indices for O(1) traversal during runtime.
+`TreeCompiler` is the **validation and flattening engine** of G.O.A.T. It takes an authored `AuthoredNode` hierarchy (which comes from Lua or the graph editor) and converts it into a flat, immutable `DecisionProgram`. This process resolves blackboard variable names into typed keys, validates node properties against registered node types, and precomputes child indices for O(1) traversal during runtime.
 
 The compiler ensures that only valid, type-safe trees reach the execution stage, eliminating runtime string lookups and preventing performance spikes.
 

@@ -14,7 +14,7 @@ tags: [cpp, core, asset, authoring]
 ## Overview
 
 One node exactly as it was authored, before any backend has looked at it. This is the shape Lua
-builds in memory and the shape a graph editor would save to disk.
+builds in memory and the shape the graph editor saves to disk.
 
 It is **paradigm-neutral**. The same struct carries a behaviour tree's `selector` and a task
 network's `method`; what those words mean is decided by whichever backend compiles it. That is

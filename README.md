@@ -72,6 +72,7 @@ We use **[Obsidian](https://obsidian.md)** as our documentation platform. Obsidi
 - ✅ Lua DSL Authoring Vocabulary
 - ✅ Direct & Lua Backend System
 - ✅ Blackboard System (Global/Agent/Squad)
+- ✅ GOAT Program Editor (visual `.goat` authoring)
 - ❌ Navigation Library (Planned – see `Docs/06 - Planned Features/Navigation Library.md`)
 - ❌ Bark System (Planned)
 - ❌ Perception Module (Planned)

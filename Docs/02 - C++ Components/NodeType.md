@@ -80,7 +80,7 @@ struct NodeParameter
 };
 ```
 
-One authored parameter a node type accepts. Drives authoring validation now and a graph editor's property panel later.
+One authored parameter a node type accepts. Drives authoring validation now and the graph editor's property panel.
 
 ---
 

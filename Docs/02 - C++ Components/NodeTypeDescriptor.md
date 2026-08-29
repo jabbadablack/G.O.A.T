@@ -24,7 +24,7 @@ tags: [cpp, core, domain]
 | 1 | **Node Identity** | Provides the node's `AZ::Name`. |
 | 2 | **Structural Classification** | Defines the node's `NodeKind` (Composite/Decorator/Leaf/Service). |
 | 3 | **Runtime Operation** | Maps the node to a `NodeOp` for the `TreeWalker`. |
-| 4 | **Editor Metadata** | Stores category and description for a future graph editor. |
+| 4 | **Editor Metadata** | Stores category and description for the graph editor. |
 | 5 | **Parameter Declaration** | Lists accepted `NodeParameter`s for validation. |
 
 ---
@@ -38,7 +38,7 @@ tags: [cpp, core, domain]
 | `m_name` | `AZ::Name` | Name this node type is written as. |
 | `m_kind` | `NodeKind` | How many children it may have. |
 | `m_op` | `NodeOp` | What the walker does with it. |
-| `m_category` | `AZStd::string` | Palette grouping for a future graph editor. |
+| `m_category` | `AZStd::string` | Palette grouping for the graph editor. |
 | `m_description` | `AZStd::string` | One line describing what the node is for. |
 | `m_parameters` | `AZStd::vector<NodeParameter>` | Properties this node type accepts. |
 

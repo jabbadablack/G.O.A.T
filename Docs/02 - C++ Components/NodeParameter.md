@@ -15,7 +15,7 @@ tags: [cpp, core, domain]
 
 `NodeParameter` describes **one authored property** that a node type accepts. It defines the property's name, type, whether it refers to a blackboard variable, and whether it is required. It is used by `TreeCompiler` to validate authored nodes against their `NodeTypeDescriptor`.
 
-This drives authoring validation now and a graph editor's property panel later.
+This drives authoring validation now and the graph editor's property panel.
 
 ---
 
