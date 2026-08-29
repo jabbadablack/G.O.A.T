@@ -126,18 +126,27 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
     ly_add_target(
         NAME ${gem_name}.Editor.Private.Object STATIC
         NAMESPACE Gem
+        AUTOMOC
         FILES_CMAKE
             goat_editor_private_files.cmake
-        TARGET_PROPERTIES
-            O3DE_PRIVATE_TARGET TRUE
         INCLUDE_DIRECTORIES
             PRIVATE
                 Include
                 Source
+        TARGET_PROPERTIES
+            O3DE_PRIVATE_TARGET TRUE
         BUILD_DEPENDENCIES
+            PRIVATE
+                3rdParty::Qt::Core
+                3rdParty::Qt::Gui
+                3rdParty::Qt::Widgets
+                Legacy::CryCommon
+                Legacy::Editor.Headers
+                Gem::GraphModel.Editor.Static
             PUBLIC
                 AZ::AzToolsFramework
                 AZ::AssetBuilderSDK
+                Gem::GraphCanvasWidgets
                 ${gem_name}.Private.Object
     )
 
@@ -157,6 +166,9 @@ if(PAL_TRAIT_BUILD_HOST_TOOLS)
                 Gem::${gem_name}.Editor.API
             PRIVATE
                 Gem::${gem_name}.Editor.Private.Object
+        RUNTIME_DEPENDENCIES
+            Gem::GraphCanvas.Editor
+            Gem::GraphModel.Editor
     )
 
     # Include the gem name into the Editor Module source file

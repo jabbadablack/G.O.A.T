@@ -26,7 +26,9 @@
     "requirements": "",
     "documentation_url": "",
     "dependencies": [
-        "LmbrCentral"
+        "LmbrCentral",
+        "GraphCanvas",
+        "GraphModel"
     ],
     "repo_uri": "https://github.com/jabbadablack/G.O.A.T",
     "compatible_engines": [],
