@@ -12,11 +12,17 @@
 #include <Tools/GraphEditor/ProgramNode.h>
 #include <Tools/GraphEditor/ProgramNodePaletteItem.h>
 #include <Tools/GraphEditor/MainWindow.h>
+#include <Tools/GraphEditor/ProgramFile.h>
 
+#include <GOAT/GOATProgramEditorBus.h>
+
+#include <AzCore/IO/Path/Path.h>
 #include <AzToolsFramework/API/ViewPaneOptions.h>
+#include <AzToolsFramework/AssetBrowser/AssetBrowserBus.h>
 
 #include <LyViewPaneNames.h>
 
+#include <QIcon>
 #include <QRect>
 
 namespace GOAT
@@ -110,5 +116,64 @@ namespace GOAT
                 "Editor/Icons/GOAT/AssetBrowser/Program.svg");
         }
         return {};
+    }
+
+    void GOATEditorSystemComponent::AddSourceFileCreators(
+        [[maybe_unused]] const char* fullSourceFolderName, [[maybe_unused]] const AZ::Uuid& sourceUUID,
+        AzToolsFramework::AssetBrowser::SourceFileCreatorList& creators)
+    {
+        auto create = [](const AZStd::string& folder, [[maybe_unused]] const AZ::Uuid& uuid)
+        {
+            const AZStd::string path = GraphEditor::UnusedProgramPath(folder, "NewProgram");
+
+            AZStd::string name;
+            AZ::StringFunc::Path::GetFileName(path.c_str(), name);
+
+            ProgramAsset asset;
+            asset.m_name = name;
+            asset.m_root = GraphEditor::DefaultRoot();
+
+            if (!GraphEditor::SaveProgramFile(path, asset))
+            {
+                AZ_Error("GOAT", false, "The new program could not be written to %s", path.c_str());
+                return;
+            }
+
+            // Lets the browser select the new row and start its inline rename.
+            AzToolsFramework::AssetBrowser::AssetBrowserFileCreationNotificationBus::Event(
+                AzToolsFramework::AssetBrowser::AssetBrowserFileCreationNotifications::FileCreationNotificationBusId,
+                &AzToolsFramework::AssetBrowser::AssetBrowserFileCreationNotifications::HandleAssetCreatedInEditor,
+                path, AZ::Crc32(), false);
+
+            AzToolsFramework::EditorRequests::Bus::Broadcast(
+                &AzToolsFramework::EditorRequests::OpenViewPane, "GOAT Program Editor");
+            GOATProgramEditorRequestBus::Broadcast(&GOATProgramEditorRequests::OpenProgram, path);
+        };
+
+        creators.push_back({ "GOAT_Program_creator", "GOAT Program",
+            QIcon("Editor/Icons/GOAT/AssetBrowser/Program.svg"), create });
+    }
+
+    void GOATEditorSystemComponent::AddSourceFileOpeners(
+        const char* fullSourceFileName, [[maybe_unused]] const AZ::Uuid& sourceUUID,
+        AzToolsFramework::AssetBrowser::SourceFileOpenerList& openers)
+    {
+        AZ_Assert(fullSourceFileName != nullptr, "The asset browser always asks about a named file");
+        if (fullSourceFileName == nullptr ||
+            !AZStd::wildcard_match("*.goat", fullSourceFileName))
+        {
+            return;
+        }
+
+        auto open = [](const char* path, [[maybe_unused]] const AZ::Uuid& uuid)
+        {
+            AzToolsFramework::EditorRequests::Bus::Broadcast(
+                &AzToolsFramework::EditorRequests::OpenViewPane, "GOAT Program Editor");
+            GOATProgramEditorRequestBus::Broadcast(
+                &GOATProgramEditorRequests::OpenProgram, AZStd::string(path));
+        };
+
+        openers.push_back({ "GOAT_Program_opener", "GOAT Program Editor",
+            QIcon("Editor/Icons/GOAT/AssetBrowser/Program.svg"), open });
     }
 } // namespace GOAT

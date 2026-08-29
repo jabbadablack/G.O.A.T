@@ -9,6 +9,8 @@ set(FILES
     Source/Tools/GraphEditor/GraphContext.h
     Source/Tools/GraphEditor/MainWindow.cpp
     Source/Tools/GraphEditor/MainWindow.h
+    Source/Tools/GraphEditor/ProgramFile.cpp
+    Source/Tools/GraphEditor/ProgramFile.h
     Source/Tools/GraphEditor/ProgramGraphSerializer.cpp
     Source/Tools/GraphEditor/ProgramGraphSerializer.h
     Source/Tools/GraphEditor/ProgramNode.cpp

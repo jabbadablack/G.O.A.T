@@ -1,0 +1,51 @@
+<ObjectStream version="3">
+	<Class name="ProgramAsset" version="1" type="{471B8D29-2A2E-4E77-8C33-B8E054EDCA00}">
+		<Class name="AssetData" field="BaseClass1" version="1" type="{AF3F7D32-1536-422A-89F3-A11E1F5B5A9C}"/>
+		<Class name="AZStd::string" field="Name" value="Watch" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+		<Class name="AuthoredNode" field="Root" version="1" type="{0518D68E-CE23-4EBF-9DEB-5203B83E4912}">
+			<Class name="AZStd::string" field="Type" value="sequence" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+			<Class name="AZStd::vector&lt;AuthoredProperty, allocator&gt;" field="Properties" type="{70755D6A-CCEC-5F02-88B6-EA9CE8390CD5}"/>
+			<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Services" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
+			<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Children" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}">
+				<Class name="AuthoredNode" field="element" version="1" type="{0518D68E-CE23-4EBF-9DEB-5203B83E4912}">
+					<Class name="AZStd::string" field="Type" value="condition" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+					<Class name="AZStd::vector&lt;AuthoredProperty, allocator&gt;" field="Properties" type="{70755D6A-CCEC-5F02-88B6-EA9CE8390CD5}">
+						<Class name="AuthoredProperty" field="element" version="1" type="{13C83E36-77A7-45C6-ACFC-AAE65676B2C0}">
+							<Class name="AZStd::string" field="Name" value="key" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+							<Class name="AZStd::any" field="Value" type="{03924488-C7F4-4D6D-948B-ABC2D1AE2FD3}">
+								<Class name="AZStd::string" field="m_data" value="target_seen" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+							</Class>
+						</Class>
+					</Class>
+					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Services" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
+					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Children" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
+					<Class name="AuthoredNodeMetadata" field="Metadata" version="1" type="{3E9CB59B-6545-46F2-8813-FB5F28C80670}">
+						<Class name="Vector2" field="Position" value="260.0000000 0.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
+						<Class name="AZStd::string" field="Comment" value="" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+					</Class>
+				</Class>
+				<Class name="AuthoredNode" field="element" version="1" type="{0518D68E-CE23-4EBF-9DEB-5203B83E4912}">
+					<Class name="AZStd::string" field="Type" value="wait" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+					<Class name="AZStd::vector&lt;AuthoredProperty, allocator&gt;" field="Properties" type="{70755D6A-CCEC-5F02-88B6-EA9CE8390CD5}">
+						<Class name="AuthoredProperty" field="element" version="1" type="{13C83E36-77A7-45C6-ACFC-AAE65676B2C0}">
+							<Class name="AZStd::string" field="Name" value="seconds" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+							<Class name="AZStd::any" field="Value" type="{03924488-C7F4-4D6D-948B-ABC2D1AE2FD3}">
+								<Class name="float" field="m_data" value="2.0000000" type="{EA2C3E90-AFBE-44D4-A90D-FAAF79BAF93D}"/>
+							</Class>
+						</Class>
+					</Class>
+					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Services" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
+					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Children" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
+					<Class name="AuthoredNodeMetadata" field="Metadata" version="1" type="{3E9CB59B-6545-46F2-8813-FB5F28C80670}">
+						<Class name="Vector2" field="Position" value="260.0000000 140.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
+						<Class name="AZStd::string" field="Comment" value="" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+					</Class>
+				</Class>
+			</Class>
+			<Class name="AuthoredNodeMetadata" field="Metadata" version="1" type="{3E9CB59B-6545-46F2-8813-FB5F28C80670}">
+				<Class name="Vector2" field="Position" value="0.0000000 70.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
+				<Class name="AZStd::string" field="Comment" value="wait a beat once the target is seen" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
+			</Class>
+		</Class>
+	</Class>
+</ObjectStream>

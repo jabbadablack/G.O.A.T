@@ -41,5 +41,13 @@ namespace GOAT
         //! Gives .bbx and .goat source files their own thumbnail. The handler's browser icon
         //! only covers the processed product, so without this the source row stays generic.
         AzToolsFramework::AssetBrowser::SourceFileDetails GetSourceFileDetails(const char* fullSourceFileName) override;
+
+        //! Puts "GOAT Program" in the browser's Create menu, which is where a program is made.
+        void AddSourceFileCreators(const char* fullSourceFolderName, const AZ::Uuid& sourceUUID,
+            AzToolsFramework::AssetBrowser::SourceFileCreatorList& creators) override;
+
+        //! Opens a .goat in the program editor rather than handing it to the operating system.
+        void AddSourceFileOpeners(const char* fullSourceFileName, const AZ::Uuid& sourceUUID,
+            AzToolsFramework::AssetBrowser::SourceFileOpenerList& openers) override;
     };
 } // namespace GOAT

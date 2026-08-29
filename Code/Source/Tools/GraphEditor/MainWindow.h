@@ -1,6 +1,7 @@
 #pragma once
 
 #include <GOAT/Assets/ProgramAsset.h>
+#include <GOAT/GOATProgramEditorBus.h>
 #include <Tools/GraphEditor/Core.h>
 
 #include <GraphCanvas/Widgets/GraphCanvasEditor/GraphCanvasAssetEditorMainWindow.h>
@@ -22,6 +23,7 @@ namespace GOAT::GraphEditor
     //! The GOAT Program Editor window.
     class MainWindow
         : public GraphModelIntegration::EditorMainWindow
+        , public GOATProgramEditorRequestBus::Handler
     {
         Q_OBJECT // AUTOMOC
     public:
@@ -29,6 +31,9 @@ namespace GOAT::GraphEditor
 
         explicit MainWindow(QWidget* parent = nullptr);
         ~MainWindow() override;
+
+        // GOATProgramEditorRequestBus
+        void OpenProgram(const AZStd::string& fullPath) override;
 
     protected:
         // GraphModelIntegration::EditorMainWindow

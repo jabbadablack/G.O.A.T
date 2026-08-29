@@ -1,5 +1,6 @@
 #include <Tools/GraphEditor/MainWindow.h>
 #include <Tools/GraphEditor/GraphContext.h>
+#include <Tools/GraphEditor/ProgramFile.h>
 #include <Tools/GraphEditor/ProgramGraphSerializer.h>
 #include <Tools/GraphEditor/ProgramNode.h>
 #include <Tools/GraphEditor/ProgramNodePaletteItem.h>
@@ -96,10 +97,28 @@ namespace GOAT::GraphEditor
         : GraphModelIntegration::EditorMainWindow(MakeConfig(), parent)
     {
         SetupUI();
-        SetDropAreaText("Create a new GOAT program, or open one from the File menu.");
+        SetDropAreaText("Create a GOAT program in the Asset Browser, or open one from the File menu.");
+        GOATProgramEditorRequestBus::Handler::BusConnect();
     }
 
-    MainWindow::~MainWindow() = default;
+    MainWindow::~MainWindow()
+    {
+        GOATProgramEditorRequestBus::Handler::BusDisconnect();
+    }
+
+    void MainWindow::OpenProgram(const AZStd::string& fullPath)
+    {
+        ProgramAsset asset;
+        if (!LoadProgramFile(fullPath, asset))
+        {
+            QMessageBox::warning(this, tr("Open GOAT Program"),
+                tr("%1 could not be read as a GOAT program.").arg(QString::fromUtf8(fullPath.c_str())));
+            return;
+        }
+
+        m_programPath = fullPath;
+        LoadAuthored(asset.m_root, asset.m_name, false);
+    }
 
     GraphModel::GraphContextPtr MainWindow::GetGraphContext() const
     {
@@ -422,10 +441,8 @@ namespace GOAT::GraphEditor
 
     void MainWindow::OnNewProgram()
     {
-        AuthoredNode root;
-        root.m_type = "sequence";
         m_programPath.clear();
-        LoadAuthored(root, "Untitled", false);
+        LoadAuthored(DefaultRoot(), "Untitled", false);
     }
 
     void MainWindow::OnOpenProgram()
@@ -437,15 +454,7 @@ namespace GOAT::GraphEditor
             return;
         }
 
-        ProgramAsset asset;
-        if (!AZ::Utils::LoadObjectFromFileInPlace(path.toUtf8().constData(), asset))
-        {
-            QMessageBox::warning(this, tr("Open GOAT Program"), tr("That file is not a GOAT program."));
-            return;
-        }
-
-        m_programPath = path.toUtf8().constData();
-        LoadAuthored(asset.m_root, asset.m_name, false);
+        OpenProgram(path.toUtf8().constData());
     }
 
     void MainWindow::OnSaveProgram()
@@ -484,7 +493,7 @@ namespace GOAT::GraphEditor
         asset.m_name = m_programName;
         asset.m_root = authored.TakeValue();
 
-        if (!AZ::Utils::SaveObjectToFile(m_programPath, AZ::DataStream::ST_XML, &asset))
+        if (!SaveProgramFile(m_programPath, asset))
         {
             QMessageBox::warning(this, tr("Save GOAT Program"), tr("The program could not be written."));
         }
