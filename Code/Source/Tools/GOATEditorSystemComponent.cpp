@@ -76,6 +76,11 @@ namespace GOAT
             return AzToolsFramework::AssetBrowser::SourceFileDetails(
                 "Editor/Icons/GOAT/AssetBrowser/Blackboard.svg");
         }
+        if (AZStd::wildcard_match("*.goat", fullSourceFileName))
+        {
+            return AzToolsFramework::AssetBrowser::SourceFileDetails(
+                "Editor/Icons/GOAT/AssetBrowser/Program.svg");
+        }
         return {};
     }
 } // namespace GOAT

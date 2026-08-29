@@ -55,6 +55,8 @@ set(FILES
     Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Assets/BlackboardAssetHandler.cpp
     Source/Core/Assets/BlackboardAssetHandler.h
+    Source/Core/Assets/ProgramAssetHandler.cpp
+    Source/Core/Assets/ProgramAssetHandler.h
     Source/Core/Domain/AgentStateMachine.cpp
     Source/Core/Domain/BlackboardSchema.cpp
     Source/Core/Domain/BlackboardSchema.h

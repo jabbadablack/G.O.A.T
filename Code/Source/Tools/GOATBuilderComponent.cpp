@@ -1,7 +1,9 @@
 #include <Tools/GOATBuilderComponent.h>
 
 #include <Core/Assets/BlackboardAssetHandler.h>
+#include <Core/Assets/ProgramAssetHandler.h>
 #include <GOAT/Assets/BlackboardAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/GOATTypeIds.h>
 
 #include <AssetBuilderSDK/AssetBuilderSDK.h>
@@ -42,20 +44,32 @@ namespace GOAT
     {
         AZ_Assert(m_assetHandlers.empty(), "A builder component activates with no handler already registered");
 
-        if (!AZ::Data::AssetManager::IsReady() ||
-            AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<BlackboardAsset>()) != nullptr)
+        if (!AZ::Data::AssetManager::IsReady())
         {
-            // Either too early to register, or the game module already did it in this process.
+            // Too early to register.
             return;
         }
 
-        auto handler = AZStd::make_unique<BlackboardAssetHandler>();
-        handler->Register();
-        m_assetHandlers.emplace_back(AZStd::move(handler));
+        // Either handler may already be there, if the game module registered it in this process.
+        if (AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<BlackboardAsset>()) == nullptr)
+        {
+            auto handler = AZStd::make_unique<BlackboardAssetHandler>();
+            handler->Register();
+            m_assetHandlers.emplace_back(AZStd::move(handler));
+        }
+
+        if (AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<ProgramAsset>()) == nullptr)
+        {
+            auto handler = AZStd::make_unique<ProgramAssetHandler>();
+            handler->Register();
+            m_assetHandlers.emplace_back(AZStd::move(handler));
+        }
 
         AZ_Assert(AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<BlackboardAsset>()) != nullptr,
             "Registering the blackboard handler must make it findable, or .bbx files never build");
-        AZLOG_INFO("GOAT: the blackboard asset handler is registered in this builder process");
+        AZ_Assert(AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<ProgramAsset>()) != nullptr,
+            "Registering the program handler must make it findable, or .goat files never build");
+        AZLOG_INFO("GOAT: the blackboard and program asset handlers are registered in this builder process");
     }
 
     void GOATBuilderComponent::Deactivate()

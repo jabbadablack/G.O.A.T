@@ -3,6 +3,7 @@
 #include <Core/Application/DecisionBackendAdapter.h>
 #include <Core/Application/NestedRun.h>
 #include <Core/Assets/BlackboardAssetHandler.h>
+#include <Core/Assets/ProgramAssetHandler.h>
 #include <Core/Actions/EmbedAction.h>
 #include <Core/Actions/RunScriptAction.h>
 #include <Core/Actions/WaitAction.h>
@@ -1934,14 +1935,19 @@ namespace GOAT
     void GOATSystemComponent::RegisterAssetHandlers()
     {
         // The launcher loads one module and the editor another, so only the first registration wins.
-        if (AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<BlackboardAsset>()) != nullptr)
+        if (AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<BlackboardAsset>()) == nullptr)
         {
-            return;
+            auto handler = AZStd::make_unique<BlackboardAssetHandler>();
+            handler->Register();
+            m_assetHandlers.emplace_back(AZStd::move(handler));
         }
 
-        auto handler = AZStd::make_unique<BlackboardAssetHandler>();
-        handler->Register();
-        m_assetHandlers.emplace_back(AZStd::move(handler));
+        if (AZ::Data::AssetManager::Instance().GetHandler(azrtti_typeid<ProgramAsset>()) == nullptr)
+        {
+            auto handler = AZStd::make_unique<ProgramAssetHandler>();
+            handler->Register();
+            m_assetHandlers.emplace_back(AZStd::move(handler));
+        }
     }
 
     void GOATSystemComponent::UnregisterAssetHandlers()
