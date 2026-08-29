@@ -13,7 +13,11 @@
 #include <AzCore/Name/NameDictionary.h>
 #include <AzCore/std/smart_ptr/make_shared.h>
 #include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/Serialization/SerializeContext.h>
+#include <AzCore/Serialization/Utils.h>
 #include <AzCore/UnitTest/TestTypes.h>
+#include <AzCore/Asset/AssetCommon.h>
+#include <AzCore/IO/ByteContainerStream.h>
 #include <AzTest/AzTest.h>
 
 namespace GOAT
@@ -294,5 +298,38 @@ namespace GOAT
         AuthoredNode leaf;
         leaf.m_type = "wait";
         EXPECT_EQ(FindOwningBackend(leaf), AZ::Name("tree"));
+    }
+
+    TEST_F(ProgramGraphFixture, AProgramSurvivesBeingWrittenAndReadBack)
+    {
+        AZ::SerializeContext serialize;
+        AZ::Data::AssetData::Reflect(&serialize);
+        ProgramAsset::Reflect(&serialize);
+
+        ProgramAsset written;
+        written.m_name = "Guard";
+        written.m_root = TwoWaits();
+        written.m_root.m_metadata.m_comment = "the tree a guard runs";
+
+        // The same XML a .goat file holds, without needing a file system under the test.
+        AZStd::vector<AZ::u8> buffer;
+        AZ::IO::ByteContainerStream<decltype(buffer)> stream(&buffer);
+        ASSERT_TRUE(AZ::Utils::SaveObjectToStream(stream, AZ::ObjectStream::ST_XML, &written, &serialize));
+
+        ProgramAsset read;
+        ASSERT_TRUE(AZ::Utils::LoadObjectFromBufferInPlace(buffer.data(), buffer.size(), read, &serialize));
+
+        EXPECT_EQ(read.m_name, "Guard");
+        EXPECT_EQ(read.m_root.m_type, "sequence");
+        EXPECT_EQ(read.m_root.m_metadata.m_comment, "the tree a guard runs");
+        EXPECT_EQ(read.m_root.m_metadata.m_position, AZ::Vector2(0.0f, 100.0f));
+
+        ASSERT_EQ(read.m_root.m_children.size(), 2u);
+        ASSERT_EQ(read.m_root.m_children[0].m_properties.size(), 1u);
+        EXPECT_EQ(read.m_root.m_children[0].m_properties[0].m_name, "seconds");
+        EXPECT_FLOAT_EQ(
+            AZStd::any_cast<float>(read.m_root.m_children[0].m_properties[0].m_value), 1.5f)
+            << "a property value survives the any round trip";
+        EXPECT_EQ(read.m_root.m_children[1].m_metadata.m_position, AZ::Vector2(260.0f, 200.0f));
     }
 } // namespace GOAT
