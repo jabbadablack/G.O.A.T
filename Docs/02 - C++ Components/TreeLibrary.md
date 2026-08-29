@@ -16,7 +16,7 @@ tags: [cpp, core, component]
 
 `TreeLibrary` is the **registry for authored trees**. It stores `AuthoredNode` hierarchies by name, allowing the `TreeCompiler` to resolve `subtree` references and inline them at compile time. It also supports dynamic rebinding via slots (`Tag`), which is how a director or a gameplay system can swap a subtree at runtime without changing the tree structure.
 
-It holds authored roots rather than assets, so an in-memory tree from Lua and a loaded `.bt` asset are the same thing to the compiler.
+It holds authored roots rather than assets, so an in-memory tree from Lua and a loaded `.goat` asset are the same thing to the compiler.
 
 ---
 

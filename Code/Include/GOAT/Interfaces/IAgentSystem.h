@@ -2,7 +2,7 @@
 
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/Domain/ActionState.h>
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/DirectorProfile.h>
 #include <GOAT/Domain/NodeType.h>

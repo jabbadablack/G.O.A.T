@@ -6,7 +6,7 @@ tags: [cpp, core, asset, authoring]
 
 # AuthoredProperty
 
-> **Header:** `Code/Include/GOAT/Assets/BehaviorTreeAsset.h`
+> **Header:** `Code/Include/GOAT/Assets/ProgramAsset.h`
 > **Kind:** Plain struct, public API
 
 ---

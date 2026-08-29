@@ -68,7 +68,7 @@ This folder documents the **core C++ classes** that make up G.O.A.T. Each note c
 | :--- | :--- |
 | [[BlackboardAsset]] | Authorable `.bbx` asset type. |
 | [[BlackboardAssetHandler]] | Handler for `.bbx` assets. |
-| [[BehaviorTreeAsset]] | Authorable `.bt` asset type. |
+| [[ProgramAsset]] | Authorable `.goat` asset type. |
 | [[AuthoredNode]] | One node exactly as it was authored. |
 | [[AuthoredProperty]] | One property written on an authored node. |
 | [[AuthoredNodeMetadata]] | Editor-only data a graph tool round-trips. |

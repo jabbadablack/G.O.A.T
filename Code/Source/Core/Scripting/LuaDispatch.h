@@ -6,7 +6,7 @@
 #include <Core/Scripting/LuaPlanValidator.h>
 #include <Core/Scripting/LuaTreeBuilder.h>
 
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Domain/ActionState.h>
 #include <GOAT/Domain/AgentId.h>
 #include <GOAT/Domain/Intent.h>

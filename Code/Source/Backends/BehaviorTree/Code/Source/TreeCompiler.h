@@ -1,7 +1,7 @@
 #pragma once
 
 
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT_BehaviorTree/DecisionProgram.h>
 #include <GOAT/Interfaces/IAgentSystem.h>
 #include <GOAT/Interfaces/IBlackboardSystem.h>

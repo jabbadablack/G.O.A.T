@@ -4,19 +4,19 @@ status: active
 tags: [cpp, core, asset]
 ---
 
-# BehaviorTreeAsset
+# ProgramAsset
 
-> **File Location:** `Code/Include/GOAT/Assets/BehaviorTreeAsset.h`  
-> **Source:** `Code/Source/Core/Assets/BehaviorTreeAsset.cpp`  
+> **File Location:** `Code/Include/GOAT/Assets/ProgramAsset.h`  
+> **Source:** `Code/Source/Core/Assets/ProgramAsset.cpp`  
 > **Inherits:** `AZ::Data::AssetData`
 
 ---
 
 ## Overview
 
-`BehaviorTreeAsset` is the **authorable asset type** for behavior trees. It is saved as a `.bt` file and represents a tree as authored, before it is compiled for execution. The runtime never sees this type, only the `DecisionProgram` compiled from it.
+`ProgramAsset` is the **authorable asset type** for a program of any paradigm. It is saved as a `.goat` file and represents a program as authored, before it is compiled for execution. The runtime never sees this type, only the program a backend compiled from it.
 
-It is produced by a future graph editor, while currently Lua builds one of these in memory (via `LuaTreeBuilder`). The asset holds the tree's name and its root `AuthoredNode`.
+It is produced by the graph editor, and Lua builds the same thing in memory (via `LuaTreeBuilder`). The asset holds the program's name and its root `AuthoredNode`.
 
 ---
 
@@ -36,21 +36,21 @@ It is produced by a future graph editor, while currently Lua builds one of these
 ### Constants
 
 ```cpp
-// Source extension a future graph editor saves to.
-static constexpr const char* FileExtension = "bt";
+// Source extension the graph editor saves to.
+static constexpr const char* FileExtension = "goat";
 
 // Group this asset is filed under in the Asset Editor.
 static constexpr const char* AssetGroup = "GOAT";
 
 // Name shown in the Asset Editor's new asset list.
-static constexpr const char* DisplayName = "Behavior Tree";
+static constexpr const char* DisplayName = "GOAT Program";
 ```
 
 ### Data Members
 
 | Member | Type | Description |
 | :--- | :--- | :--- |
-| `m_name` | `AZStd::string` | Name agents refer to this tree by. |
+| `m_name` | `AZStd::string` | Name agents refer to this program by. |
 | `m_root` | `AuthoredNode` | The root of the tree. |
 
 ---
@@ -59,14 +59,14 @@ static constexpr const char* DisplayName = "Behavior Tree";
 
 ```mermaid
 graph LR
-    A[BehaviorTreeAsset] --> B[AuthoredNode]
+    A[ProgramAsset] --> B[AuthoredNode]
     B --> C[TreeCompiler]
     C --> D[DecisionProgram]
-    A --> E[Future Graph Editor]
+    A --> E[Graph Editor]
 ```
 
 - **Depends on:** `AuthoredNode`, `AZ::Data::AssetData`.
-- **Required by:** `TreeCompiler` (through `TreeLibrary`), future graph editor.
+- **Required by:** `TreeCompiler` (through `TreeLibrary`), the graph editor.
 - **Interacts with:** `LuaTreeBuilder` (in-memory equivalent), `TreeCompiler`.
 
 ---
@@ -75,7 +75,7 @@ graph LR
 
 ### Key Algorithms
 
-`BehaviorTreeAsset::Reflect()` registers the asset with the SerializeContext, enabling it to be saved and loaded. It uses `EnableForAssetEditor` to show in the Asset Editor's new asset list.
+`ProgramAsset::Reflect()` registers the asset with the SerializeContext, enabling it to be saved and loaded. It uses `EnableForAssetEditor` to show in the Asset Editor's new asset list.
 
 `AuthoredProperty`, `AuthoredNodeMetadata`, and `AuthoredNode` are all reflected as supporting types.
 
@@ -89,7 +89,7 @@ graph LR
 
 ## Lua Exposure
 
-Not directly exposed to Lua. The in-memory equivalent is produced by `LuaTreeBuilder` and stored in `TreeLibrary`. This asset is intended for a future graph editor.
+Not directly exposed to Lua. The in-memory equivalent is produced by `LuaTreeBuilder` and stored in `TreeLibrary`. This asset is what the graph editor saves.
 
 ---
 

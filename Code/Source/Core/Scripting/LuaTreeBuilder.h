@@ -1,6 +1,6 @@
 #pragma once
 
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/GOATTypeIds.h>
 
 #include <AzCore/RTTI/TypeInfo.h>

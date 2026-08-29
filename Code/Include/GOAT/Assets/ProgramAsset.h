@@ -55,26 +55,26 @@ namespace GOAT
         AuthoredNodeMetadata m_metadata;
     };
 
-    //! A behavior tree as authored, before it is compiled for execution.
-    //! Lua builds one of these in memory; a future graph editor saves one as a .bt file.
-    //! The runtime never sees this type, only the DecisionProgram compiled from it.
-    class BehaviorTreeAsset final
+    //! A program as authored, before it is compiled for execution.
+    //! Lua builds one of these in memory; the graph editor saves one as a .goat file.
+    //! The runtime never sees this type, only the program a backend compiled from it.
+    class ProgramAsset final
         : public AZ::Data::AssetData
     {
     public:
-        AZ_RTTI(BehaviorTreeAsset, BehaviorTreeAssetTypeId, AZ::Data::AssetData);
-        AZ_CLASS_ALLOCATOR(BehaviorTreeAsset, AZ::SystemAllocator);
+        AZ_RTTI(ProgramAsset, ProgramAssetTypeId, AZ::Data::AssetData);
+        AZ_CLASS_ALLOCATOR(ProgramAsset, AZ::SystemAllocator);
 
         static void Reflect(AZ::ReflectContext* context);
 
-        //! Source extension a future graph editor saves to.
-        static constexpr const char* FileExtension = "bt";
+        //! Source extension the graph editor saves to.
+        static constexpr const char* FileExtension = "goat";
         //! Group this asset is filed under in the Asset Editor.
         static constexpr const char* AssetGroup = "GOAT";
         //! Name shown in the Asset Editor's new asset list.
-        static constexpr const char* DisplayName = "Behavior Tree";
+        static constexpr const char* DisplayName = "GOAT Program";
 
-        //! Name agents refer to this tree by.
+        //! Name agents refer to this program by.
         AZStd::string m_name;
         //! The root of the tree.
         AuthoredNode m_root;

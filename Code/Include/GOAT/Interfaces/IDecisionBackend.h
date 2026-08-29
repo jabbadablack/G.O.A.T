@@ -1,6 +1,6 @@
 #pragma once
 
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Domain/ActionPlan.h>
 #include <GOAT/Domain/AgentProgram.h>
 #include <GOAT/Domain/PlanContext.h>

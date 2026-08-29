@@ -2,7 +2,7 @@ set(FILES
     Include/GOAT/GOATTypeIds.h
     Include/GOAT/GOATBackendBus.h
     Include/GOAT/VocabularyScope.h
-    Include/GOAT/Assets/BehaviorTreeAsset.h
+    Include/GOAT/Assets/ProgramAsset.h
     Include/GOAT/Assets/BlackboardAsset.h
     Include/GOAT/Domain/ActionPlan.h
     Include/GOAT/Domain/DirectorProfile.h

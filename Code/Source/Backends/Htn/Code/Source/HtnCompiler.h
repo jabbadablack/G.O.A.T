@@ -2,7 +2,7 @@
 
 #include <HtnDomain.h>
 
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Interfaces/IAgentSystem.h>
 #include <GOAT/Interfaces/IBlackboardSystem.h>
 

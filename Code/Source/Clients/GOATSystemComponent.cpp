@@ -13,7 +13,7 @@
 #include <Core/Scripting/LuaPlanValidator.h>
 #include <Core/Scripting/LuaTreeBuilder.h>
 
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/Domain/ActionPlan.h>
 #include <GOAT/Domain/ActionState.h>
@@ -63,7 +63,7 @@ namespace GOAT
         BlackboardKey::Reflect(context);
         Intent::Reflect(context);
         BlackboardAsset::Reflect(context);
-        BehaviorTreeAsset::Reflect(context);
+        ProgramAsset::Reflect(context);
         LuaTreeBuilder::Reflect(context);
         LuaPlanBuilder::Reflect(context);
         LuaPlanValidator::Reflect(context);

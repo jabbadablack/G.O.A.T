@@ -6,7 +6,7 @@ tags: [cpp, core, asset, authoring]
 
 # AuthoredNode
 
-> **Header:** `Code/Include/GOAT/Assets/BehaviorTreeAsset.h`
+> **Header:** `Code/Include/GOAT/Assets/ProgramAsset.h`
 > **Kind:** Plain struct, public API
 
 ---
@@ -53,7 +53,7 @@ network gem. Nothing at runtime ever sees an `AuthoredNode` again.
 
 - [[AuthoredProperty]]
 - [[AuthoredNodeMetadata]]
-- [[BehaviorTreeAsset]]
+- [[ProgramAsset]]
 - [[IDecisionBackend]]
 - [[LuaTreeBuilder]]
 

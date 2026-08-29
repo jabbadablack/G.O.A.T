@@ -26,7 +26,7 @@ namespace GOAT
     // Asset TypeIds
     inline constexpr const char* BlackboardVariableTypeId = "{F6CFC1F4-AA6B-47DF-A8B4-19EA46F928E0}";
     inline constexpr const char* BlackboardAssetTypeId = "{29F4C31E-D14F-4DB2-8DBE-B13E59D1ED50}";
-    inline constexpr const char* BehaviorTreeAssetTypeId = "{471B8D29-2A2E-4E77-8C33-B8E054EDCA00}";
+    inline constexpr const char* ProgramAssetTypeId = "{471B8D29-2A2E-4E77-8C33-B8E054EDCA00}";
 
     // Behavior tree authoring and compiled forms
     inline constexpr const char* AuthoredNodeTypeId = "{0518D68E-CE23-4EBF-9DEB-5203B83E4912}";

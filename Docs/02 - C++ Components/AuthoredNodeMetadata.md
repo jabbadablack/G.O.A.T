@@ -6,7 +6,7 @@ tags: [cpp, core, asset, editor]
 
 # AuthoredNodeMetadata
 
-> **Header:** `Code/Include/GOAT/Assets/BehaviorTreeAsset.h`
+> **Header:** `Code/Include/GOAT/Assets/ProgramAsset.h`
 > **Kind:** Plain struct, public API
 
 ---
@@ -25,7 +25,7 @@ struct AuthoredNodeMetadata final
 };
 ```
 
-It exists now, ahead of the graph tool, so that a saved `.bt` file does not change format the day
+It exists now, ahead of the graph tool, so that a saved `.goat` file does not change format the day
 one arrives. Compiling ignores it entirely.
 
 ---
@@ -33,7 +33,7 @@ one arrives. Compiling ignores it entirely.
 ## Related
 
 - [[AuthoredNode]]
-- [[BehaviorTreeAsset]]
+- [[ProgramAsset]]
 
 ---
 

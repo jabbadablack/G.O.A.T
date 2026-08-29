@@ -9,7 +9,7 @@ Authoring and execution are already separated:
 ```
   guard.lua  ─┐                                    ┌─► DecisionProgram  (runtime)
               ├─►  AuthoredNode  ──► TreeCompiler
-  guard.bt   ─┘    (reflected, serializable)
+  guard.goat ─┘    (reflected, serializable)
   (this tool)
 ```
 
@@ -19,7 +19,7 @@ graph stay co-equal.
 
 ## Already in place
 
-- `BehaviorTreeAsset` / `AuthoredNode` — reflected and serializable, with a
+- `ProgramAsset` / `AuthoredNode` — reflected and serializable, with a
   `AuthoredNodeMetadata` field carrying node position and comment that the runtime ignores.
 - `NodeTypeRegistry` — a descriptor per node type: display name, category, child arity, and a typed
   parameter list. This is what a palette and a property panel need. It already drives authoring
@@ -28,7 +28,7 @@ graph stay co-equal.
 
 ## Still to do
 
-- A `.bt` asset handler and builder, mirroring how `.bbx` is registered in `GOATSystemComponent`.
+- A `.goat` asset handler and builder, mirroring how `.bbx` is registered in `GOATSystemComponent`.
 - A `GraphModel` graph plus `GraphCanvas` scene and node palette, built from `NodeTypeRegistry`.
 - A Qt tool window registered from `GOATEditorSystemComponent`.
 - Round tripping between a Lua authored tree and a graph.

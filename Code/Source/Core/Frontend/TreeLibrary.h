@@ -1,6 +1,6 @@
 #pragma once
 
-#include <GOAT/Assets/BehaviorTreeAsset.h>
+#include <GOAT/Assets/ProgramAsset.h>
 
 #include <AzCore/Name/Name.h>
 #include <AzCore/std/containers/unordered_map.h>
@@ -11,7 +11,7 @@ namespace GOAT
 {
     //! The authored trees available to compile against, so one tree can reference another.
     //! Holds authored roots rather than assets, so an in memory tree from Lua and a loaded
-    //! .bt asset are the same thing to the compiler.
+    //! .goat asset are the same thing to the compiler.
     class TreeLibrary final
     {
     public:

@@ -51,7 +51,7 @@ set(FILES
     Source/Core/Application/BlackboardSystem.h
     Source/Core/Application/SquadRegistry.cpp
     Source/Core/Application/SquadRegistry.h
-    Source/Core/Assets/BehaviorTreeAsset.cpp
+    Source/Core/Assets/ProgramAsset.cpp
     Source/Core/Assets/BlackboardAsset.cpp
     Source/Core/Assets/BlackboardAssetHandler.cpp
     Source/Core/Assets/BlackboardAssetHandler.h
