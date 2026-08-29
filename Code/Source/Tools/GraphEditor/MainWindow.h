@@ -2,6 +2,7 @@
 
 #include <GOAT/Assets/ProgramAsset.h>
 #include <GOAT/GOATProgramEditorBus.h>
+#include <Tools/GraphEditor/ProgramGraphSerializer.h>
 #include <Tools/GraphEditor/Core.h>
 
 #include <GraphCanvas/Widgets/GraphCanvasEditor/GraphCanvasAssetEditorMainWindow.h>
@@ -65,8 +66,8 @@ namespace GOAT::GraphEditor
         //! Runs the program through its backend and paints whatever failed.
         void Revalidate();
 
-        //! Paints one node, or clears the paint when the palette is empty.
-        void Paint(GraphModel::NodePtr node, const char* palette) const;
+        //! Paints one node in a named graph.
+        void Paint(const GraphCanvas::GraphId& graphId, GraphModel::NodePtr node, const char* palette) const;
 
         //! The node a path of child indices leads to, or null when it leads nowhere.
         GraphModel::NodePtr NodeAtPath(const AZStd::vector<size_t>& path) const;
@@ -82,6 +83,13 @@ namespace GOAT::GraphEditor
         void OnOpenLuaProgram();
 
         void LoadAuthored(const AuthoredNode& root, const AZStd::string& name, bool readOnly);
+
+        //! Spaces nodes out using the size each one actually drew at.
+        //! The flattening pass can only guess, and a node with several properties on its face is
+        //! far taller than any guess, so siblings laid out by a fixed row height overlap.
+        void LayoutByMeasuredSize(const GraphCanvas::GraphId& graphId,
+            const AZStd::vector<PlacedNode>& placed,
+            const AZStd::vector<GraphModel::NodePtr>& added) const;
 
         AZStd::string m_programName;
         AZStd::string m_programPath;

@@ -8,7 +8,9 @@
 
 #include <GOAT/Interfaces/IAgentSystem.h>
 
+#include <GraphCanvas/Components/GeometryBus.h>
 #include <GraphCanvas/Components/Nodes/NodeTitleBus.h>
+#include <GraphCanvas/Components/VisualBus.h>
 #include <GraphCanvas/Widgets/NodePalette/TreeItems/IconDecoratedNodePaletteTreeItem.h>
 #include <GraphCanvas/Widgets/NodePalette/TreeItems/NodePaletteTreeItem.h>
 #include <GraphModel/GraphModelBus.h>
@@ -18,12 +20,14 @@
 
 #include <AzCore/IO/ByteContainerStream.h>
 #include <AzCore/Serialization/Utils.h>
+#include <AzCore/std/algorithm.h>
 #include <AzCore/std/containers/map.h>
 #include <AzCore/std/sort.h>
 #include <AzFramework/StringFunc/StringFunc.h>
 #include <AzToolsFramework/API/EditorAssetSystemAPI.h>
 
 #include <QAction>
+#include <QGraphicsItem>
 #include <QInputDialog>
 #include <QStatusBar>
 #include <QFileDialog>
@@ -37,6 +41,10 @@ namespace GOAT::GraphEditor
         //! How many undo points are kept. A snapshot is the whole graph, so the depth is
         //! bounded rather than the memory being left to grow with the session.
         constexpr size_t UndoDepth = 64;
+
+        //! Space left between columns and between sibling nodes once they have been measured.
+        constexpr float ColumnGap = 90.0f;
+        constexpr float RowGap = 40.0f;
 
         ProgramEditorConfig* MakeConfig()
         {
@@ -96,7 +104,6 @@ namespace GOAT::GraphEditor
     MainWindow::MainWindow(QWidget* parent)
         : GraphModelIntegration::EditorMainWindow(MakeConfig(), parent)
     {
-        SetupUI();
         SetDropAreaText("Create a GOAT program in the Asset Browser, or open one from the File menu.");
         GOATProgramEditorRequestBus::Handler::BusConnect();
     }
@@ -142,13 +149,16 @@ namespace GOAT::GraphEditor
 
     void MainWindow::OnGraphModelNodeAdded(GraphModel::NodePtr node)
     {
+        const GraphCanvas::GraphId* graphId =
+            GraphModelIntegration::GraphControllerNotificationBus::GetCurrentBusId();
+
         // Every word is drawn in its own paradigm's and kind's colour, which is the only cue
         // saying what a node is once the palette is closed.
-        if (auto* program = azrtti_cast<ProgramNode*>(node.get()); program != nullptr)
+        if (auto* program = azrtti_cast<ProgramNode*>(node.get()); graphId != nullptr && program != nullptr)
         {
             if (const NodeTypeDescriptor* descriptor = program->GetDescriptor(); descriptor != nullptr)
             {
-                Paint(node, ProgramNode::TitlePalette(*descriptor));
+                Paint(*graphId, node, ProgramNode::TitlePalette(*descriptor));
             }
         }
         Revalidate();
@@ -252,12 +262,12 @@ namespace GOAT::GraphEditor
         Revalidate();
     }
 
-    void MainWindow::Paint(GraphModel::NodePtr node, const char* palette) const
+    void MainWindow::Paint(
+        const GraphCanvas::GraphId& graphId, GraphModel::NodePtr node, const char* palette) const
     {
         GraphCanvas::NodeId nodeId;
         GraphModelIntegration::GraphControllerRequestBus::EventResult(
-            nodeId, GetActiveGraphCanvasGraphId(),
-            &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, node);
+            nodeId, graphId, &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, node);
         if (!nodeId.IsValid())
         {
             return;
@@ -356,6 +366,14 @@ namespace GOAT::GraphEditor
             return;
         }
 
+        const GraphCanvas::GraphId graphId = GetActiveGraphCanvasGraphId();
+        if (GetGraphById(graphId) == nullptr)
+        {
+            // Nothing is open, which is not a fault to report.
+            statusBar()->clearMessage();
+            return;
+        }
+
         // Whatever the last pass painted red goes back to its own colour first.
         for (const GraphModel::NodePtr& node : m_painted)
         {
@@ -363,7 +381,7 @@ namespace GOAT::GraphEditor
             {
                 if (const NodeTypeDescriptor* descriptor = program->GetDescriptor(); descriptor != nullptr)
                 {
-                    Paint(node, ProgramNode::TitlePalette(*descriptor));
+                    Paint(graphId, node, ProgramNode::TitlePalette(*descriptor));
                 }
             }
         }
@@ -388,7 +406,7 @@ namespace GOAT::GraphEditor
         statusBar()->showMessage(QString::fromUtf8(result.m_error.c_str()));
         if (GraphModel::NodePtr faulted = NodeAtPath(result.m_path); faulted != nullptr)
         {
-            Paint(faulted, "ErrorNodeTitlePalette");
+            Paint(graphId, faulted, "ErrorNodeTitlePalette");
             m_painted.push_back(faulted);
         }
     }
@@ -407,6 +425,10 @@ namespace GOAT::GraphEditor
 
         m_restoring = true;
         AZStd::vector<PlacedNode> placed = FromAuthored(root, graph);
+
+        // Read from what was authored, not from what was flattened: flattening fills a guessed
+        // position in for every node that had none, so by then they all look placed.
+        const bool authoredLayout = HasAuthoredLayout(root);
         AZStd::vector<GraphModel::NodePtr> added;
         added.reserve(placed.size());
 
@@ -431,12 +453,119 @@ namespace GOAT::GraphEditor
                 GraphModel::SlotId(placed[i].m_isService ? ServicesSlotId : ChildrenSlotId),
                 added[i], GraphModel::SlotId(ParentSlotId));
         }
+
+        if (!authoredLayout)
+        {
+            LayoutByMeasuredSize(graphId, placed, added);
+        }
         m_restoring = false;
 
         m_undo.clear();
         m_redo.clear();
         m_undo.push_back(Capture());
         Revalidate();
+    }
+
+    void MainWindow::LayoutByMeasuredSize(const GraphCanvas::GraphId& graphId,
+        const AZStd::vector<PlacedNode>& placed, const AZStd::vector<GraphModel::NodePtr>& added) const
+    {
+        const size_t count = placed.size();
+        if (count == 0 || added.size() != count)
+        {
+            return;
+        }
+
+        // What each node actually drew at, which is the only honest input to spacing.
+        AZStd::vector<float> width(count, 0.0f);
+        AZStd::vector<float> height(count, 0.0f);
+        for (size_t i = 0; i < count; ++i)
+        {
+            GraphCanvas::NodeId nodeId;
+            GraphModelIntegration::GraphControllerRequestBus::EventResult(
+                nodeId, graphId, &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, added[i]);
+
+            QGraphicsItem* item = nullptr;
+            GraphCanvas::SceneMemberUIRequestBus::EventResult(
+                item, nodeId, &GraphCanvas::SceneMemberUIRequests::GetRootGraphicsItem);
+            if (item != nullptr)
+            {
+                const QRectF bounds = item->boundingRect();
+                width[i] = static_cast<float>(bounds.width());
+                height[i] = static_cast<float>(bounds.height());
+            }
+        }
+
+        AZStd::vector<int> depth(count, 0);
+        for (size_t i = 0; i < count; ++i)
+        {
+            depth[i] = placed[i].m_parent < 0 ? 0 : depth[static_cast<size_t>(placed[i].m_parent)] + 1;
+        }
+
+        // A column is as wide as its widest node, so a node with long property values does not
+        // run into the column beside it.
+        AZStd::vector<float> columnX;
+        for (size_t i = 0; i < count; ++i)
+        {
+            const size_t d = static_cast<size_t>(depth[i]);
+            if (columnX.size() <= d)
+            {
+                columnX.resize(d + 1, 0.0f);
+            }
+            columnX[d] = AZStd::max(columnX[d], width[i]);
+        }
+        float running = 0.0f;
+        for (float& x : columnX)
+        {
+            const float widest = x;
+            x = running;
+            running += widest + ColumnGap;
+        }
+
+        // Rows are handed out to leaves in order and parents centre on what they own, so no two
+        // nodes can land on the same band whatever their heights are.
+        AZStd::vector<float> top(count, 0.0f);
+        AZStd::vector<float> bottom(count, 0.0f);
+        float cursor = 0.0f;
+
+        for (size_t step = count; step > 0; --step)
+        {
+            const size_t i = step - 1;
+            bool hasChild = false;
+            float childTop = 0.0f;
+            float childBottom = 0.0f;
+            for (size_t c = 0; c < count; ++c)
+            {
+                if (placed[c].m_parent != static_cast<int>(i))
+                {
+                    continue;
+                }
+                childTop = hasChild ? AZStd::min(childTop, top[c]) : top[c];
+                childBottom = hasChild ? AZStd::max(childBottom, bottom[c]) : bottom[c];
+                hasChild = true;
+            }
+
+            if (hasChild)
+            {
+                const float centre = (childTop + childBottom) * 0.5f;
+                top[i] = centre - height[i] * 0.5f;
+                bottom[i] = centre + height[i] * 0.5f;
+            }
+            else
+            {
+                top[i] = cursor;
+                bottom[i] = cursor + height[i];
+                cursor = bottom[i] + RowGap;
+            }
+        }
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            GraphCanvas::NodeId nodeId;
+            GraphModelIntegration::GraphControllerRequestBus::EventResult(
+                nodeId, graphId, &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, added[i]);
+            GraphCanvas::GeometryRequestBus::Event(nodeId, &GraphCanvas::GeometryRequests::SetPosition,
+                AZ::Vector2(columnX[static_cast<size_t>(depth[i])], top[i]));
+        }
     }
 
     void MainWindow::OnNewProgram()
