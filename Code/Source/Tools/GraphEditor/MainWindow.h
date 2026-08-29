@@ -110,6 +110,13 @@ namespace GOAT::GraphEditor
         //! Opens the program a newly picked agent is running, when it is not already open.
         void OnSelectedAgentChanged();
 
+        //! Builds the menu that chooses what is being watched.
+        void BuildDebugMenu();
+
+        //! Swaps what agent state is read from, dropping whatever the old one was showing.
+        void WatchThisEditor();
+        void AttachToLauncher();
+
         //! Spaces nodes out using the size each one actually drew at.
         //! The flattening pass can only guess, and a node with several properties on its face is
         //! far taller than any guess, so siblings laid out by a fixed row height overlap.
@@ -126,8 +133,15 @@ namespace GOAT::GraphEditor
         //! Where agent state is read from, and what it drives.
         AZStd::unique_ptr<IAgentDebugSource> m_debug;
         AgentBrowserPanel* m_agents = nullptr;
+        //! The agent whose program is on screen, so that a poll re-selecting a row is never
+        //! mistaken for the user picking a different agent.
+        AgentId m_watching;
         RunningHighlight m_highlight;
         QTimer* m_pollTimer = nullptr;
+
+        //! Counts loads, so a layout deferred by one can tell that another has replaced the
+        //! graph it was measuring and step aside rather than lay out a canvas that is gone.
+        AZ::u32 m_loadGeneration = 0;
 
         AZStd::vector<Snapshot> m_undo;
         AZStd::vector<Snapshot> m_redo;

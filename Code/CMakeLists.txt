@@ -31,6 +31,8 @@ ly_add_target(
     BUILD_DEPENDENCIES
         PUBLIC
            AZ::AzCore
+           # For AzFramework/Network/IRemoteTools.h, which the debug messages derive from.
+           AZ::AzFramework
 )
 
 # The ${gem_name}.Private.Object target is an internal target

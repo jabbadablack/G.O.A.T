@@ -1,6 +1,7 @@
 set(FILES
     Include/GOAT/GOATTypeIds.h
     Include/GOAT/GOATBackendBus.h
+    Include/GOAT/GOATRemoteDebug.h
     Include/GOAT/VocabularyScope.h
     Include/GOAT/Assets/ProgramAsset.h
     Include/GOAT/Assets/BlackboardAsset.h
@@ -31,6 +32,7 @@ set(FILES
     Include/GOAT/Interfaces/INodeScripting.h
     Source/Core/Domain/ActionState.cpp
     Source/Core/Domain/AgentDebug.cpp
+    Source/Core/Domain/GOATRemoteDebug.cpp
     Source/Core/Domain/BlackboardKey.cpp
     Source/Core/Domain/BlackboardStorage.cpp
     Source/Core/Domain/BlackboardTypes.cpp

@@ -2,6 +2,8 @@
 #include <AzCore/Serialization/SerializeContext.h>
 #include "GOATEditorSystemComponent.h"
 
+#include <GOAT/GOATRemoteDebug.h>
+
 #include <GOAT/Assets/BlackboardAsset.h>
 #include <GOAT/GOATTypeIds.h>
 
@@ -73,8 +75,23 @@ namespace GOAT
     {
         GOATSystemComponent::Activate();
         GraphEditor::GraphContext::SetInstance(AZStd::make_shared<GraphEditor::GraphContext>());
+        StartRemoteDebugHost();
+
         AzToolsFramework::EditorEvents::Bus::Handler::BusConnect();
         AzToolsFramework::AssetBrowser::AssetBrowserInteractionNotificationBus::Handler::BusConnect();
+    }
+
+    void GOATEditorSystemComponent::StartRemoteDebugHost()
+    {
+#if defined(ENABLE_REMOTE_TOOLS)
+        // The tool listens and a launcher dials in, so a game can start and stop as often as it
+        // likes while this editor stays open. A process must never register both halves of one
+        // service, which is why the runtime only registers the client half when it is a game.
+        if (auto* remoteTools = AzFramework::RemoteToolsInterface::Get())
+        {
+            remoteTools->RegisterToolingServiceHost(GoatToolsKey, GoatToolsName, GoatToolsPort);
+        }
+#endif
     }
 
     void GOATEditorSystemComponent::Deactivate()

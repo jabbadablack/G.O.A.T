@@ -61,4 +61,34 @@ namespace GOAT::GraphEditor
         //! Only used to say why a list is empty, never to decide whether to read.
         bool m_playing = false;
     };
+
+    //! Reads the agents of a launcher running beside the editor.
+    //!
+    //! The editor is the host and the launcher dials in, so a game can be started and stopped
+    //! as often as you like while this window stays open.
+    class RemoteAgentDebugSource final
+        : public IAgentDebugSource
+    {
+    public:
+        RemoteAgentDebugSource();
+        ~RemoteAgentDebugSource() override;
+
+        bool IsConnected() const override;
+        AZStd::string DescribeTarget() const override;
+        void Poll() override;
+        const AZStd::vector<AgentSnapshot>& GetSnapshots() const override { return m_snapshots; }
+
+        //! Attaches to the first launcher that is not this process. False when none has dialled
+        //! in yet, which is the normal state until one is started.
+        bool AttachToFirstTarget();
+
+        //! Stops listening to whatever it was attached to.
+        void Detach();
+
+    private:
+        AZStd::vector<AgentSnapshot> m_snapshots;
+        //! Why the last poll produced nothing, when something went wrong rather than the
+        //! launcher simply not being there.
+        AZStd::string m_trouble;
+    };
 } // namespace GOAT::GraphEditor

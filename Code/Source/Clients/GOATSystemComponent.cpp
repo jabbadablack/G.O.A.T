@@ -1,5 +1,7 @@
 #include "GOATSystemComponent.h"
 
+#include <GOAT/GOATRemoteDebug.h>
+
 #include <Core/Application/DecisionBackendAdapter.h>
 #include <Core/Application/NestedRun.h>
 #include <Core/Assets/BlackboardAssetHandler.h>
@@ -66,6 +68,7 @@ namespace GOAT
         BlackboardAsset::Reflect(context);
         ProgramAsset::Reflect(context);
         AgentSnapshot::Reflect(context);
+        ReflectRemoteDebug(context);
         LuaTreeBuilder::Reflect(context);
         LuaPlanBuilder::Reflect(context);
         LuaPlanValidator::Reflect(context);
@@ -111,10 +114,14 @@ namespace GOAT
         {
             AgentSystemInterface::Register(this);
         }
+
+        StartRemoteDebug();
     }
 
     void GOATSystemComponent::Deactivate()
     {
+        StopRemoteDebug();
+
         if (AgentSystemInterface::Get() == this)
         {
             AgentSystemInterface::Unregister(this);
@@ -124,6 +131,93 @@ namespace GOAT
         AzFramework::AssetCatalogEventBus::Handler::BusDisconnect();
         UnregisterAssetHandlers();
         StopServices();
+    }
+
+    void GOATSystemComponent::StartRemoteDebug()
+    {
+#if defined(ENABLE_REMOTE_TOOLS)
+        // The tool listens and the game dials in, so that a game can start and stop as often as
+        // it likes while the tool stays open. The editor registers the other half of this pair,
+        // and a process must never be both for one key -- they write the same registry entry.
+        AZ::ApplicationTypeQuery appType;
+        AZ::ComponentApplicationBus::Broadcast(&AZ::ComponentApplicationBus::Events::QueryApplicationType, appType);
+        if (appType.IsEditor())
+        {
+            // The editor registers the listening half of this service instead. A process must
+            // never register both halves of one key: they write the same registry entry.
+            return;
+        }
+
+        auto* remoteTools = AzFramework::RemoteToolsInterface::Get();
+        if (remoteTools == nullptr)
+        {
+            // The RemoteTools gem is not enabled, or this is a release build. Neither is a
+            // fault: it only means no tool can attach to this process.
+            AZLOG_INFO("GOAT: no remote tools service, so no tool can attach to this process");
+            return;
+        }
+
+        remoteTools->RegisterToolingServiceClient(GoatToolsKey, GoatToolsName, GoatToolsPort);
+        AZ::SystemTickBus::Handler::BusConnect();
+        AZLOG_INFO("GOAT: offering agent state to a tool on port %u", static_cast<AZ::u32>(GoatToolsPort));
+#endif
+    }
+
+    void GOATSystemComponent::StopRemoteDebug()
+    {
+        AZ::SystemTickBus::Handler::BusDisconnect();
+    }
+
+    void GOATSystemComponent::OnSystemTick()
+    {
+#if defined(ENABLE_REMOTE_TOOLS)
+        auto* remoteTools = AzFramework::RemoteToolsInterface::Get();
+        if (remoteTools == nullptr)
+        {
+            return;
+        }
+
+        const AzFramework::ReceivedRemoteToolsMessages* messages = remoteTools->GetReceivedMessages(GoatToolsKey);
+        if (messages == nullptr || messages->empty())
+        {
+            return;
+        }
+
+        // Answered once however many times it was asked in one tick, so a tool that asks faster
+        // than this process ticks cannot make it do the work twice.
+        bool asked = false;
+        for (const AzFramework::RemoteToolsMessagePointer& message : *messages)
+        {
+            const auto* request = azrtti_cast<const GOATDebugRequest*>(message.get());
+            if (request == nullptr)
+            {
+                continue;
+            }
+            if (request->m_protocolVersion != GoatDebugProtocolVersion)
+            {
+                AZLOG_WARN("GOAT: a tool asked in protocol %u and this build speaks %u, so it was ignored",
+                    request->m_protocolVersion, GoatDebugProtocolVersion);
+                continue;
+            }
+            asked = true;
+        }
+        remoteTools->ClearReceivedMessages(GoatToolsKey);
+
+        if (!asked)
+        {
+            return;
+        }
+
+        const AzFramework::RemoteToolsEndpointInfo tool = remoteTools->GetDesiredEndpoint(GoatToolsKey);
+        if (!tool.IsValid() || tool.IsSelf())
+        {
+            return;
+        }
+
+        GOATDebugReply reply;
+        reply.m_agents = SnapshotAgents();
+        remoteTools->SendRemoteToolsMessage(tool, reply);
+#endif
     }
 
     void GOATSystemComponent::StartServices()

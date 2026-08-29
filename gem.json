@@ -28,7 +28,8 @@
     "dependencies": [
         "LmbrCentral",
         "GraphCanvas",
-        "GraphModel"
+        "GraphModel",
+        "RemoteTools"
     ],
     "repo_uri": "https://github.com/jabbadablack/G.O.A.T",
     "compatible_engines": [],

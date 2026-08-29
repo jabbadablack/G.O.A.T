@@ -2,6 +2,7 @@
 
 #include <QHeaderView>
 #include <QItemSelectionModel>
+#include <QSignalBlocker>
 #include <QLabel>
 #include <QTableView>
 #include <QVBoxLayout>
@@ -192,9 +193,12 @@ namespace GOAT::GraphEditor
         m_model->SetSnapshots(snapshots);
 
         // A reset drops the selection, so put it back on the same agent rather than on
-        // whatever row now happens to sit where it used to.
+        // whatever row now happens to sit where it used to. Silently: restoring a selection is
+        // not the user picking one, and agents register in a stream as a level starts, so this
+        // runs on most polls. Announced, it would look like ten choices a second.
         if (!held.IsNull() && GetSelected() == nullptr)
         {
+            const QSignalBlocker quiet(m_table->selectionModel());
             for (int row = 0; row < m_model->rowCount(); ++row)
             {
                 if (m_model->SnapshotAt(row)->GetAgent() == held)
@@ -208,6 +212,7 @@ namespace GOAT::GraphEditor
         m_status->setText(snapshots.empty() ? QString(target.c_str())
                                             : QString("Watching %1").arg(target.c_str()));
 
+        // Only worth announcing when the agent that was being watched has actually gone.
         if (!held.IsNull() && GetSelected() == nullptr)
         {
             emit SelectedAgentChanged();

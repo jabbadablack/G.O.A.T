@@ -23,6 +23,7 @@
 #include <AzFramework/Asset/AssetCatalogBus.h>
 #include <AzCore/Component/Component.h>
 #include <AzCore/Console/IConsole.h>
+#include <AzCore/Component/TickBus.h>
 #include <AzCore/std/containers/unordered_map.h>
 #include <AzCore/std/containers/unordered_set.h>
 #include <AzCore/std/smart_ptr/unique_ptr.h>
@@ -36,6 +37,7 @@ namespace GOAT
         , public IAgentSystem
         , protected AzFramework::AssetCatalogEventBus::Handler
         , protected GOATBackendRequestBus::Handler
+        , protected AZ::SystemTickBus::Handler
     {
     public:
         AZ_COMPONENT_DECL(GOATSystemComponent);
@@ -98,6 +100,19 @@ namespace GOAT
         ////////////////////////////////////////////////////////////////////////
 
     protected:
+        ////////////////////////////////////////////////////////////////////////
+        // AZ::SystemTickBus
+        //! Answers a tool that has asked what this process's agents are doing. Connected only
+        //! in a game, and only when the remote tools service is there to answer through.
+        void OnSystemTick() override;
+        ////////////////////////////////////////////////////////////////////////
+
+        //! Offers this process to a tool looking for one, and stops offering it.
+        //! @{
+        void StartRemoteDebug();
+        void StopRemoteDebug();
+        //! @}
+
         ////////////////////////////////////////////////////////////////////////
         // AzFramework::AssetCatalogEventBus
         //! System components activate before the asset catalog loads, so the vocabulary is

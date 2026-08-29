@@ -29,6 +29,11 @@ namespace GOAT
         static void GetRequiredServices(AZ::ComponentDescriptor::DependencyArrayType& required);
         static void GetDependentServices(AZ::ComponentDescriptor::DependencyArrayType& dependent);
 
+        //! Starts listening for a launcher, at startup rather than when one is first asked for:
+        //! a launcher dials in on its own timer, so the editor has to already be listening or
+        //! the first attempt to attach would always find nothing.
+        void StartRemoteDebugHost();
+
         // AZ::Component
         void Activate() override;
         void Deactivate() override;

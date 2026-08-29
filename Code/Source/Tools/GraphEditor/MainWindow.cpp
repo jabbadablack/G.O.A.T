@@ -34,6 +34,7 @@
 #include <QStatusBar>
 #include <QFileDialog>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMessageBox>
 
 namespace GOAT::GraphEditor
@@ -146,6 +147,43 @@ namespace GOAT::GraphEditor
         m_pollTimer->setInterval(PollIntervalMs);
         connect(m_pollTimer, &QTimer::timeout, this, &MainWindow::PollDebugSource);
         m_pollTimer->start();
+
+        BuildDebugMenu();
+    }
+
+    void MainWindow::BuildDebugMenu()
+    {
+        QMenu* menu = menuBar()->addMenu(tr("&Debug"));
+
+        QAction* here = menu->addAction(tr("Watch This Editor"));
+        connect(here, &QAction::triggered, this, &MainWindow::WatchThisEditor);
+
+        QAction* attach = menu->addAction(tr("Attach to Launcher..."));
+        connect(attach, &QAction::triggered, this, &MainWindow::AttachToLauncher);
+    }
+
+    void MainWindow::WatchThisEditor()
+    {
+        m_watching = AgentId();
+        m_highlight.Clear();
+        m_debug = AZStd::make_unique<LocalAgentDebugSource>();
+    }
+
+    void MainWindow::AttachToLauncher()
+    {
+        m_watching = AgentId();
+        m_highlight.Clear();
+
+        auto remote = AZStd::make_unique<RemoteAgentDebugSource>();
+        if (!remote->AttachToFirstTarget())
+        {
+            QMessageBox::information(this, tr("Attach to Launcher"),
+                tr("No launcher has dialled in yet.\n\nStart one in a profile or debug build and "
+                   "try again: a release build carries no remote tools service, and the RemoteTools "
+                   "gem has to be enabled for the project."));
+            return;
+        }
+        m_debug = AZStd::move(remote);
     }
 
     MainWindow::~MainWindow()
@@ -400,16 +438,23 @@ namespace GOAT::GraphEditor
         const AgentSnapshot* selected = m_agents->GetSelected();
         if (selected == nullptr)
         {
+            m_watching = AgentId();
             m_highlight.Clear();
             return;
         }
 
-        // Opening the program the agent is running is the point of picking one, but only when
-        // it is not already on screen: reloading it every poll would fight the author's view.
+        // Opening the agent's program is the point of picking one, but only ever on a real
+        // change of agent: loading rebuilds the canvas from scratch and defers its layout a
+        // turn, so it is not something to reach on a repeat.
+        const AgentId picked = selected->GetAgent();
         const AZStd::string running = selected->m_program.GetCStr();
-        if (!running.empty() && running != m_programName)
+        if (picked != m_watching)
         {
-            OpenRunningProgram(running);
+            m_watching = picked;
+            if (!running.empty() && running != m_programName)
+            {
+                OpenRunningProgram(running);
+            }
         }
         RefreshHighlight();
     }
@@ -560,9 +605,17 @@ namespace GOAT::GraphEditor
 
         // A node has no size until Qt has laid its widget out, so measuring it in this same call
         // reads zero for every one of them and the whole program collapses into one column.
+        const AZ::u32 generation = ++m_loadGeneration;
         QTimer::singleShot(0, this,
-            [this, graphId, placed, added]()
+            [this, graphId, placed, added, generation]()
             {
+                if (generation != m_loadGeneration)
+                {
+                    // Another program was loaded while this was waiting its turn, so the nodes
+                    // it is holding belong to a canvas that has already been thrown away.
+                    return;
+                }
+
                 {
                     const Holding restoring(m_restoring);
                     LayoutByMeasuredSize(graphId, placed, added);
