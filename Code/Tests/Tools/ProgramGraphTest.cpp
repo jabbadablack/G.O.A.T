@@ -3,6 +3,7 @@
 #include <Tools/GraphEditor/Core.h>
 #include <Tools/GraphEditor/GraphContext.h>
 #include <Tools/GraphEditor/ProgramGraphSerializer.h>
+#include <Tools/GraphEditor/ProgramLayout.h>
 #include <Tools/GraphEditor/ProgramNode.h>
 #include <Tools/GraphEditor/ProgramValidator.h>
 
@@ -276,6 +277,50 @@ namespace GOAT
         EXPECT_FALSE(authored.IsSuccess()) << "two nodes run under nothing, so there is no one root";
 
         graph->ClearCachedData();
+    }
+
+    TEST_F(ProgramGraphFixture, SiblingsAreLaidOutInOrderAndNeverOverlap)
+    {
+        // A root with three children of quite different heights, as measured on a canvas.
+        const AZStd::vector<LayoutNode> nodes{
+            { -1, 200.0f, 120.0f }, { 0, 80.0f, 300.0f }, { 0, 80.0f, 60.0f }, { 0, 80.0f, 140.0f }
+        };
+
+        const AZStd::vector<AZ::Vector2> at = LayoutProgram(nodes);
+        ASSERT_EQ(at.size(), 4u);
+
+        EXPECT_LT(at[0].GetX(), at[1].GetX()) << "a child sits to the right of its parent";
+        EXPECT_FLOAT_EQ(at[1].GetX(), at[2].GetX());
+        EXPECT_FLOAT_EQ(at[2].GetX(), at[3].GetX());
+
+        // The child that runs first is the one that sits highest.
+        EXPECT_LT(at[1].GetY(), at[2].GetY());
+        EXPECT_LT(at[2].GetY(), at[3].GetY());
+
+        // And no sibling may run into the one after it, whatever their heights are.
+        for (size_t i = 1; i + 1 < nodes.size(); ++i)
+        {
+            EXPECT_GE(at[i + 1].GetY(), at[i].GetY() + nodes[i].m_height)
+                << "child " << i << " runs into child " << (i + 1);
+        }
+
+        // The parent sits level with the block it owns.
+        const float blockTop = at[1].GetY();
+        const float blockBottom = at[3].GetY() + nodes[3].m_height;
+        EXPECT_NEAR(at[0].GetY() + nodes[0].m_height * 0.5f, (blockTop + blockBottom) * 0.5f, 0.01f);
+    }
+
+    TEST_F(ProgramGraphFixture, ADeeperColumnClearsTheWidestNodeBeforeIt)
+    {
+        const AZStd::vector<LayoutNode> nodes{
+            { -1, 400.0f, 100.0f }, { 0, 80.0f, 100.0f }, { 1, 80.0f, 100.0f }
+        };
+
+        const AZStd::vector<AZ::Vector2> at = LayoutProgram(nodes);
+        ASSERT_EQ(at.size(), 3u);
+        EXPECT_GE(at[1].GetX(), at[0].GetX() + nodes[0].m_width)
+            << "a wide parent must not run into the column after it";
+        EXPECT_GE(at[2].GetX(), at[1].GetX() + nodes[1].m_width);
     }
 
     TEST_F(ProgramGraphFixture, ValidationReportsAMissingRequiredProperty)

@@ -63,17 +63,24 @@ namespace GOAT::GraphEditor
         //! What the active canvas currently holds, read back into an authored program.
         AZ::Outcome<AuthoredNode, AZStd::string> ReadActiveGraph() const;
 
+        //! Asks for a validation pass once the current edit has settled.
+        //! Queued rather than immediate so a burst of changes is answered once.
+        void QueueRevalidate();
+
         //! Runs the program through its backend and paints whatever failed.
         void Revalidate();
 
         //! Paints one node in a named graph.
-        void Paint(const GraphCanvas::GraphId& graphId, GraphModel::NodePtr node, const char* palette) const;
+        void Paint(const GraphCanvas::GraphId& graphId, GraphModel::NodePtr node, const char* palette);
 
         //! The node a path of child indices leads to, or null when it leads nowhere.
         GraphModel::NodePtr NodeAtPath(const AZStd::vector<size_t>& path) const;
 
         Snapshot Capture() const;
         void Restore(const Snapshot& snapshot);
+        //! Restores once the call that asked for it has returned, because restoring destroys the
+        //! graph controller that asked.
+        void QueueRestore(const Snapshot& snapshot);
 
         //! Loads and saves the .goat file the active canvas is a view of.
         void OnNewProgram();
@@ -101,5 +108,10 @@ namespace GOAT::GraphEditor
         AZStd::vector<Snapshot> m_redo;
         //! True while an undo or a load is rebuilding the graph, so it does not record itself.
         bool m_restoring = false;
+        //! True while validating. Painting a node reports the graph as modified, which asks for
+        //! validation again, so without this a single edit recurses until the stack runs out.
+        bool m_validating = false;
+        //! True when a validation pass is already waiting to run.
+        bool m_revalidateQueued = false;
     };
 } // namespace GOAT::GraphEditor

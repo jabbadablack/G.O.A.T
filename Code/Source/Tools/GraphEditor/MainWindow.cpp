@@ -2,6 +2,7 @@
 #include <Tools/GraphEditor/GraphContext.h>
 #include <Tools/GraphEditor/ProgramFile.h>
 #include <Tools/GraphEditor/ProgramGraphSerializer.h>
+#include <Tools/GraphEditor/ProgramLayout.h>
 #include <Tools/GraphEditor/ProgramNode.h>
 #include <Tools/GraphEditor/ProgramNodePaletteItem.h>
 #include <Tools/GraphEditor/ProgramValidator.h>
@@ -28,6 +29,7 @@
 
 #include <QAction>
 #include <QGraphicsItem>
+#include <QTimer>
 #include <QInputDialog>
 #include <QStatusBar>
 #include <QFileDialog>
@@ -42,9 +44,30 @@ namespace GOAT::GraphEditor
         //! bounded rather than the memory being left to grow with the session.
         constexpr size_t UndoDepth = 64;
 
-        //! Space left between columns and between sibling nodes once they have been measured.
-        constexpr float ColumnGap = 90.0f;
-        constexpr float RowGap = 40.0f;
+        //! What a node is assumed to be when it cannot be measured, so a failed measurement
+        //! spaces nodes too generously rather than piling them up.
+        constexpr float MinimumNodeWidth = 200.0f;
+        constexpr float MinimumNodeHeight = 120.0f;
+
+        //! Holds a flag for as long as it is in scope, so an early return still clears it.
+        class Holding final
+        {
+        public:
+            explicit Holding(bool& flag)
+                : m_flag(flag)
+                , m_was(flag)
+            {
+                m_flag = true;
+            }
+            ~Holding()
+            {
+                m_flag = m_was;
+            }
+
+        private:
+            bool& m_flag;
+            bool m_was;
+        };
 
         ProgramEditorConfig* MakeConfig()
         {
@@ -161,12 +184,12 @@ namespace GOAT::GraphEditor
                 Paint(*graphId, node, ProgramNode::TitlePalette(*descriptor));
             }
         }
-        Revalidate();
+        QueueRevalidate();
     }
 
     void MainWindow::OnGraphModelGraphModified([[maybe_unused]] GraphModel::NodePtr node)
     {
-        Revalidate();
+        QueueRevalidate();
     }
 
     void MainWindow::OnGraphModelRequestUndoPoint()
@@ -194,7 +217,7 @@ namespace GOAT::GraphEditor
         // The last point is what the graph already looks like, so undo steps past it.
         m_redo.push_back(m_undo.back());
         m_undo.pop_back();
-        Restore(m_undo.back());
+        QueueRestore(m_undo.back());
     }
 
     void MainWindow::OnGraphModelTriggerRedo()
@@ -207,7 +230,14 @@ namespace GOAT::GraphEditor
         Snapshot next = m_redo.back();
         m_redo.pop_back();
         m_undo.push_back(next);
-        Restore(next);
+        QueueRestore(next);
+    }
+
+    void MainWindow::QueueRestore(const Snapshot& snapshot)
+    {
+        // Restoring destroys the graph controller, and this is called from inside one of its own
+        // calls, so it has to wait until that call has returned.
+        QTimer::singleShot(0, this, [this, snapshot]() { Restore(snapshot); });
     }
 
     MainWindow::Snapshot MainWindow::Capture() const
@@ -259,12 +289,14 @@ namespace GOAT::GraphEditor
             &GraphModelIntegration::GraphManagerRequests::CreateGraphController, graphId, graph);
         m_restoring = false;
 
-        Revalidate();
+        QueueRevalidate();
     }
 
     void MainWindow::Paint(
-        const GraphCanvas::GraphId& graphId, GraphModel::NodePtr node, const char* palette) const
+        const GraphCanvas::GraphId& graphId, GraphModel::NodePtr node, const char* palette)
     {
+        const Holding painting(m_validating);
+
         GraphCanvas::NodeId nodeId;
         GraphModelIntegration::GraphControllerRequestBus::EventResult(
             nodeId, graphId, &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, node);
@@ -359,12 +391,30 @@ namespace GOAT::GraphEditor
             });
     }
 
-    void MainWindow::Revalidate()
+    void MainWindow::QueueRevalidate()
     {
-        if (m_restoring)
+        if (m_restoring || m_validating || m_revalidateQueued)
         {
             return;
         }
+
+        m_revalidateQueued = true;
+        QTimer::singleShot(0, this,
+            [this]()
+            {
+                m_revalidateQueued = false;
+                Revalidate();
+            });
+    }
+
+    void MainWindow::Revalidate()
+    {
+        if (m_restoring || m_validating)
+        {
+            return;
+        }
+
+        const Holding validating(m_validating);
 
         const GraphCanvas::GraphId graphId = GetActiveGraphCanvasGraphId();
         if (GetGraphById(graphId) == nullptr)
@@ -454,16 +504,30 @@ namespace GOAT::GraphEditor
                 added[i], GraphModel::SlotId(ParentSlotId));
         }
 
-        if (!authoredLayout)
-        {
-            LayoutByMeasuredSize(graphId, placed, added);
-        }
         m_restoring = false;
-
         m_undo.clear();
         m_redo.clear();
-        m_undo.push_back(Capture());
-        Revalidate();
+
+        if (authoredLayout)
+        {
+            m_undo.push_back(Capture());
+            QueueRevalidate();
+            return;
+        }
+
+        // A node has no size until Qt has laid its widget out, so measuring it in this same call
+        // reads zero for every one of them and the whole program collapses into one column.
+        QTimer::singleShot(0, this,
+            [this, graphId, placed, added]()
+            {
+                {
+                    const Holding restoring(m_restoring);
+                    LayoutByMeasuredSize(graphId, placed, added);
+                }
+                m_undo.clear();
+                m_undo.push_back(Capture());
+                QueueRevalidate();
+            });
     }
 
     void MainWindow::LayoutByMeasuredSize(const GraphCanvas::GraphId& graphId,
@@ -475,96 +539,36 @@ namespace GOAT::GraphEditor
             return;
         }
 
-        // What each node actually drew at, which is the only honest input to spacing.
-        AZStd::vector<float> width(count, 0.0f);
-        AZStd::vector<float> height(count, 0.0f);
+        AZStd::vector<GraphCanvas::NodeId> nodeIds(count);
+        AZStd::vector<LayoutNode> measured(count);
+
         for (size_t i = 0; i < count; ++i)
         {
-            GraphCanvas::NodeId nodeId;
             GraphModelIntegration::GraphControllerRequestBus::EventResult(
-                nodeId, graphId, &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, added[i]);
+                nodeIds[i], graphId, &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, added[i]);
 
             QGraphicsItem* item = nullptr;
             GraphCanvas::SceneMemberUIRequestBus::EventResult(
-                item, nodeId, &GraphCanvas::SceneMemberUIRequests::GetRootGraphicsItem);
+                item, nodeIds[i], &GraphCanvas::SceneMemberUIRequests::GetRootGraphicsItem);
+
+            measured[i].m_parent = placed[i].m_parent;
             if (item != nullptr)
             {
                 const QRectF bounds = item->boundingRect();
-                width[i] = static_cast<float>(bounds.width());
-                height[i] = static_cast<float>(bounds.height());
+                measured[i].m_width = static_cast<float>(bounds.width());
+                measured[i].m_height = static_cast<float>(bounds.height());
             }
+
+            // Whatever went wrong with measuring, two nodes must never land on each other.
+            measured[i].m_width = AZStd::max(measured[i].m_width, MinimumNodeWidth);
+            measured[i].m_height = AZStd::max(measured[i].m_height, MinimumNodeHeight);
         }
 
-        AZStd::vector<int> depth(count, 0);
+        const AZStd::vector<AZ::Vector2> positions = LayoutProgram(measured);
         for (size_t i = 0; i < count; ++i)
         {
-            depth[i] = placed[i].m_parent < 0 ? 0 : depth[static_cast<size_t>(placed[i].m_parent)] + 1;
-        }
-
-        // A column is as wide as its widest node, so a node with long property values does not
-        // run into the column beside it.
-        AZStd::vector<float> columnX;
-        for (size_t i = 0; i < count; ++i)
-        {
-            const size_t d = static_cast<size_t>(depth[i]);
-            if (columnX.size() <= d)
-            {
-                columnX.resize(d + 1, 0.0f);
-            }
-            columnX[d] = AZStd::max(columnX[d], width[i]);
-        }
-        float running = 0.0f;
-        for (float& x : columnX)
-        {
-            const float widest = x;
-            x = running;
-            running += widest + ColumnGap;
-        }
-
-        // Rows are handed out to leaves in order and parents centre on what they own, so no two
-        // nodes can land on the same band whatever their heights are.
-        AZStd::vector<float> top(count, 0.0f);
-        AZStd::vector<float> bottom(count, 0.0f);
-        float cursor = 0.0f;
-
-        for (size_t step = count; step > 0; --step)
-        {
-            const size_t i = step - 1;
-            bool hasChild = false;
-            float childTop = 0.0f;
-            float childBottom = 0.0f;
-            for (size_t c = 0; c < count; ++c)
-            {
-                if (placed[c].m_parent != static_cast<int>(i))
-                {
-                    continue;
-                }
-                childTop = hasChild ? AZStd::min(childTop, top[c]) : top[c];
-                childBottom = hasChild ? AZStd::max(childBottom, bottom[c]) : bottom[c];
-                hasChild = true;
-            }
-
-            if (hasChild)
-            {
-                const float centre = (childTop + childBottom) * 0.5f;
-                top[i] = centre - height[i] * 0.5f;
-                bottom[i] = centre + height[i] * 0.5f;
-            }
-            else
-            {
-                top[i] = cursor;
-                bottom[i] = cursor + height[i];
-                cursor = bottom[i] + RowGap;
-            }
-        }
-
-        for (size_t i = 0; i < count; ++i)
-        {
-            GraphCanvas::NodeId nodeId;
-            GraphModelIntegration::GraphControllerRequestBus::EventResult(
-                nodeId, graphId, &GraphModelIntegration::GraphControllerRequests::GetNodeIdByNode, added[i]);
-            GraphCanvas::GeometryRequestBus::Event(nodeId, &GraphCanvas::GeometryRequests::SetPosition,
-                AZ::Vector2(columnX[static_cast<size_t>(depth[i])], top[i]));
+            GraphCanvas::GeometryRequestBus::Event(
+                nodeIds[i], &GraphCanvas::GeometryRequests::SetPosition, positions[i]);
         }
     }
 

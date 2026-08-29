@@ -20,7 +20,7 @@
 					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Services" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
 					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Children" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
 					<Class name="AuthoredNodeMetadata" field="Metadata" version="1" type="{3E9CB59B-6545-46F2-8813-FB5F28C80670}">
-						<Class name="Vector2" field="Position" value="260.0000000 0.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
+						<Class name="Vector2" field="Position" value="340.0000000 0.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
 						<Class name="AZStd::string" field="Comment" value="" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
 					</Class>
 				</Class>
@@ -37,13 +37,13 @@
 					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Services" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
 					<Class name="AZStd::vector&lt;AuthoredNode, allocator&gt;" field="Children" type="{BD815FDF-AA07-5CC9-9CBE-E5BEE190FA5C}"/>
 					<Class name="AuthoredNodeMetadata" field="Metadata" version="1" type="{3E9CB59B-6545-46F2-8813-FB5F28C80670}">
-						<Class name="Vector2" field="Position" value="260.0000000 140.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
+						<Class name="Vector2" field="Position" value="340.0000000 280.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
 						<Class name="AZStd::string" field="Comment" value="" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
 					</Class>
 				</Class>
 			</Class>
 			<Class name="AuthoredNodeMetadata" field="Metadata" version="1" type="{3E9CB59B-6545-46F2-8813-FB5F28C80670}">
-				<Class name="Vector2" field="Position" value="0.0000000 70.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
+				<Class name="Vector2" field="Position" value="0.0000000 140.0000000" type="{3D80F623-C85C-4741-90D0-E4E66164E6BF}"/>
 				<Class name="AZStd::string" field="Comment" value="wait a beat once the target is seen" type="{03AAAB3F-5C47-5A66-9EBC-D5FA4DB353C9}"/>
 			</Class>
 		</Class>

@@ -13,6 +13,8 @@ set(FILES
     Source/Tools/GraphEditor/ProgramFile.h
     Source/Tools/GraphEditor/ProgramGraphSerializer.cpp
     Source/Tools/GraphEditor/ProgramGraphSerializer.h
+    Source/Tools/GraphEditor/ProgramLayout.cpp
+    Source/Tools/GraphEditor/ProgramLayout.h
     Source/Tools/GraphEditor/ProgramNode.cpp
     Source/Tools/GraphEditor/ProgramNode.h
     Source/Tools/GraphEditor/ProgramNodePaletteItem.cpp
