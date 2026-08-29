@@ -1,0 +1,12 @@
+set(FILES
+    Source/GOAT_UtilityModuleInterface.cpp
+    Source/GOAT_UtilityModuleInterface.h
+    Source/Clients/GOAT_UtilitySystemComponent.cpp
+    Source/Clients/GOAT_UtilitySystemComponent.h
+    Source/UtilityBackend.cpp
+    Source/UtilityBackend.h
+    Source/UtilityCompiler.cpp
+    Source/UtilityCompiler.h
+    Source/UtilityProgram.cpp
+    Source/UtilityProgram.h
+)
