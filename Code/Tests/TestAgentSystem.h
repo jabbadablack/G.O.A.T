@@ -140,7 +140,7 @@ namespace GOAT
         AZStd::vector<AZ::Name> GetNodeTypeNames() const override { return {}; }
         AZStd::string DescribeAgent(AgentId) const override { return {}; }
         bool SnapshotAgent(AgentId, AgentSnapshot&) const override { return false; }
-        AZStd::vector<AgentSnapshot> SnapshotAgents() const override { return {}; }
+        AZStd::vector<AgentSnapshot> SnapshotAgents(AgentId) const override { return {}; }
         ////////////////////////////////////////////////////////////////////////
 
     private:

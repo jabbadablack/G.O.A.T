@@ -20,10 +20,17 @@ namespace GOAT::GraphEditor
     public:
         explicit AgentTableModel(QObject* parent = nullptr);
 
-        //! Takes a fresh poll. The rows are only rebuilt when the set of agents has actually
-        //! changed, because resetting a model drops the selection, and at ten polls a second
-        //! that would make an agent impossible to keep hold of.
+        //! Takes a fresh poll and reconciles it against the rows already shown.
+        //!
+        //! Rows are never rebuilt wholesale. A level brings its agents up over several seconds,
+        //! and resetting a model of hundreds of rows on every poll while that happens costs far
+        //! more than the reading of them does -- besides dropping the selection each time. So
+        //! agents that are gone are removed, agents still there are updated in place, and new
+        //! ones arrive a handful at a time until the list has caught up.
         void SetSnapshots(const AZStd::vector<AgentSnapshot>& snapshots);
+
+        //! True while the table is still catching up with what the source reported.
+        bool IsCatchingUp() const { return m_pending > 0; }
 
         const AgentSnapshot* SnapshotAt(int row) const;
 
@@ -33,10 +40,9 @@ namespace GOAT::GraphEditor
         QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
 
     private:
-        //! True when both lists name the same agents in the same order.
-        bool SameAgents(const AZStd::vector<AgentSnapshot>& snapshots) const;
-
         AZStd::vector<AgentSnapshot> m_snapshots;
+        //! How many agents the last poll held that have not been added yet.
+        size_t m_pending = 0;
     };
 
     //! Lists the agents that are running, so one can be picked to watch.
@@ -56,6 +62,9 @@ namespace GOAT::GraphEditor
     signals:
         //! A different agent was picked, or the picked one went away.
         void SelectedAgentChanged();
+
+        //! An agent's row was double clicked, which is the ask to open its program.
+        void AgentActivated();
 
     private:
         AgentTableModel* m_model = nullptr;

@@ -42,6 +42,20 @@ namespace GOAT
         static void Reflect(AZ::ReflectContext* context);
 
         AZ::u32 m_protocolVersion = GoatDebugProtocolVersion;
+
+        //! The agent the tool is actually looking at, so the launcher works out where that one
+        //! is inside its program and does not pay to do it for every agent in the level.
+        //! @{
+        AZ::u32 m_watchedIndex = AgentId::NullIndex;
+        AZ::u32 m_watchedGeneration = 0;
+
+        AgentId GetWatched() const { return AgentId(m_watchedIndex, m_watchedGeneration); }
+        void SetWatched(AgentId agent)
+        {
+            m_watchedIndex = agent.GetIndex();
+            m_watchedGeneration = agent.GetGeneration();
+        }
+        //! @}
     };
 
     //! Launcher to editor: this is what they are doing.

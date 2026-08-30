@@ -107,8 +107,11 @@ namespace GOAT::GraphEditor
         //! Shows the program an agent is running, read only, from what the runtime compiled.
         void OpenRunningProgram(const AZStd::string& name);
 
-        //! Opens the program a newly picked agent is running, when it is not already open.
+        //! Starts watching a newly picked agent. Deliberately loads nothing.
         void OnSelectedAgentChanged();
+
+        //! Opens the program an agent is running, asked for by double clicking its row.
+        void OnAgentActivated();
 
         //! Builds the menu that chooses what is being watched.
         void BuildDebugMenu();

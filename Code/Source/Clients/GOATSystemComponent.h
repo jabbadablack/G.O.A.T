@@ -96,7 +96,14 @@ namespace GOAT
         AZStd::vector<AZ::Name> GetNodeTypeNames() const override;
         AZStd::string DescribeAgent(AgentId agent) const override;
         bool SnapshotAgent(AgentId agent, AgentSnapshot& outSnapshot) const override;
-        AZStd::vector<AgentSnapshot> SnapshotAgents() const override;
+        AZStd::vector<AgentSnapshot> SnapshotAgents(AgentId detail) const override;
+
+    private:
+        //! Both of the above. Where the agent is inside its program is the expensive part, so
+        //! it is only worked out when someone is actually looking at that agent.
+        bool Snapshot(AgentId agent, bool withPosition, AgentSnapshot& outSnapshot) const;
+
+    public:
         ////////////////////////////////////////////////////////////////////////
 
     protected:

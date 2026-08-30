@@ -30,8 +30,16 @@ namespace GOAT::GraphEditor
         //! Asks for fresh state. A source that answers over a wire only sends the request here.
         virtual void Poll() = 0;
 
+        //! Names the one agent whose position inside its program is wanted. Working that out
+        //! means walking an agent's state, so it is done for the agent being watched rather
+        //! than for every agent in the level.
+        virtual void SetWatched(AgentId agent) { m_watched = agent; }
+
         //! What the last poll produced. Empty until one answers.
         virtual const AZStd::vector<AgentSnapshot>& GetSnapshots() const = 0;
+
+    protected:
+        AgentId m_watched;
     };
 
     //! Reads the agent system running in this process.

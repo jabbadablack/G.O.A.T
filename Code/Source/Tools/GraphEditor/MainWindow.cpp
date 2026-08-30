@@ -45,9 +45,12 @@ namespace GOAT::GraphEditor
         //! bounded rather than the memory being left to grow with the session.
         constexpr size_t UndoDepth = 64;
 
-        //! How often the debug source is asked what agents are doing. Faster than the quickest
-        //! pacing band an agent can be on, so nothing it does is missed for want of asking.
-        constexpr int PollIntervalMs = 100;
+        //! How often the debug source is asked what agents are doing.
+        //!
+        //! Four times a second rather than ten: a level can hold hundreds of agents, and each
+        //! poll rebuilds a table of all of them. Faster than this buys nothing a reader can
+        //! see, and costs it while a level is still filling up.
+        constexpr int PollIntervalMs = 250;
 
         //! What a node is assumed to be when it cannot be measured, so a failed measurement
         //! spaces nodes too generously rather than piling them up.
@@ -140,6 +143,7 @@ namespace GOAT::GraphEditor
         m_agents = new AgentBrowserPanel(this);
         addDockWidget(Qt::RightDockWidgetArea, m_agents);
         connect(m_agents, &AgentBrowserPanel::SelectedAgentChanged, this, &MainWindow::OnSelectedAgentChanged);
+        connect(m_agents, &AgentBrowserPanel::AgentActivated, this, &MainWindow::OnAgentActivated);
 
         // Polled rather than pushed, so a runtime nobody is watching pays nothing. Ten times a
         // second is faster than any agent's own pacing band, which tops out at thirty.
@@ -381,6 +385,7 @@ namespace GOAT::GraphEditor
 
     void MainWindow::OpenRunningProgram(const AZStd::string& name)
     {
+
         IAgentSystem* agents = AgentSystemInterface::Get();
         if (agents == nullptr)
         {
@@ -404,12 +409,13 @@ namespace GOAT::GraphEditor
 
     void MainWindow::PollDebugSource()
     {
-        if (m_debug == nullptr || !isVisible())
+        if (m_debug == nullptr || !isVisible() || m_agents == nullptr || !m_agents->isVisible())
         {
-            // Nothing is watching, so nothing is asked for.
+            // Nobody can see the answer, so the question is not worth asking.
             return;
         }
 
+        m_debug->SetWatched(m_watching);
         m_debug->Poll();
         m_agents->SetSnapshots(m_debug->GetSnapshots(), m_debug->DescribeTarget());
         RefreshHighlight();
@@ -431,6 +437,13 @@ namespace GOAT::GraphEditor
             {
                 return NodeAtPath(path);
             });
+
+        // Said out loud, because a highlight that is not showing and a program that is not
+        // running look identical on a canvas.
+        statusBar()->showMessage(tr("Agent %1: %2 node(s) running in '%3'")
+                                     .arg(selected->m_agentIndex)
+                                     .arg(m_highlight.GetLitCount())
+                                     .arg(QString::fromUtf8(selected->m_program.GetCStr())));
     }
 
     void MainWindow::OnSelectedAgentChanged()
@@ -443,18 +456,27 @@ namespace GOAT::GraphEditor
             return;
         }
 
-        // Opening the agent's program is the point of picking one, but only ever on a real
-        // change of agent: loading rebuilds the canvas from scratch and defers its layout a
-        // turn, so it is not something to reach on a repeat.
-        const AgentId picked = selected->GetAgent();
-        const AZStd::string running = selected->m_program.GetCStr();
-        if (picked != m_watching)
+        // Watching an agent never loads anything. Selection moves on its own as a level
+        // brings agents up and takes them down again, and rebuilding the canvas costs the
+        // best part of a tenth of a second -- enough that doing it on selection made the
+        // editor stall for as long as the roster kept changing. Opening a program is asked
+        // for explicitly instead, by double clicking the row.
+        m_watching = selected->GetAgent();
+        RefreshHighlight();
+    }
+
+    void MainWindow::OnAgentActivated()
+    {
+        const AgentSnapshot* selected = m_agents->GetSelected();
+        if (selected == nullptr)
         {
-            m_watching = picked;
-            if (!running.empty() && running != m_programName)
-            {
-                OpenRunningProgram(running);
-            }
+            return;
+        }
+
+        const AZStd::string running = selected->m_program.GetCStr();
+        if (!running.empty() && running != m_programName)
+        {
+            OpenRunningProgram(running);
         }
         RefreshHighlight();
     }
@@ -497,6 +519,7 @@ namespace GOAT::GraphEditor
 
     void MainWindow::Revalidate()
     {
+
         if (m_restoring || m_validating)
         {
             return;

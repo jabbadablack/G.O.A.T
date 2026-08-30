@@ -1,8 +1,12 @@
 #include <Tools/GraphEditor/AgentBrowserPanel.h>
 
+#include <AzCore/std/containers/unordered_map.h>
+#include <AzCore/std/containers/unordered_set.h>
+#include <AzCore/std/algorithm.h>
+
 #include <QHeaderView>
 #include <QItemSelectionModel>
-#include <QSignalBlocker>
+
 #include <QLabel>
 #include <QTableView>
 #include <QVBoxLayout>
@@ -11,6 +15,10 @@ namespace GOAT::GraphEditor
 {
     namespace
     {
+        //! How many newly seen agents are added to the table per poll. Enough that a level
+        //! fills in about a second, few enough that no single poll is felt.
+        constexpr size_t MaxArrivalsPerPoll = 24;
+
         enum Column
         {
             AgentColumn,
@@ -55,38 +63,66 @@ namespace GOAT::GraphEditor
     {
     }
 
-    bool AgentTableModel::SameAgents(const AZStd::vector<AgentSnapshot>& snapshots) const
-    {
-        if (snapshots.size() != m_snapshots.size())
-        {
-            return false;
-        }
-        for (size_t i = 0; i < snapshots.size(); ++i)
-        {
-            if (snapshots[i].GetAgent() != m_snapshots[i].GetAgent())
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-
     void AgentTableModel::SetSnapshots(const AZStd::vector<AgentSnapshot>& snapshots)
     {
-        if (SameAgents(snapshots))
+        AZStd::unordered_map<AgentId, const AgentSnapshot*> incoming;
+        incoming.reserve(snapshots.size());
+        for (const AgentSnapshot& snapshot : snapshots)
         {
-            m_snapshots = snapshots;
-            if (!m_snapshots.empty())
+            incoming[snapshot.GetAgent()] = &snapshot;
+        }
+
+        // Gone first, walking backwards so a removal never shifts a row still to be examined.
+        for (int row = aznumeric_cast<int>(m_snapshots.size()) - 1; row >= 0; --row)
+        {
+            if (incoming.find(m_snapshots[row].GetAgent()) == incoming.end())
             {
-                emit dataChanged(index(0, 0),
-                    index(aznumeric_cast<int>(m_snapshots.size()) - 1, ColumnCount - 1));
+                beginRemoveRows(QModelIndex(), row, row);
+                m_snapshots.erase(m_snapshots.begin() + row);
+                endRemoveRows();
             }
+        }
+
+        // Then the ones still here, in place.
+        AZStd::unordered_set<AgentId> shown;
+        shown.reserve(m_snapshots.size());
+        for (AgentSnapshot& row : m_snapshots)
+        {
+            row = *incoming[row.GetAgent()];
+            shown.insert(row.GetAgent());
+        }
+        if (!m_snapshots.empty())
+        {
+            emit dataChanged(index(0, 0),
+                index(aznumeric_cast<int>(m_snapshots.size()) - 1, ColumnCount - 1));
+        }
+
+        // Then whatever is new, a few at a time. A level brings its agents up over several
+        // seconds, and taking them in a stream keeps the editor answering while it does.
+        AZStd::vector<const AgentSnapshot*> arriving;
+        for (const AgentSnapshot& snapshot : snapshots)
+        {
+            if (shown.find(snapshot.GetAgent()) == shown.end())
+            {
+                arriving.push_back(&snapshot);
+            }
+        }
+
+        m_pending = arriving.size();
+        if (arriving.empty())
+        {
             return;
         }
 
-        beginResetModel();
-        m_snapshots = snapshots;
-        endResetModel();
+        const size_t taking = AZStd::min(arriving.size(), MaxArrivalsPerPoll);
+        const int first = aznumeric_cast<int>(m_snapshots.size());
+        beginInsertRows(QModelIndex(), first, first + aznumeric_cast<int>(taking) - 1);
+        for (size_t i = 0; i < taking; ++i)
+        {
+            m_snapshots.push_back(*arriving[i]);
+        }
+        endInsertRows();
+        m_pending -= taking;
     }
 
     const AgentSnapshot* AgentTableModel::SnapshotAt(int row) const
@@ -182,41 +218,27 @@ namespace GOAT::GraphEditor
             {
                 emit SelectedAgentChanged();
             });
+
+        connect(m_table, &QTableView::doubleClicked, this,
+            [this](const QModelIndex&)
+            {
+                emit AgentActivated();
+            });
     }
 
     void AgentBrowserPanel::SetSnapshots(
         const AZStd::vector<AgentSnapshot>& snapshots, const AZStd::string& target)
     {
-        const AgentSnapshot* wasSelected = GetSelected();
-        const AgentId held = wasSelected != nullptr ? wasSelected->GetAgent() : AgentId();
-
+        // No reset happens in here, so the selection simply survives.
         m_model->SetSnapshots(snapshots);
 
-        // A reset drops the selection, so put it back on the same agent rather than on
-        // whatever row now happens to sit where it used to. Silently: restoring a selection is
-        // not the user picking one, and agents register in a stream as a level starts, so this
-        // runs on most polls. Announced, it would look like ten choices a second.
-        if (!held.IsNull() && GetSelected() == nullptr)
+        QString status = snapshots.empty() ? QString(target.c_str())
+                                           : QString("Watching %1").arg(target.c_str());
+        if (m_model->IsCatchingUp())
         {
-            const QSignalBlocker quiet(m_table->selectionModel());
-            for (int row = 0; row < m_model->rowCount(); ++row)
-            {
-                if (m_model->SnapshotAt(row)->GetAgent() == held)
-                {
-                    m_table->selectRow(row);
-                    break;
-                }
-            }
+            status += QString(" - listing%1").arg(QString("..."));
         }
-
-        m_status->setText(snapshots.empty() ? QString(target.c_str())
-                                            : QString("Watching %1").arg(target.c_str()));
-
-        // Only worth announcing when the agent that was being watched has actually gone.
-        if (!held.IsNull() && GetSelected() == nullptr)
-        {
-            emit SelectedAgentChanged();
-        }
+        m_status->setText(status);
     }
 
     const AgentSnapshot* AgentBrowserPanel::GetSelected() const

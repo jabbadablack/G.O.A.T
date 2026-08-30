@@ -184,13 +184,18 @@ namespace GOAT
         //! A one line summary of what an agent is doing, for the console.
         virtual AZStd::string DescribeAgent(AgentId agent) const = 0;
 
-        //! Everything a tool shows about one agent, in one pass. False when there is no such
-        //! agent. The active path is filled in by whatever backend owns the agent's program,
-        //! because only that backend can read the state block it wrote.
+        //! Everything a tool shows about one agent, including where inside its program it is.
+        //! False when there is no such agent. The active path is filled in by whatever backend
+        //! owns the program, because only that backend can read the state block it wrote.
         virtual bool SnapshotAgent(AgentId agent, AgentSnapshot& outSnapshot) const = 0;
 
-        //! The same for every registered agent, which is what an agent browser polls.
-        virtual AZStd::vector<AgentSnapshot> SnapshotAgents() const = 0;
+        //! Every registered agent, which is what an agent browser polls.
+        //!
+        //! Deliberately without active paths: working out where an agent is means asking its
+        //! backend to walk that agent's state, and a list of a thousand agents only ever shows
+        //! one of them at a time. Name the one being watched as @detail to have that one filled
+        //! in, and pay for one rather than for all of them.
+        virtual AZStd::vector<AgentSnapshot> SnapshotAgents(AgentId detail = {}) const = 0;
     };
 
     //! Registered by the GOAT system component for the lifetime of the gem.

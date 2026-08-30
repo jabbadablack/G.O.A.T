@@ -42,7 +42,7 @@ namespace GOAT::GraphEditor
             m_snapshots.clear();
             return;
         }
-        m_snapshots = AgentSystemInterface::Get()->SnapshotAgents();
+        m_snapshots = AgentSystemInterface::Get()->SnapshotAgents(m_watched);
     }
 
     void LocalAgentDebugSource::OnStartPlayInEditor()
@@ -178,7 +178,10 @@ namespace GOAT::GraphEditor
         // One ask per poll. The transport's inbox holds 128 messages and does not check for
         // overflow on the network path, so a burst is not something to risk.
         const AzFramework::RemoteToolsEndpointInfo target = remoteTools->GetDesiredEndpoint(GoatToolsKey);
-        remoteTools->SendRemoteToolsMessage(target, GOATDebugRequest());
+
+        GOATDebugRequest request;
+        request.SetWatched(m_watched);
+        remoteTools->SendRemoteToolsMessage(target, request);
 #endif
     }
 } // namespace GOAT::GraphEditor

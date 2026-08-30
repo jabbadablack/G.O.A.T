@@ -186,6 +186,7 @@ namespace GOAT
         // Answered once however many times it was asked in one tick, so a tool that asks faster
         // than this process ticks cannot make it do the work twice.
         bool asked = false;
+        AgentId watched;
         for (const AzFramework::RemoteToolsMessagePointer& message : *messages)
         {
             const auto* request = azrtti_cast<const GOATDebugRequest*>(message.get());
@@ -200,6 +201,7 @@ namespace GOAT
                 continue;
             }
             asked = true;
+            watched = request->GetWatched();
         }
         remoteTools->ClearReceivedMessages(GoatToolsKey);
 
@@ -215,7 +217,7 @@ namespace GOAT
         }
 
         GOATDebugReply reply;
-        reply.m_agents = SnapshotAgents();
+        reply.m_agents = SnapshotAgents(watched);
         remoteTools->SendRemoteToolsMessage(tool, reply);
 #endif
     }
@@ -1512,7 +1514,7 @@ namespace GOAT
         return names;
     }
 
-    bool GOATSystemComponent::SnapshotAgent(AgentId agent, AgentSnapshot& outSnapshot) const
+    bool GOATSystemComponent::Snapshot(AgentId agent, bool withPosition, AgentSnapshot& outSnapshot) const
     {
         if (m_agents == nullptr)
         {
@@ -1544,7 +1546,9 @@ namespace GOAT
 
         // Only the backend that wrote the agent's state block can read it, so where the agent
         // is inside its program is the one thing here the core cannot work out for itself.
-        if (record->GetBackend() != nullptr && record->m_program != nullptr)
+        // Left out unless asked for: it walks the agent's state and allocates a path, which is
+        // not something to do for every agent in a level when one of them is being watched.
+        if (withPosition && record->GetBackend() != nullptr && record->m_program != nullptr)
         {
             record->GetBackend()->DescribePosition(*record->m_program, record->GetState(),
                 record->m_machine.HasPlan() ? record->m_machine.GetStepIndex() : NoRunningStep,
@@ -1553,7 +1557,12 @@ namespace GOAT
         return true;
     }
 
-    AZStd::vector<AgentSnapshot> GOATSystemComponent::SnapshotAgents() const
+    bool GOATSystemComponent::SnapshotAgent(AgentId agent, AgentSnapshot& outSnapshot) const
+    {
+        return Snapshot(agent, true, outSnapshot);
+    }
+
+    AZStd::vector<AgentSnapshot> GOATSystemComponent::SnapshotAgents(AgentId detail) const
     {
         AZStd::vector<AgentSnapshot> snapshots;
         if (m_agents == nullptr)
@@ -1566,7 +1575,7 @@ namespace GOAT
         for (const AgentId agent : agents)
         {
             AgentSnapshot snapshot;
-            if (SnapshotAgent(agent, snapshot))
+            if (Snapshot(agent, agent == detail, snapshot))
             {
                 snapshots.push_back(AZStd::move(snapshot));
             }

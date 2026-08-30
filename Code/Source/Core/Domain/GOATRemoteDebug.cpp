@@ -10,7 +10,9 @@ namespace GOAT
         {
             serializeContext->Class<GOATDebugRequest, AzFramework::RemoteToolsMessage>()
                 ->Version(1)
-                ->Field("ProtocolVersion", &GOATDebugRequest::m_protocolVersion);
+                ->Field("ProtocolVersion", &GOATDebugRequest::m_protocolVersion)
+                ->Field("WatchedIndex", &GOATDebugRequest::m_watchedIndex)
+                ->Field("WatchedGeneration", &GOATDebugRequest::m_watchedGeneration);
         }
     }
 
