@@ -33,6 +33,18 @@ namespace GOAT
         m_transforms.resize(count(BlackboardType::Transform), AZ::Transform::CreateIdentity());
         m_entityLists.resize(count(BlackboardType::EntityIdList), EntityIdList{});
 
+        // Resize and initialise per-slot epoch vectors in parallel to the value arrays. Start epochs at 1
+        // so that a zeroed watcher's seen count never matches an untouched storage.
+        m_boolsEpochs.resize(m_bools.size(), 1);
+        m_intsEpochs.resize(m_ints.size(), 1);
+        m_floatsEpochs.resize(m_floats.size(), 1);
+        m_vectorsEpochs.resize(m_vectors.size(), 1);
+        m_entitiesEpochs.resize(m_entities.size(), 1);
+        m_namesEpochs.resize(m_names.size(), 1);
+        m_quaternionsEpochs.resize(m_quaternions.size(), 1);
+        m_transformsEpochs.resize(m_transforms.size(), 1);
+        m_entityListsEpochs.resize(m_entityLists.size(), 1);
+
         for (const auto& [key, value] : layout.m_defaults)
         {
             AZ_Assert(key.IsValid(), "A declared default must carry a valid key");
@@ -46,6 +58,39 @@ namespace GOAT
 
         AZ_Assert(m_bools.size() == count(BlackboardType::Bool), "Storage must be sized to the layout it was grown to");
         AZ_Assert(m_floats.size() == count(BlackboardType::Float), "Storage must be sized to the layout it was grown to");
+    }
+
+    AZ::u32 BlackboardStorage::GetKeyEpoch(BlackboardKey key) const
+    {
+        if (!key.IsValid())
+        {
+            return 0;
+        }
+
+        const AZ::u32 idx = key.GetIndex();
+        switch (key.GetType())
+        {
+        case BlackboardType::Bool:
+            return idx < m_boolsEpochs.size() ? m_boolsEpochs[idx] : 0;
+        case BlackboardType::Int:
+            return idx < m_intsEpochs.size() ? m_intsEpochs[idx] : 0;
+        case BlackboardType::Float:
+            return idx < m_floatsEpochs.size() ? m_floatsEpochs[idx] : 0;
+        case BlackboardType::Vector3:
+            return idx < m_vectorsEpochs.size() ? m_vectorsEpochs[idx] : 0;
+        case BlackboardType::EntityId:
+            return idx < m_entitiesEpochs.size() ? m_entitiesEpochs[idx] : 0;
+        case BlackboardType::Name:
+            return idx < m_namesEpochs.size() ? m_namesEpochs[idx] : 0;
+        case BlackboardType::Quaternion:
+            return idx < m_quaternionsEpochs.size() ? m_quaternionsEpochs[idx] : 0;
+        case BlackboardType::Transform:
+            return idx < m_transformsEpochs.size() ? m_transformsEpochs[idx] : 0;
+        case BlackboardType::EntityIdList:
+            return idx < m_entityListsEpochs.size() ? m_entityListsEpochs[idx] : 0;
+        default:
+            return 0;
+        }
     }
 
     void BlackboardStorage::Reset(const BlackboardLayout& layout)

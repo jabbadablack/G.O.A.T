@@ -56,6 +56,11 @@ namespace GOAT
         //! The change count this agent has already accounted for, per watched scope.
         AZStd::array<AZ::u32, ScopeCount> m_seen{};
 
+        //! Per-key watch list when a compiled program exposes observed keys. Empty when scope
+        //! watching is used instead.
+        AZStd::vector<BlackboardKey> m_observedKeys;
+        AZStd::vector<AZ::u32> m_seenKeyEpochs;
+
         //! Set when something outside a blackboard write says the guards are stale, and on the
         //! first tick, because a freshly connected agent has never evaluated them.
         bool m_forced = true;

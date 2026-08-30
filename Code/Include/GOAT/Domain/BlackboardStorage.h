@@ -57,8 +57,22 @@ namespace GOAT
         AZStd::vector<AZ::Transform> m_transforms;
         AZStd::vector<EntityIdList> m_entityLists;
 
+        // Per-slot epochs for each value array to allow detecting changes to individual keys.
+        AZStd::vector<AZ::u32> m_boolsEpochs;
+        AZStd::vector<AZ::u32> m_intsEpochs;
+        AZStd::vector<AZ::u32> m_floatsEpochs;
+        AZStd::vector<AZ::u32> m_vectorsEpochs;
+        AZStd::vector<AZ::u32> m_entitiesEpochs;
+        AZStd::vector<AZ::u32> m_namesEpochs;
+        AZStd::vector<AZ::u32> m_quaternionsEpochs;
+        AZStd::vector<AZ::u32> m_transformsEpochs;
+        AZStd::vector<AZ::u32> m_entityListsEpochs;
+
         //! Starts at one so a watcher's zeroed count never matches an untouched storage.
         AZ::u32 m_epoch = 1;
+
+        //! Returns the epoch counter for a specific key, or zero when the key is invalid or out of range.
+        AZ::u32 GetKeyEpoch(BlackboardKey key) const;
     };
 
 // Binds each value type to the array that stores it.
@@ -123,6 +137,42 @@ namespace GOAT
         // Only a real change counts. A write of the value already there must not wake anybody,
         // which is what keeps a director writing the same order every tick from costing anything.
         ++m_epoch;
+
+        // Also update the per-key epoch for finer-grained watches.
+        const AZ::u32 idx = key.GetIndex();
+        switch (key.GetType())
+        {
+        case BlackboardType::Bool:
+            if (idx < m_boolsEpochs.size()) ++m_boolsEpochs[idx];
+            break;
+        case BlackboardType::Int:
+            if (idx < m_intsEpochs.size()) ++m_intsEpochs[idx];
+            break;
+        case BlackboardType::Float:
+            if (idx < m_floatsEpochs.size()) ++m_floatsEpochs[idx];
+            break;
+        case BlackboardType::Vector3:
+            if (idx < m_vectorsEpochs.size()) ++m_vectorsEpochs[idx];
+            break;
+        case BlackboardType::EntityId:
+            if (idx < m_entitiesEpochs.size()) ++m_entitiesEpochs[idx];
+            break;
+        case BlackboardType::Name:
+            if (idx < m_namesEpochs.size()) ++m_namesEpochs[idx];
+            break;
+        case BlackboardType::Quaternion:
+            if (idx < m_quaternionsEpochs.size()) ++m_quaternionsEpochs[idx];
+            break;
+        case BlackboardType::Transform:
+            if (idx < m_transformsEpochs.size()) ++m_transformsEpochs[idx];
+            break;
+        case BlackboardType::EntityIdList:
+            if (idx < m_entityListsEpochs.size()) ++m_entityListsEpochs[idx];
+            break;
+        default:
+            break;
+        }
+
         return true;
     }
 } // namespace GOAT

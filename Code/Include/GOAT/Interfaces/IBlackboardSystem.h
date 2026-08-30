@@ -77,6 +77,9 @@ namespace GOAT
             BlackboardStorage* storage = FindStorage(key.GetScope(), agent);
             return storage != nullptr && storage->Set<T>(key, value);
         }
+
+        //! Returns the change epoch for a specific key, or zero when the key/storage does not exist.
+        virtual AZ::u32 GetKeyEpoch(BlackboardKey key, AgentId agent = {}) const = 0;
     };
 
     //! Registered by the GOAT system component for the lifetime of the gem.

@@ -80,6 +80,40 @@ namespace GOAT
         m_freeSlots.push_back(agent.GetIndex());
         --m_liveCount;
 
+        // Compact trailing free slots to keep GetSlotCount bounded by the highest live slot.
+        // This is opportunistic: only removes slots at the end so existing slot indices stay
+        // stable and no handles are invalidated unexpectedly.
+        while (m_slotCount > 0)
+        {
+            const size_t lastIndex = m_slotCount - 1;
+            const Slot* lastEntry = At(lastIndex);
+            if (lastEntry != nullptr && !lastEntry->m_live)
+            {
+                // Remove any occurrence of this index from the free list so it won't be reused.
+                const AZ::u32 lastIdx32 = static_cast<AZ::u32>(lastIndex);
+                auto it = AZStd::find(m_freeSlots.begin(), m_freeSlots.end(), lastIdx32);
+                if (it != m_freeSlots.end())
+                {
+                    m_freeSlots.erase(it);
+                }
+
+                --m_slotCount;
+
+                // If the last chunk became unused, pop it. Chunks partition slots so chunk
+                // boundaries are at multiples of RecordsPerChunk.
+                const size_t chunkIndex = lastIndex / RecordsPerChunk;
+                const size_t chunkStart = chunkIndex * RecordsPerChunk;
+                if (m_slotCount <= chunkStart && !m_chunks.empty())
+                {
+                    m_chunks.pop_back();
+                }
+
+                // Continue trimming while trailing slots remain free.
+                continue;
+            }
+            break;
+        }
+
         return true;
     }
 

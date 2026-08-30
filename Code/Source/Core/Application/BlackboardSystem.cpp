@@ -185,4 +185,10 @@ namespace GOAT
             return nullptr;
         }
     }
+
+    AZ::u32 BlackboardSystem::GetKeyEpoch(BlackboardKey key, AgentId agent) const
+    {
+        const BlackboardStorage* storage = FindStorage(key.GetScope(), agent);
+        return storage != nullptr ? storage->GetKeyEpoch(key) : 0;
+    }
 } // namespace GOAT
