@@ -435,6 +435,44 @@ namespace GOAT
             {
                 node.m_amount = static_cast<float>(number);
             }
+
+            //! --- Parse "reads" for Lua nodes ---
+            if (parameter.m_name == AZ_NAME_LITERAL("reads"))
+            {
+                AZStd::vector<AZStd::string> readKeys;
+                if (const auto* asVec = AZStd::any_cast<AZStd::vector<AZStd::string>>(value))
+                {
+                    readKeys = *asVec;
+                }
+                else
+                {
+                    // Not an array of strings – treat as unbounded.
+                    node.m_hasUnboundedLuaReads = true;
+                    continue;
+                }
+
+                if (readKeys.empty())
+                {
+                    node.m_hasUnboundedLuaReads = true;
+                    continue;
+                }
+
+                for (const AZStd::string& keyName : readKeys)
+                {
+                    BlackboardKey key = m_blackboard.FindKey(AZ::Name(keyName));
+                    if (key.IsValid())
+                    {
+                        program.m_luaObservedKeys.push_back(key);
+                    }
+                    else
+                    {
+                        AZ_Error("GOAT", false, "Lua node '%s' reads undeclared blackboard variable '%s'",
+                            authored.m_type.c_str(), keyName.c_str());
+                        node.m_hasUnboundedLuaReads = true;
+                    }
+                }
+                continue;
+            }
         }
 
         // A condition names what must hold. That is a dependency, so it is watched and it
@@ -642,6 +680,30 @@ namespace GOAT
         program.m_observedKeys.erase(
             AZStd::unique(program.m_observedKeys.begin(), program.m_observedKeys.end()), program.m_observedKeys.end());
 
+        //! --- Build child table for O(1) navigation ---
+        for (DecisionNode& node : program.m_nodes)
+        {
+            switch (node.m_op)
+            {
+            case NodeOp::Selector:
+            case NodeOp::Sequence:
+            case NodeOp::Parallel:
+            case NodeOp::LuaComposite:
+                node.m_childTableOffset = static_cast<AZ::u32>(program.m_childTable.size());
+                NodeIndex child = node.m_firstChild;
+                for (AZ::u16 c = 0; c < node.m_childCount; ++c)
+                {
+                    AZ_Assert(child != InvalidNodeIndex, "Child count must match actual children");
+                    program.m_childTable.push_back(child);
+                    program.m_nodes[child].m_childIndex = c;
+                    child = program.m_nodes[child].m_subtreeEnd;
+                }
+                break;
+            default:
+                break;
+            }
+        }
+
         // One slot per node that keeps something between ticks, then one per service. Assigning
         // them here is what lets an agent's cursor be a fixed block: the compiler is the only
         // thing that knows how much state a tree actually needs.
@@ -669,20 +731,32 @@ namespace GOAT
                 static_cast<AZ::u32>(MaxCursorSlots)));
         }
 
-        // A Lua composite or decorator decides in script, so what it does cannot be predicted
-        // from the blackboard and the clock. Noting it here is what lets every other tree be left
-        // dormant when nothing it reads has changed, without guessing which trees are safe.
+        // Determine if we need to tick every frame.
+        program.m_wantsTick = false;
+
+        bool anyUnboundedLua = false;
         for (const DecisionNode& node : program.m_nodes)
         {
             if (node.m_op == NodeOp::LuaComposite || node.m_op == NodeOp::LuaDecorator)
             {
-                program.m_wantsTick = true;
-                break;
+                if (node.m_hasUnboundedLuaReads)
+                {
+                    anyUnboundedLua = true;
+                    break;
+                }
             }
         }
 
-        // Services need a beat of their own, so a tree with any is never left dormant.
-        program.m_wantsTick = program.m_wantsTick || !program.m_services.empty();
+        if (anyUnboundedLua || !program.m_services.empty())
+        {
+            program.m_wantsTick = true;
+        }
+        else
+        {
+            // Merge Lua-observed keys into the main m_observedKeys for GuardWatch.
+            program.m_observedKeys.insert(program.m_observedKeys.end(),
+                program.m_luaObservedKeys.begin(), program.m_luaObservedKeys.end());
+        }
 
         for (const BlackboardKey key : program.m_observedKeys)
         {

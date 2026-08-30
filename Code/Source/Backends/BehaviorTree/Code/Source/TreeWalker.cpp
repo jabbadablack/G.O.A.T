@@ -32,7 +32,7 @@ namespace GOAT
             return step;
         }
 
-        //! Index of a composite's nth child, reached by following each earlier sibling's subtree end.
+        //! Index of a composite's nth child, using a precomputed lookup table.
         NodeIndex NthChild(const DecisionProgram& program, NodeIndex parent, AZ::u16 n)
         {
             AZ_Assert(parent < program.m_nodes.size(), "A composite index must address a node in the program");
@@ -42,13 +42,7 @@ namespace GOAT
             {
                 return InvalidNodeIndex;
             }
-
-            NodeIndex child = node.m_firstChild;
-            for (AZ::u16 i = 0; i < n && child != InvalidNodeIndex; ++i)
-            {
-                child = program.m_nodes[child].m_subtreeEnd;
-            }
-            return child;
+            return program.m_childTable[node.m_childTableOffset + n];
         }
 
     } // namespace
@@ -176,9 +170,16 @@ namespace GOAT
                     continue;
 
                 case NodeOp::TimeLimit:
-                    cursor.Slot(current.m_cursorSlot) = cursor.GetNow() + current.m_amount;
+                {
+                    float deadline = cursor.GetNow() + current.m_amount;
+                    cursor.Slot(current.m_cursorSlot) = deadline;
+                    if (deadline > cursor.GetNow())
+                    {
+                        wakeAt = AZStd::min(wakeAt, deadline);
+                    }
                     node = current.m_firstChild;
                     continue;
+                }
 
                 case NodeOp::LuaComposite:
                 {
@@ -339,12 +340,19 @@ namespace GOAT
                 continue;
 
             case NodeOp::TimeLimit:
-                if (cursor.GetNow() > cursor.GetSlot(parent.m_cursorSlot))
+            {
+                float deadline = cursor.GetSlot(parent.m_cursorSlot);
+                if (cursor.GetNow() > deadline)
                 {
                     result = ActionResult::Failure;
                 }
+                else
+                {
+                    wakeAt = AZStd::min(wakeAt, deadline);
+                }
                 node = parentIndex;
                 continue;
+            }
 
             case NodeOp::LuaComposite:
             {

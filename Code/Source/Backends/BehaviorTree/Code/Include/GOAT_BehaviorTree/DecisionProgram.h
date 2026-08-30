@@ -82,6 +82,12 @@ namespace GOAT
         AZ::u32 m_firstService = 0;
         //! How many services are attached to this node.
         AZ::u16 m_serviceCount = 0;
+        //! Offset into DecisionProgram::m_childTable (used by composites)
+        AZ::u32 m_childTableOffset = 0;
+        //! Index of this node among its parent's children (for ChildIndexOf)
+        AZ::u16 m_childIndex = 0;
+        //! True if this Lua node has no "reads" declaration → forces m_wantsTick
+        bool m_hasUnboundedLuaReads = false;    
     };
 
     //! A behavior tree compiled for execution: flat, immutable, and shared by every agent using it.
@@ -108,10 +114,18 @@ namespace GOAT
         AZStd::vector<NodeIndex> m_serviceNodes;
         //! Parallel nodes, so re-checking their background branches scans only those.
         AZStd::vector<NodeIndex> m_parallelNodes;
+        //! Flat array: [Composite1 Child0, Composite1 Child1, Composite2 Child0...]
+        AZStd::vector<NodeIndex> m_childTable;
+        //! Keys that Lua nodes read (from their "reads" declaration). Merged with m_observedKeys for GuardWatch.
+        AZStd::vector<BlackboardKey> m_luaObservedKeys;
         //! Cursor slots this tree needs, and where the run of one slot per service starts.
         AZ::u16 m_cursorSlotCount = 0;
         AZ::u16 m_serviceSlotBase = 0;
         //! Deepest path in this tree, checked against MaxTreeDepth at compile time.
         AZ::u32 m_depth = 0;
+
+        // Flat array: [Composite1 Child0, Composite1 Child1, Composite2 Child0...]
+        AZStd::vector<BlackboardKeyId> m_observedKeys; // Unique list of blackboard keys Lua nodes read
+        bool m_pollEveryTick = true;                  // Fallback flag (initially true, relaxed later)
     };
 } // namespace GOAT
